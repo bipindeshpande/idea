@@ -1,0 +1,139 @@
+profile_analysis_task:
+  description: >
+    Analyze the user's professional profile based on their provided information:
+    - Goals: {goals}
+    - Time Commitment: {time_commitment}
+    - Interests: {interests}
+    - Professional Background: {professional_background}
+    - Skills & Strengths: {skills}
+    - Available Resources & Network: {resources}
+    - Budget Range: {budget_range}
+    - Risk Tolerance: {risk_tolerance}
+    - Preferred Business Models / Industries: {preferred_model}
+    - Learning Goals & Personal Priorities: {learning_goals}
+
+    Extract and summarize:
+    - Key proficiencies and leverageable experiences
+    - Notable achievements and domain expertise
+    - Time availability and required operating style
+    - Budget constraints and capital flexibility
+    - Risk appetite and decision-making preferences
+    - Strategic resources/unfair advantages
+    - Learning motivations and lifestyle criteria
+    - Major constraints, assumptions, or gaps to address
+  expected_output: >
+    A detailed profile summary document that includes:
+    - Professional strengths, skills, and relevant experience highlights
+    - Budget considerations and financial constraints
+    - Risk profile and operating preferences
+    - Resource inventory (network, tools, partnerships)
+    - Motivations, learning objectives, and key constraints
+    - Recommendations on how to leverage strengths and address gaps
+  agent: profile_analyzer
+  output_file: output/profile_analysis.md
+
+idea_research_task:
+  description: >
+    Based on the user's profile analysis, research and generate at least five (ideally 5-8) innovative startup ideas that:
+    - Align with the user's goals: {goals}
+    - Match their time commitment: {time_commitment}
+    - Leverage their interests: {interests} and skills: {skills}
+    - Utilise their professional background: {professional_background}
+    - Respect the available budget range: {budget_range}
+    - Align with preferred business models / industries: {preferred_model}
+    - Leverage accessible resources: {resources}
+    - Match risk tolerance: {risk_tolerance}
+    - Support learning goals: {learning_goals}
+
+    IMPORTANT STRUCTURE REQUIREMENT:
+    - Begin your response with the exact heading `### Idea Research Report`
+    - Follow with a short executive summary paragraph (3-4 sentences)
+    - Provide a numbered list of **at least five** ideas in the format `1. **Idea Name**` and include detailed subsections for each idea (see expected_output)
+    - Close with a `### Validation Backlog` section containing bullet-point experiments
+    - If you cannot meet this structure, you must explicitly state why and request another try. Never provide a one-line summary.
+
+    IMPORTANT: Use the available tools to enhance your research when helpful:
+    1. Use research_market_trends tool to analyze market trends for ideas you generate
+    2. Use analyze_competitors tool to check competitive landscape for promising ideas
+    3. Use estimate_market_size tool to assess market opportunity for viable ideas
+    4. Use validate_startup_idea tool to check feasibility of top ideas
+
+    Do not merely acknowledge the need for research—produce the full, detailed report in markdown format. Every idea must be documented with sufficient depth to guide execution.
+
+    For each idea, provide:
+    - Business concept description and why it suits the user's profile
+    - Target market and customer segments (reflecting user's network/resources)
+    - Revenue model possibilities aligning with preferred models
+    - Required resources, skills, and how user strengths map to them
+    - Time to market estimate based on time commitment and budget
+    - Competitive landscape overview (use analyze_competitors tool when helpful)
+    - Market size estimation (use estimate_market_size tool when helpful)
+    - Market trends analysis (use research_market_trends tool when helpful)
+    - Validation score and feasibility assessment (use validate_startup_idea tool for key ideas)
+    - Key challenges, required partnerships, and execution considerations
+  expected_output: >
+    A comprehensive research document with the following structure:
+    - Heading `### Idea Research Report`
+    - Executive Summary paragraph (minimum 150 words)
+    - Numbered ideas section (`1.` through at least `5.`) where each idea contains:
+      * **Idea Fit Summary** covering concept and alignment with profile
+      * **Market Opportunity** describing segments, sizing, and trends (reference tool outputs)
+      * **Revenue Model & Financials** detailing pricing, monetization, cost assumptions
+      * **Resource & Skill Mapping** connecting requirements to the user's strengths/resources
+      * **Timeline & Effort** with realistic milestones respecting time commitment and budget
+      * **Risks & Mitigations** leveraging tool insights and risk tolerance
+      * **Immediate Experiments** listing 2-3 validation steps with success metrics
+    - `### Validation Backlog` section aggregating experiments across ideas
+    The output must exceed 1200 words and remain actionable and exhaustive—avoid summaries or generic statements.
+  agent: idea_researcher
+  output_file: output/startup_ideas_research.md
+
+recommendation_task:
+  description: >
+    Based on the profile analysis and researched startup ideas, create personalized recommendations:
+    - Rank the top 3 startup ideas that best match the user
+    - Provide detailed reasoning grounded in goals {goals}, time {time_commitment}, interests {interests}, professional background {professional_background}, skills {skills}, resources {resources}, budget {budget_range}, risk tolerance {risk_tolerance}, preferred model {preferred_model}, and learning goals {learning_goals}
+    - Include actionable next steps for each top idea, highlighting how to leverage strengths and cover gaps
+    - Outline execution timeline and milestones compatible with their availability
+    - Address potential challenges, capital requirements, and mitigation tactics
+    - Provide tips for validation, traction tests, and resource allocation
+
+    MANDATORY FORMAT (non-negotiable):
+    - Start with the heading `### Comprehensive Recommendation Report`
+    - Add a "Profile Fit Summary" subsection with bullet points translating the profile into insights
+    - Present a table or bullet comparison showing how each top idea aligns with goals, budget, and risk
+    - Provide a numbered list `1.` to `3.` titled **Idea Name** with deep dives (see expected_output)
+    - Include dedicated sections for `### Financial Outlook`, `### Risk Radar`, `### Customer Persona`, `### Validation Questions`, and `### 30/60/90 Day Roadmap`
+    - Close with `### Decision Checklist` summarizing go/no-go signals
+    - If you cannot produce this structure, request a rerun rather than returning a summary.
+
+    IMPORTANT: Use the available tools to enhance your recommendations when helpful:
+    1. Use assess_startup_risks tool to evaluate risks for the top 3 ideas (consider risk tolerance)
+    2. Use estimate_startup_costs tool to provide cost estimates scoped to budget
+    3. Use project_revenue tool to show revenue potential relative to goals
+    4. Use check_financial_viability tool to validate financial feasibility
+    5. Use check_domain_availability tool for the #1 recommended idea
+    6. Use generate_customer_persona tool to create customer profiles for the top idea
+    7. Use generate_validation_questions tool to propose discovery prompts tied to learning goals
+
+    Always return the full detailed recommendation in markdown, not just an acknowledgement. The output should contain detailed sections so the frontend can display structured insights.
+  expected_output: >
+    A comprehensive recommendation report with the following required sections and minimum detail:
+    - Heading `### Comprehensive Recommendation Report`
+    - `#### Profile Fit Summary` with at least six bullet points mapping user inputs to strategic considerations
+    - `#### Recommendation Matrix` comparing the top ideas against goals, time, budget, risk, and resources
+    - Numbered ideas `1.` to `3.` where each idea covers:
+      * **Why it fits now** (referencing goals, time, risk, resources)
+      * **Execution path** with immediate actions, partners, and required skills
+      * **Financial snapshot** (costs, revenue projections, breakeven) citing tool outputs
+      * **Key risks & mitigations** leveraging assess_startup_risks results
+    - `### Financial Outlook` summarizing budget fit, revenue projections, and viability scores
+    - `### Risk Radar` with categorized risks and mitigation tactics
+    - `### Customer Persona` describing demographics, pains, gains, buying triggers (from generate_customer_persona)
+    - `### Validation Questions` listing at least eight discovery questions tied to learning goals (from generate_validation_questions)
+    - `### 30/60/90 Day Roadmap` outlining milestones aligned to the user's time commitment
+    - `### Decision Checklist` highlighting signals to move forward or pivot
+    The report must exceed 1000 words and retain the exact section headings specified. Do not collapse content into a single paragraph.
+  agent: recommendation_advisor
+  output_file: output/personalized_recommendations.md
+
