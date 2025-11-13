@@ -624,5 +624,20 @@ export function cleanNarrativeMarkdown(markdown = "") {
     .trim();
 }
 
+export function dedupeStrings(items = []) {
+  const seen = new Set();
+  return items
+    .map((item) => personalizeCopy(item).trim())
+    .filter((item) => {
+      if (!item) return false;
+      const normalized = item.toLowerCase().replace(/\s+/g, " ");
+      if (seen.has(normalized)) {
+        return false;
+      }
+      seen.add(normalized);
+      return true;
+    });
+}
+
 
 

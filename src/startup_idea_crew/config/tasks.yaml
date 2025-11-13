@@ -1,49 +1,138 @@
 profile_analysis_task:
   description: >
-    Analyze the user's professional profile based on their provided information:
-    - Goals: {goals}
-    - Time Commitment: {time_commitment}
-    - Interests: {interests}
-    - Professional Background: {professional_background}
-    - Skills & Strengths: {skills}
-    - Available Resources & Network: {resources}
-    - Budget Range: {budget_range}
-    - Risk Tolerance: {risk_tolerance}
-    - Preferred Business Models / Industries: {preferred_model}
-    - Learning Goals & Personal Priorities: {learning_goals}
+    YOU MUST START YOUR RESPONSE WITH EXACTLY THIS LINE (copy it exactly):
+    ## 1. Core Motivation
 
-    Extract and summarize:
-    - Key proficiencies and leverageable experiences
-    - Notable achievements and domain expertise
-    - Time availability and required operating style
-    - Budget constraints and capital flexibility
-    - Risk appetite and decision-making preferences
-    - Strategic resources/unfair advantages
-    - Learning motivations and lifestyle criteria
-    - Major constraints, assumptions, or gaps to address
+    DO NOT write "Profile Summary Document" or any title before this.
+    DO NOT use bold headings like **Core Motivations**.
+    DO NOT use numbered lists like 1. Core Motivations.
+    ONLY use markdown headings: ## 1. Core Motivation
+
+    CRITICAL: Write in second-person ("You") ONLY. Never use "the user" or "their." Write like you're talking directly to the person.
+
+    Analyze the user's intake profile and create a concise, actionable strategic summary. Be direct and practical—cut all academic fluff.
+
+    User inputs:
+    - Goal Type: {goal_type}
+    - Time Commitment: {time_commitment}
+    - Budget Range: {budget_range}
+    - Interest Area: {interest_area}
+    - Sub-Interest Focus: {sub_interest_area}
+    - Preferred Work Style: {work_style}
+    - Primary Skill Strength: {skill_strength}
+    - Experience Summary: {experience_summary}
+
+    WRITING RULES (non-negotiable):
+    - Use "You" not "the user" or "they"
+    - Use short, punchy sentences
+    - Avoid: "Given the fact that", "It is important to note", "Additionally", "Furthermore"
+    - Be specific: "Botpress, Rasa, Dialogflow" not "various chatbot frameworks"
+    - Focus on execution: "Week 1: Build a basic intent bot" not "The first phase should involve..."
+    - Keep paragraphs under 3 sentences
+    - Use bullet points liberally
+
+    MANDATORY OUTPUT FORMAT - COPY THIS EXACT STRUCTURE:
+    
+    ## 1. Core Motivation
+    
+    [Start with "You're exploring..." or "You want to..." - 2-3 sentences max. Use second-person only.]
+
+    ## 2. Operating Constraints
+    
+    - Time ({time_commitment}): [One sentence on what this means for project scope]
+    - Work Style ({work_style}): [One sentence on how this shapes execution]
+    - Budget ({budget_range}): [One sentence on what tools/platforms this enables or rules out]
+
+    ## 3. Opportunity Within [Interest Area]
+    
+    [2-3 bullet points with concrete examples. Use specific tool names, frameworks, or market signals. NO abstract theory.]
+
+    ## 4. Strengths You Can Leverage
+    
+    [2-4 bullet points. Each point: one strength + how it helps execution. Example: "Strong automation mindset → designing logical flows and triggers."]
+
+    ## 5. Skill Gaps to Fill
+    
+    [2-4 bullet points. Be concrete: "NLP basics: intents, entities, context, conversation memory" NOT "understanding of technical concepts."]
+
+    ## 6. Recommendations
+    
+    [Actionable steps in bullet format. Include specific platform/tool choices, concrete project framing, weekly milestones (Week 1: X, Week 2: Y, Week 3: Z, Week 4: W), learning approach, community resources, success metrics as questions.]
+
+    ## 7. Clarifications Needed (for downstream agents)
+    
+    [3-5 questions. Format as questions, not statements. Example: "Which chatbot niche interests you most?" NOT "It would be helpful to know which chatbot niche..."]
+
+    STRICT REQUIREMENTS:
+    - Total word count: 600-800 words maximum
+    - Every sentence uses "You" not "the user" or "they"
+    - No phrases like "Given the", "It is important", "Additionally", "Furthermore"
+    - Be specific with tool names, not generic descriptions
+    - Keep paragraphs short (2-3 sentences max)
+    - Use markdown headings (##) not numbered lists (1.) or bold (**)
+    - DO NOT start with "Profile Summary Document" or any other title
+    - DO NOT use third-person language anywhere
+    - DO NOT use bold headings (**Core Motivations**)
+    - START DIRECTLY WITH: ## 1. Core Motivation
   expected_output: >
-    A detailed profile summary document that includes:
-    - Professional strengths, skills, and relevant experience highlights
-    - Budget considerations and financial constraints
-    - Risk profile and operating preferences
-    - Resource inventory (network, tools, partnerships)
-    - Motivations, learning objectives, and key constraints
-    - Recommendations on how to leverage strengths and address gaps
+    A concise strategic summary with numbered sections in this EXACT format. Use second-person ("You") throughout.
+
+    ## 1. Core Motivation
+    
+    One paragraph (2-3 sentences max) explaining their real drive in plain language. Start with "You're exploring..." or "You want to..." NOT "The user's goal is..." or "Given the interest in..."
+
+    ## 2. Operating Constraints
+    
+    Break down time, work style, and budget with specific implications. Format as:
+    - Time ({time_commitment}): One sentence on what this means for project scope
+    - Work Style ({work_style}): One sentence on how this shapes execution
+    - Budget ({budget_range}): One sentence on what tools/platforms this enables or rules out
+
+    ## 3. Opportunity Within [Interest Area]
+    
+    Why this interest area and sub-focus matter now. 2-3 bullet points with concrete examples. Use specific tool names, frameworks, or market signals. NO abstract theory.
+
+    ## 4. Strengths You Can Leverage
+    
+    List 2-4 bullet points. Each point: one strength + how it helps execution. Example: "Strong automation mindset → designing logical flows and triggers."
+
+    ## 5. Skill Gaps to Fill
+    
+    List 2-4 bullet points. Be concrete: "NLP basics: intents, entities, context, conversation memory" NOT "understanding of technical concepts."
+
+    ## 6. Recommendations
+    
+    Actionable steps in bullet format. Include:
+    - Specific platform/tool choices (e.g., "Pick one: Botpress, Rasa, Langflow, or Dialogflow")
+    - Concrete project framing (e.g., "a goal-based idea-finder bot")
+    - Weekly milestones (Week 1: X, Week 2: Y, Week 3: Z, Week 4: W)
+    - Learning approach (e.g., "Learn in the flow, not through courses alone")
+    - Community resources (specific: "Botpress Discord, Rasa Forum, Langflow GitHub")
+    - Success metrics as questions (e.g., "Did you understand how a bot manages context?")
+
+    ## 7. Clarifications Needed (for downstream agents)
+    
+    List 3-5 questions. Format as questions, not statements. Example: "Which chatbot niche interests you most?" NOT "It would be helpful to know which chatbot niche..."
+
+    STRICT REQUIREMENTS:
+    - Total word count: 600-800 words maximum
+    - Every sentence uses "You" not "the user" or "they"
+    - No phrases like "Given the", "It is important", "Additionally", "Furthermore"
+    - Be specific with tool names, not generic descriptions
+    - Keep paragraphs short (2-3 sentences max)
   agent: profile_analyzer
   output_file: output/profile_analysis.md
 
 idea_research_task:
   description: >
     Based on the user's profile analysis, research and generate at least five (ideally 5-8) innovative startup ideas that:
-    - Align with the user's goals: {goals}
-    - Match their time commitment: {time_commitment}
-    - Leverage their interests: {interests} and skills: {skills}
-    - Utilise their professional background: {professional_background}
+    - Align with the user's goal type: {goal_type}
+    - Match their stated time commitment: {time_commitment}
     - Respect the available budget range: {budget_range}
-    - Align with preferred business models / industries: {preferred_model}
-    - Leverage accessible resources: {resources}
-    - Match risk tolerance: {risk_tolerance}
-    - Support learning goals: {learning_goals}
+    - Fit the primary interest area: {interest_area} and sub-focus: {sub_interest_area}
+    - Leverage their primary skill strength: {skill_strength}
+    - Support the preferred work style: {work_style}
+    - Build on context from the experience summary: {experience_summary}
 
     IMPORTANT STRUCTURE REQUIREMENT:
     - Begin your response with the exact heading `### Idea Research Report`
@@ -52,20 +141,20 @@ idea_research_task:
     - Close with a `### Validation Backlog` section containing bullet-point experiments
     - If you cannot meet this structure, you must explicitly state why and request another try. Never provide a one-line summary.
 
-    IMPORTANT: Use the available tools to enhance your research when helpful:
-    1. Use research_market_trends tool to analyze market trends for ideas you generate
-    2. Use analyze_competitors tool to check competitive landscape for promising ideas
-    3. Use estimate_market_size tool to assess market opportunity for viable ideas
-    4. Use validate_startup_idea tool to check feasibility of top ideas
+    IMPORTANT: Use tools efficiently—only call them for your top 2-3 ideas to save time:
+    1. Use research_market_trends tool for top 2 ideas only
+    2. Use analyze_competitors tool for top 2 ideas only
+    3. Use estimate_market_size tool for top 2 ideas only
+    4. Use validate_startup_idea tool for top 1 idea only
 
-    Do not merely acknowledge the need for research—produce the full, detailed report in markdown format. Every idea must be documented with sufficient depth to guide execution.
+    Be concise. Produce the full report but keep each idea section focused. Every idea must be documented with sufficient depth to guide execution.
 
     For each idea, provide:
-    - Business concept description and why it suits the user's profile
-    - Target market and customer segments (reflecting user's network/resources)
-    - Revenue model possibilities aligning with preferred models
-    - Required resources, skills, and how user strengths map to them
-    - Time to market estimate based on time commitment and budget
+    - Business concept description and why it suits the intake profile
+    - Target market and customer segments consistent with their interests and skills
+    - Revenue model possibilities that respect budget boundaries
+    - Required resources, team structure, and how the user's strengths/work style map to them
+    - Time to market estimate based on stated time commitment
     - Competitive landscape overview (use analyze_competitors tool when helpful)
     - Market size estimation (use estimate_market_size tool when helpful)
     - Market trends analysis (use research_market_trends tool when helpful)
@@ -79,12 +168,12 @@ idea_research_task:
       * **Idea Fit Summary** covering concept and alignment with profile
       * **Market Opportunity** describing segments, sizing, and trends (reference tool outputs)
       * **Revenue Model & Financials** detailing pricing, monetization, cost assumptions
-      * **Resource & Skill Mapping** connecting requirements to the user's strengths/resources
+      * **Resource & Skill Mapping** connecting requirements to the user's strengths, work style, and capacity
       * **Timeline & Effort** with realistic milestones respecting time commitment and budget
-      * **Risks & Mitigations** leveraging tool insights and risk tolerance
+      * **Risks & Mitigations** leveraging tool insights and noting alignment with their goal type and work style
       * **Immediate Experiments** listing 2-3 validation steps with success metrics
     - `### Validation Backlog` section aggregating experiments across ideas
-    The output must exceed 1200 words and remain actionable and exhaustive—avoid summaries or generic statements.
+    The output should be 800-1000 words (concise but complete). Focus on quality over length—avoid summaries or generic statements.
   agent: idea_researcher
   output_file: output/startup_ideas_research.md
 
@@ -92,11 +181,12 @@ recommendation_task:
   description: >
     Based on the profile analysis and researched startup ideas, create personalized recommendations:
     - Rank the top 3 startup ideas that best match the user
-    - Provide detailed reasoning grounded in goals {goals}, time {time_commitment}, interests {interests}, professional background {professional_background}, skills {skills}, resources {resources}, budget {budget_range}, risk tolerance {risk_tolerance}, preferred model {preferred_model}, and learning goals {learning_goals}
+    - Provide detailed reasoning grounded in goal type {goal_type}, time commitment {time_commitment}, budget {budget_range}, interest area {interest_area}, sub-focus {sub_interest_area}, work style {work_style}, skill strength {skill_strength}, and experience summary {experience_summary}
     - Include actionable next steps for each top idea, highlighting how to leverage strengths and cover gaps
-    - Outline execution timeline and milestones compatible with their availability
+    - Outline execution timeline and milestones compatible with their availability and budget
     - Address potential challenges, capital requirements, and mitigation tactics
     - Provide tips for validation, traction tests, and resource allocation
+    - Ensure that every section (execution, risks, experiments, validation questions, roadmap) contains idea-specific content and does not reuse wording from other ideas unless absolutely necessary; rewrite any repeated phrasing
 
     MANDATORY FORMAT (non-negotiable):
     - Start with the heading `### Comprehensive Recommendation Report`
@@ -106,34 +196,35 @@ recommendation_task:
     - Include dedicated sections for `### Financial Outlook`, `### Risk Radar`, `### Customer Persona`, `### Validation Questions`, and `### 30/60/90 Day Roadmap`
     - Close with `### Decision Checklist` summarizing go/no-go signals
     - If you cannot produce this structure, request a rerun rather than returning a summary.
+    - Before finalizing, check that each idea contains at least one execution milestone, risk, and validation prompt that references the idea’s unique focus or audience; if not, rework that idea’s section until all elements are distinct.
 
-    IMPORTANT: Use the available tools to enhance your recommendations when helpful:
-    1. Use assess_startup_risks tool to evaluate risks for the top 3 ideas (consider risk tolerance)
-    2. Use estimate_startup_costs tool to provide cost estimates scoped to budget
-    3. Use project_revenue tool to show revenue potential relative to goals
-    4. Use check_financial_viability tool to validate financial feasibility
-    5. Use check_domain_availability tool for the #1 recommended idea
-    6. Use generate_customer_persona tool to create customer profiles for the top idea
-    7. Use generate_validation_questions tool to propose discovery prompts tied to learning goals
+    IMPORTANT: Use tools efficiently—only for the #1 recommended idea to save time:
+    1. Use assess_startup_risks tool for the #1 idea only
+    2. Use estimate_startup_costs tool for the #1 idea only
+    3. Use project_revenue tool for the #1 idea only
+    4. Use check_financial_viability tool for the #1 idea only
+    5. Use check_domain_availability tool for the #1 idea only
+    6. Use generate_customer_persona tool for the #1 idea only
+    7. Use generate_validation_questions tool for all 3 ideas (this is fast)
 
-    Always return the full detailed recommendation in markdown, not just an acknowledgement. The output should contain detailed sections so the frontend can display structured insights.
+    Always return the full detailed recommendation in markdown. Be concise but complete. The output should contain detailed sections so the frontend can display structured insights.
   expected_output: >
     A comprehensive recommendation report with the following required sections and minimum detail:
     - Heading `### Comprehensive Recommendation Report`
-    - `#### Profile Fit Summary` with at least six bullet points mapping user inputs to strategic considerations
-    - `#### Recommendation Matrix` comparing the top ideas against goals, time, budget, risk, and resources
+    - `#### Profile Fit Summary` with at least six bullet points translating inputs (goal type, time commitment, budget, interest focus, work style, skill strength, experience summary)
+    - `#### Recommendation Matrix` comparing the top ideas against goal alignment, time, budget, skill fit, and work style
     - Numbered ideas `1.` to `3.` where each idea covers:
-      * **Why it fits now** (referencing goals, time, risk, resources)
-      * **Execution path** with immediate actions, partners, and required skills
+      * **Why it fits now** (referencing goal type, time commitment, budget range, and work style preferences)
+      * **Execution path** with immediate actions, partners, and required skills; include at least one milestone or channel unique to this idea
       * **Financial snapshot** (costs, revenue projections, breakeven) citing tool outputs
-      * **Key risks & mitigations** leveraging assess_startup_risks results
+      * **Key risks & mitigations** leveraging assess_startup_risks results and tailored to the idea’s model and focus
     - `### Financial Outlook` summarizing budget fit, revenue projections, and viability scores
-    - `### Risk Radar` with categorized risks and mitigation tactics
+    - `### Risk Radar` with categorized risks and mitigation tactics; avoid copy-pasting risks already described in idea sections
     - `### Customer Persona` describing demographics, pains, gains, buying triggers (from generate_customer_persona)
-    - `### Validation Questions` listing at least eight discovery questions tied to learning goals (from generate_validation_questions)
-    - `### 30/60/90 Day Roadmap` outlining milestones aligned to the user's time commitment
+    - `### Validation Questions` listing at least eight discovery questions tied to learning goals (from generate_validation_questions); questions must mention the idea or audience explicitly and should not repeat the same “listen for”/“act on” guidance
+    - `### 30/60/90 Day Roadmap` outlining milestones aligned to the user's time commitment and varying per idea where appropriate
     - `### Decision Checklist` highlighting signals to move forward or pivot
-    The report must exceed 1000 words and retain the exact section headings specified. Do not collapse content into a single paragraph.
+    The report should be 800-1000 words (concise but complete). Retain the exact section headings specified. Do not collapse content into a single paragraph.
   agent: recommendation_advisor
   output_file: output/personalized_recommendations.md
 

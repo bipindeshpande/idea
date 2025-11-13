@@ -17,6 +17,7 @@ import {
   formatSectionHeading,
   cleanNarrativeMarkdown,
   extractTimelineSlice,
+  dedupeStrings,
 } from "../utils/recommendationFormatters.js";
 
 function useQuery() {
@@ -129,7 +130,7 @@ export default function RecommendationDetail() {
     let counter = 0;
     return executionPhases.map((phase) => ({
       title: phase.title,
-      items: phase.steps.map((step) => {
+      items: dedupeStrings(phase.steps).map((step) => {
         counter += 1;
         return { text: step, index: counter };
       }),
@@ -147,7 +148,7 @@ export default function RecommendationDetail() {
 
   const marketInsights = useMemo(() => {
     const source = marketSectionKey ? sections[marketSectionKey] : "";
-    return extractValidationQuestions(source);
+    return dedupeStrings(extractValidationQuestions(source));
   }, [marketSectionKey, sections]);
 
   const personaMarkdown = useMemo(() => sections["customer persona"] || "", [sections]);
@@ -156,15 +157,15 @@ export default function RecommendationDetail() {
     [sections]
   );
   const immediateExperimentsList = useMemo(
-    () => extractValidationQuestions(sections["immediate experiments"]),
+    () => dedupeStrings(extractValidationQuestions(sections["immediate experiments"])),
     [sections]
   );
   const immediateNextSteps = useMemo(
-    () => extractValidationQuestions(sections["immediate next steps"]),
+    () => dedupeStrings(extractValidationQuestions(sections["immediate next steps"])),
     [sections]
   );
   const decisionChecklist = useMemo(
-    () => extractValidationQuestions(sections["decision checklist"]),
+    () => dedupeStrings(extractValidationQuestions(sections["decision checklist"])),
     [sections]
   );
   const roadmapMarkdown = useMemo(
@@ -267,27 +268,7 @@ export default function RecommendationDetail() {
               <p className="mt-2 text-sm text-slate-500">
                 Quick recap of what you shared and the advantages you bring into this idea.
               </p>
-              <div className="mt-5 grid gap-4 md:grid-cols-3">
-                {renderProfileSnapshot([
-                  { label: "Goal Type", value: inputs?.goal_type },
-                  { label: "Time Commitment", value: inputs?.time_commitment },
-                  { label: "Budget Range", value: inputs?.budget_range },
-                  {
-                    label: "Focus Area",
-                    value: inputs?.sub_interest_area || inputs?.interest_area,
-                  },
-                  { label: "Work Style", value: inputs?.work_style },
-                  { label: "Skill Strength", value: inputs?.skill_strength },
-                ]).map(({ label, value }) => (
-                  <div
-                    key={label}
-                    className="rounded-2xl border border-brand-100 bg-gradient-to-br from-brand-50 via-white to-white p-4 text-sm text-slate-700 shadow-inner"
-                  >
-                    <p className="text-xs font-semibold uppercase tracking-wide text-brand-600">{label}</p>
-                    <p className="mt-1">{value}</p>
-                  </div>
-                ))}
-              </div>
+              <ProfilePanels inputs={inputs} />
               {fitNarrativeMarkdown && (
                 <div className="mt-6 prose prose-slate">
                   <ReactMarkdown>{cleanNarrativeMarkdown(fitNarrativeMarkdown)}</ReactMarkdown>
@@ -399,14 +380,20 @@ export default function RecommendationDetail() {
           )}
 
           {(marketInsights.length > 0 || personaMarkdown) && (
-              <div className="grid gap-6 lg:grid-cols-2">
+            <div className="grid gap-6 lg:grid-cols-2">
               {marketInsights.length > 0 && (
-                  <article className="rounded-3xl border border-teal-100 bg-teal-50/70 p-8 shadow-soft shadow-teal-200/50">
+                <article className="rounded-3xl border border-teal-100 bg-gradient-to-br from-teal-50 via-white to-white p-8 shadow-soft">
                   <h2 className="text-2xl font-semibold text-slate-900">Market signals</h2>
-                  <ul className="mt-4 space-y-2 text-sm text-slate-700">
+                  <p className="mt-1 text-sm text-slate-500">
+                    Trends and proof points worth validating as you move forward.
+                  </p>
+                  <ul className="mt-4 space-y-3 text-sm text-slate-700">
                     {marketInsights.map((insight, index) => (
-                      <li key={index} className="flex gap-2">
-                        <span className="mt-1 text-brand-500">•</span>
+                      <li
+                        key={index}
+                        className="flex gap-3 rounded-2xl border border-teal-100 bg-white/90 p-3 shadow-inner"
+                      >
+                        <span className="mt-1 text-teal-500">📈</span>
                         <span>{insight}</span>
                       </li>
                     ))}
@@ -414,10 +401,10 @@ export default function RecommendationDetail() {
                 </article>
               )}
               {personaMarkdown && (
-                  <article className="rounded-3xl border border-violet-100 bg-violet-50/70 p-8 shadow-soft shadow-violet-200/50">
+                <article className="rounded-3xl border border-violet-100 bg-gradient-to-br from-violet-50 via-white to-white p-8 shadow-soft">
                   <h2 className="text-2xl font-semibold text-slate-900">Customer persona</h2>
-                  <div className="mt-4 prose prose-slate">
-                    <ReactMarkdown>{personaMarkdown}</ReactMarkdown>
+                  <div className="mt-4 rounded-2xl border border-violet-100 bg-white/90 p-4 shadow-inner">
+                    <ReactMarkdown>{cleanNarrativeMarkdown(personaMarkdown)}</ReactMarkdown>
                   </div>
                 </article>
               )}
@@ -438,8 +425,8 @@ export default function RecommendationDetail() {
                       answers indicate a fast “go” versus red flags that require pivots.
                     </p>
                   </header>
-                  <div className="mt-4 grid gap-4 md:grid-cols-2">
-                    {validationQuestions.map(({ question, listenFor, actOn }, index) => (
+          <div className="mt-4 grid gap-4 md:grid-cols-2">
+            {validationQuestions.map(({ question, listenFor, actOn }, index) => (
                       <div
                         key={index}
                         className="rounded-2xl border border-brand-100 bg-brand-50/70 p-4 text-sm text-slate-800 shadow-inner"
@@ -558,13 +545,118 @@ export default function RecommendationDetail() {
   );
 }
 
-function renderProfileSnapshot(items = []) {
-  return items
-    .filter(({ value }) => value && value.trim().length > 0)
-    .map(({ label, value }) => ({
-      label,
-      value: personalizeCopy(value),
-    }));
+function ProfilePanels({ inputs }) {
+  const panels = useMemo(() => buildProfilePanels(inputs), [inputs]);
+  if (!panels.length) return null;
+
+  const columnClass =
+    panels.length === 1 ? "md:grid-cols-1" : panels.length === 2 ? "md:grid-cols-2" : "md:grid-cols-3";
+
+  return (
+    <div className={`mt-5 grid gap-4 ${columnClass}`}>
+      {panels.map(({ title, icon, items, theme }, index) => (
+        <div
+          key={`${title}-${index}`}
+          className={`rounded-3xl border ${theme.border} ${theme.background} p-5 shadow-[0_18px_40px_-32px_rgba(34,79,175,0.25)] transition`}
+        >
+          <div className="flex items-start justify-between">
+            <span className={`flex h-10 w-10 items-center justify-center rounded-full text-xl ${theme.icon}`}>
+              {icon}
+            </span>
+            <p className={`text-xs font-semibold uppercase tracking-wide ${theme.title}`}>{title}</p>
+          </div>
+          <ul className="mt-4 space-y-2 text-sm text-cloud-800">
+            {items.map(({ label, value }) => (
+              <li key={label} className="leading-relaxed">
+                <span className={`font-semibold ${theme.label}`}>{label}:</span> {value}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
+    </div>
+  );
 }
 
+const PANEL_THEMES = [
+  {
+    background: "bg-gradient-to-br from-brand-50 via-white to-aqua-50",
+    border: "border-brand-100",
+    icon: "bg-brand-100 text-brand-700",
+    title: "text-brand-700",
+    label: "text-brand-700",
+  },
+  {
+    background: "bg-gradient-to-br from-coral-50 via-white to-sand-50",
+    border: "border-coral-100",
+    icon: "bg-coral-100 text-coral-600",
+    title: "text-coral-600",
+    label: "text-coral-600",
+  },
+  {
+    background: "bg-gradient-to-br from-aqua-50 via-white to-brand-50",
+    border: "border-aqua-100",
+    icon: "bg-aqua-100 text-aqua-600",
+    title: "text-aqua-600",
+    label: "text-aqua-600",
+  },
+];
 
+function buildProfilePanels(inputs = {}) {
+  const cleaned = {
+    goal: personalizeCopy(inputs?.goal_type ?? ""),
+    focus: personalizeCopy(inputs?.sub_interest_area ?? inputs?.interest_area ?? ""),
+    time: personalizeCopy(inputs?.time_commitment ?? ""),
+    budget: personalizeCopy(inputs?.budget_range ?? ""),
+    workStyle: personalizeCopy(inputs?.work_style ?? ""),
+    skill: personalizeCopy(inputs?.skill_strength ?? ""),
+    experience: personalizeCopy(inputs?.experience_summary ?? ""),
+  };
+
+  const panels = [];
+
+  if (cleaned.goal || cleaned.focus) {
+    panels.push({
+      title: "Direction",
+      icon: "🎯",
+      theme: PANEL_THEMES[0],
+      items: [
+        cleaned.goal && { label: "Goal", value: cleaned.goal },
+        cleaned.focus && { label: "Focus", value: cleaned.focus },
+      ].filter(Boolean),
+    });
+  }
+
+  if (cleaned.time || cleaned.budget) {
+    panels.push({
+      title: "Capacity",
+      icon: "⏳",
+      theme: PANEL_THEMES[1],
+      items: [
+        cleaned.time && { label: "Time commitment", value: cleaned.time },
+        cleaned.budget && { label: "Budget", value: cleaned.budget },
+      ].filter(Boolean),
+    });
+  }
+
+  if (cleaned.workStyle || cleaned.skill || cleaned.experience) {
+    panels.push({
+      title: "Strengths",
+      icon: "💪",
+      theme: PANEL_THEMES[2],
+      items: [
+        cleaned.workStyle && { label: "Work style", value: cleaned.workStyle },
+        cleaned.skill && { label: "Skill", value: cleaned.skill },
+        cleaned.experience && { label: "Experience", value: truncateNarrative(cleaned.experience) },
+      ].filter(Boolean),
+    });
+  }
+
+  return panels.slice(0, 3);
+}
+
+function truncateNarrative(text = "", limit = 140) {
+  const normalized = text.replace(/\s+/g, " ").trim();
+  if (normalized.length <= limit) return normalized;
+  return `${normalized.slice(0, limit).trimEnd()}...`;
+}

@@ -1,4 +1,5 @@
-import { createContext, useContext, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useMemo, useState } from "react";
+import { intakeScreen } from "../config/intakeScreen.js";
 
 const ReportsContext = createContext(null);
 const STORAGE_KEY = "sia_saved_runs";
@@ -19,35 +20,76 @@ function saveRun(run) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(runs.slice(0, 20)));
 }
 
-const defaultInputs = {
-  goals: "Build a side business that complements my skills",
-  time_commitment: "10-15 hours per week",
-  interests: "AI, SaaS, automation",
-  professional_background: "Product manager with 8 years in B2B SaaS",
-  skills: "Product strategy, go-to-market, stakeholder management",
-  budget_range: "$5k - $15k",
-  risk_tolerance: "Moderate",
-  preferred_model: "Subscription SaaS or digital products",
-  resources: "Strong startup network, access to fractional designers",
-  learning_goals: "Grow revenue leadership and experiment with AI tooling",
-};
+function buildDefaultInputs() {
+  const defaults = {};
+
+  intakeScreen.fields.forEach((field) => {
+    if (field.type === "picklist") {
+      const firstOption = field.required ? field.options?.[0] ?? "" : "";
+      defaults[field.id] = firstOption;
+
+      if (field.sub_field) {
+        const optionsByParent = field.sub_field.options_by_parent ?? {};
+        const parentValue = defaults[field.id];
+        const subOptions = optionsByParent[parentValue] ?? [];
+        const firstSubOption =
+          subOptions.length === 1 && subOptions[0] === "Custom Sub-Area Text Field"
+            ? ""
+            : subOptions[0] ?? "";
+        defaults[field.sub_field.id] = firstSubOption ?? "";
+      }
+    } else {
+      defaults[field.id] = "";
+    }
+  });
+
+  return defaults;
+}
+
+const defaultInputs = buildDefaultInputs();
+
+function normalizeInputs(overrides = {}) {
+  const merged = { ...defaultInputs, ...overrides };
+  const interestField = intakeScreen.fields.find((field) => field.id === "interest_area");
+
+  if (interestField?.sub_field) {
+    const optionsByParent = interestField.sub_field.options_by_parent ?? {};
+    const parentValue = merged[interestField.id];
+    const subOptions = optionsByParent[parentValue] ?? [];
+
+    if (subOptions.length === 1 && subOptions[0] === "Custom Sub-Area Text Field") {
+      const overrideValue = overrides[interestField.sub_field.id];
+      merged[interestField.sub_field.id] =
+        typeof overrideValue === "string" ? overrideValue : merged[interestField.sub_field.id] ?? "";
+    } else if (!subOptions.includes(merged[interestField.sub_field.id])) {
+      merged[interestField.sub_field.id] = subOptions[0] ?? "";
+    }
+  }
+
+  return merged;
+}
 
 export function ReportsProvider({ children }) {
-  const [inputs, setInputs] = useState(defaultInputs);
+  const [inputs, setInputsState] = useState(defaultInputs);
   const [reports, setReports] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [currentRunId, setCurrentRunId] = useState(null);
 
-  const runCrew = async (formInputs) => {
+  const setInputs = useCallback((nextInputs) => {
+    setInputsState(normalizeInputs(nextInputs));
+  }, []);
+
+  const runCrew = useCallback(async (formInputs) => {
+    const normalizedInputs = normalizeInputs(formInputs);
     const payload = Object.fromEntries(
-      Object.entries({ ...defaultInputs, ...formInputs }).map(([key, value]) => [
+      Object.entries(normalizedInputs).map(([key, value]) => [
         key,
         typeof value === "string" ? value.trim() : value,
       ])
     );
 
-    setInputs(payload);
+    setInputsState(normalizedInputs);
     setLoading(true);
     setError(null);
     setReports(null);
@@ -81,22 +123,37 @@ export function ReportsProvider({ children }) {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const loadRunById = (runId) => {
+  const loadRunById = useCallback((runId) => {
     const runs = loadSavedRuns();
     const match = runs.find((run) => run.id === runId);
     if (match) {
       setCurrentRunId(match.id);
-      setInputs({ ...defaultInputs, ...match.inputs });
+      setInputsState(normalizeInputs(match.inputs));
       setReports(match.outputs);
     }
     return match;
-  };
+  }, []);
+
+  const deleteRun = useCallback((runId) => {
+    const runs = loadSavedRuns();
+    const filtered = runs.filter((run) => run.id !== runId);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(filtered));
+    
+    // If deleting the current run, clear state
+    if (currentRunId === runId) {
+      setCurrentRunId(null);
+      setReports(null);
+      setInputsState(defaultInputs);
+    }
+    
+    return filtered;
+  }, [currentRunId]);
 
   const value = useMemo(
-    () => ({ inputs, setInputs, reports, loading, error, runCrew, loadRunById, currentRunId }),
-    [inputs, reports, loading, error, currentRunId]
+    () => ({ inputs, setInputs, reports, loading, error, runCrew, loadRunById, currentRunId, deleteRun }),
+    [inputs, reports, loading, error, runCrew, loadRunById, currentRunId, deleteRun, setInputs]
   );
 
   return (

@@ -14,21 +14,57 @@ def run():
     """
     print("🚀 Welcome to Startup Idea Crew!")
     print("=" * 50)
-    print("\nI'll help you find the perfect startup idea tailored to your goals, time, and interests.")
+    print("\nI'll help you find the perfect startup idea tailored to your goals, focus, and working preferences.")
     print("\nLet's gather some information about you...\n")
     
     # Collect user inputs
-    goals = input("What are your main goals? (e.g., 'build a side business', 'create a full-time startup', 'solve a specific problem'): ").strip()
-    if not goals:
-        goals = "Build a successful startup that aligns with my interests and available time"
+    goal_type = input(
+        "What is your primary goal type? (e.g., 'Extra Income', 'Replace Full-Time Job', 'Passive Income'): "
+    ).strip()
+    if not goal_type:
+        goal_type = "Extra Income"
     
-    time_commitment = input("\nHow much time can you commit per week? (e.g., '5-10 hours', '20+ hours', 'full-time'): ").strip()
+    time_commitment = input(
+        "\nHow much time can you commit per week? (e.g., '<5 hrs/week', '5–10 hrs/week', '10–20 hrs/week', 'Full-time'): "
+    ).strip()
     if not time_commitment:
-        time_commitment = "10-15 hours per week"
+        time_commitment = "<5 hrs/week"
     
-    interests = input("\nWhat are your main interests? (e.g., 'AI, technology, healthcare', 'sustainability, e-commerce'): ").strip()
-    if not interests:
-        interests = "Technology and innovation"
+    budget_range = input(
+        "\nWhat budget range can you invest? (e.g., 'Free / Sweat-equity only', '< $1 K', 'Up to $5 K', 'Up to $10 K', 'Up to $20 K', '$20 K and Above'): "
+    ).strip()
+    if not budget_range:
+        budget_range = "Free / Sweat-equity only"
+
+    interest_area = input(
+        "\nWhich interest area are you most drawn to? (e.g., 'AI / Automation', 'Healthcare / Wellness', 'E-commerce / Retail'): "
+    ).strip()
+    if not interest_area:
+        interest_area = "AI / Automation"
+
+    sub_interest_area = input(
+        "\nDo you have a specific sub-interest focus? (e.g., 'Chatbots', 'Predictive Analytics', 'Clean Energy'): "
+    ).strip()
+    if not sub_interest_area:
+        sub_interest_area = "Chatbots"
+
+    work_style = input(
+        "\nWhat work style do you prefer? (e.g., 'Solo', 'Small Team', 'Community-Based', 'Remote Only', 'Requires Physical Presence'): "
+    ).strip()
+    if not work_style:
+        work_style = "Solo"
+
+    skill_strength = input(
+        "\nWhat is your primary skill strength? (e.g., 'Technical / Automation', 'Analytical / Strategic', 'Creative / Design'): "
+    ).strip()
+    if not skill_strength:
+        skill_strength = "Analytical / Strategic"
+
+    experience_summary = input(
+        "\nShare a short experience summary (max 120 characters, press Enter to skip): "
+    ).strip()
+    if not experience_summary:
+        experience_summary = "No detailed experience summary provided."
     
     print("\n" + "=" * 50)
     print("Processing your information...")
@@ -36,16 +72,14 @@ def run():
     
     # Prepare inputs
     inputs = {
-        "goals": goals,
+        "goal_type": goal_type,
         "time_commitment": time_commitment,
-        "interests": interests,
-        "professional_background": "",
-        "skills": "",
-        "budget_range": "",
-        "risk_tolerance": "",
-        "preferred_model": "",
-        "resources": "",
-        "learning_goals": "",
+        "budget_range": budget_range,
+        "interest_area": interest_area,
+        "sub_interest_area": sub_interest_area,
+        "work_style": work_style,
+        "skill_strength": skill_strength,
+        "experience_summary": experience_summary,
     }
     
     try:
@@ -88,9 +122,14 @@ def test():
     Test the crew execution with sample inputs.
     """
     inputs = {
-        'goals': 'Build a side business that can generate passive income',
-        'time_commitment': '10-15 hours per week',
-        'interests': 'AI, automation, SaaS products'
+        "goal_type": "Passive Income",
+        "time_commitment": "10–20 hrs/week",
+        "budget_range": "Up to $5 K",
+        "interest_area": "AI / Automation",
+        "sub_interest_area": "Workflow Automation",
+        "work_style": "Solo",
+        "skill_strength": "Technical / Automation",
+        "experience_summary": "Product manager exploring automation side hustles",
     }
 
     try:

@@ -19,15 +19,16 @@ export default function ResearchReport() {
           Startup Ideas Research
         </h1>
         <p className="mt-2 max-w-3xl text-slate-600">
-          Market trends, competitive landscape, and opportunity sizing tailored to your skills, resources, and
-          preferred models.
+          Market trends, competitive landscape, and opportunity sizing tuned to your goal type, time commitment, and
+          focus areas.
         </p>
         <div className="mt-4 flex flex-wrap gap-2 text-xs text-slate-600">
-          <span className="tag-chip">🏢 Background: {inputs.professional_background}</span>
-          <span className="tag-chip">🛠️ Skills: {inputs.skills}</span>
+          <span className="tag-chip">🎯 Goal: {inputs.goal_type}</span>
+          <span className="tag-chip">⏱️ Time: {inputs.time_commitment}</span>
           <span className="tag-chip">💵 Budget: {inputs.budget_range}</span>
-          <span className="tag-chip">⚖️ Risk: {inputs.risk_tolerance}</span>
-          <span className="tag-chip">🧭 Preferred: {inputs.preferred_model}</span>
+          <span className="tag-chip">📚 Focus: {inputs.sub_interest_area || inputs.interest_area}</span>
+          <span className="tag-chip">🛠️ Skill: {inputs.skill_strength}</span>
+          <span className="tag-chip">🤝 Work Style: {inputs.work_style || "Flexible"}</span>
         </div>
       </header>
 

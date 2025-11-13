@@ -1,32 +1,27 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useReports } from "../context/ReportsContext.jsx";
 import Seo from "../components/Seo.jsx";
+import { intakeScreen } from "../config/intakeScreen.js";
 
 const fieldClasses =
   "w-full rounded-xl border border-slate-200 bg-white/70 p-4 text-slate-800 shadow-sm transition focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-100";
 
-const timeOptions = [
-  "5-10 hours per week",
-  "10-15 hours per week",
-  "15-25 hours per week",
-  "Full-time",
+const STEP_STRUCTURE = [
+  ["goal_type", "time_commitment", "budget_range"],
+  ["interest_area", "work_style"],
+  ["skill_strength", "experience_summary"],
 ];
 
-const budgetOptions = ["<$2k", "$2k - $5k", "$5k - $15k", "$15k+", "Undisclosed"];
+const TOTAL_STEPS = STEP_STRUCTURE.length;
 
-const riskOptions = ["Conservative", "Moderate", "Aggressive"];
-
-const modelOptions = [
-  "Subscription SaaS",
-  "Marketplace",
-  "Digital products",
-  "Services / Agency",
-  "Community / Membership",
-  "Other",
-];
-
-const TOTAL_STEPS = 3;
+const FIELD_MAP = intakeScreen.fields.reduce((acc, field) => {
+  acc[field.id] = field;
+  if (field.sub_field) {
+    acc[field.sub_field.id] = { ...field.sub_field, parentId: field.id };
+  }
+  return acc;
+}, {});
 
 export default function HomePage() {
   const navigate = useNavigate();
@@ -41,19 +36,91 @@ export default function HomePage() {
     setTouched(false);
   }, [inputs]);
 
+  // Handle scroll to form when navigating from Dashboard (Edit button)
+  useEffect(() => {
+    const scrollToForm = () => {
+      const formElement = document.getElementById("intake-form");
+      if (formElement) {
+        formElement.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    };
+
+    // Check if we have a hash or if inputs were just loaded (from Edit button)
+    const hash = window.location.hash;
+    if (hash === "#intake-form") {
+      setTimeout(scrollToForm, 300);
+      // Clear hash after scrolling
+      window.history.replaceState(null, "", window.location.pathname);
+    } else if (inputs && Object.keys(inputs).length > 0 && Object.values(inputs).some(v => v && v !== "")) {
+      // If inputs were loaded (e.g., from Edit button), scroll to form
+      setTimeout(scrollToForm, 300);
+    }
+  }, [inputs]);
+
+  const requiredFieldIds = useMemo(() => {
+    const ids = new Set();
+    intakeScreen.fields.forEach((field) => {
+      if (field.required) {
+        ids.add(field.id);
+      }
+      if (field.sub_field?.required) {
+        ids.add(field.sub_field.id);
+      }
+    });
+    return ids;
+  }, []);
+
+  const getFieldsForStep = (stepIndex) => {
+    const fieldIds = STEP_STRUCTURE[stepIndex] ?? [];
+    return fieldIds.flatMap((id) => {
+      const field = FIELD_MAP[id];
+      if (!field) {
+        return [];
+      }
+      if (field.sub_field) {
+        return [id, field.sub_field.id];
+      }
+      return [id];
+    });
+  };
+
   const handleChange = (event) => {
     const { name, value } = event.target;
+
+    if (name === "interest_area") {
+      const interestField = FIELD_MAP[name];
+      if (interestField?.sub_field) {
+        const optionsByParent = interestField.sub_field.options_by_parent ?? {};
+        const subOptions = optionsByParent[value] ?? [];
+        const nextSubValue =
+          subOptions.length === 1 && subOptions[0] === "Custom Sub-Area Text Field"
+            ? ""
+            : subOptions[0] ?? "";
+
+        setLocalInputs((prev) => ({
+          ...prev,
+          [name]: value,
+          [interestField.sub_field.id]: nextSubValue,
+        }));
+        return;
+      }
+    }
+
     setLocalInputs((prev) => ({ ...prev, [name]: value }));
   };
 
   const validateStep = () => {
-    if (step === 0) {
-      return localInputs.goals.trim().length > 0;
-    }
-    if (step === 1) {
-      return localInputs.professional_background.trim().length > 0;
-    }
-    return true;
+    const fields = getFieldsForStep(step);
+    return fields.every((fieldId) => {
+      if (!requiredFieldIds.has(fieldId)) {
+        return true;
+      }
+      const value = localInputs[fieldId];
+      if (typeof value === "string") {
+        return value.trim().length > 0;
+      }
+      return value !== null && value !== undefined && value !== "";
+    });
   };
 
   const handleNext = () => {
@@ -83,238 +150,183 @@ export default function HomePage() {
     }
   };
 
-  const renderStepContent = () => {
-    switch (step) {
-      case 0:
-        return (
-          <div className="grid gap-6">
-            <div className="grid gap-2">
-              <label htmlFor="goals" className="text-sm font-semibold text-slate-700">
-                Goals
-              </label>
-              <textarea
-                id="goals"
-                name="goals"
-                rows={3}
-                className={fieldClasses}
-                value={localInputs.goals}
-                onChange={handleChange}
-              />
-              <p className="text-xs text-slate-500">
-                What outcome are you aiming for (e.g. replace income, validate a concept, build passive revenue)?
-              </p>
-              {touched && localInputs.goals.trim().length === 0 && (
-                <p className="text-xs text-red-500">Please describe your goals.</p>
-              )}
-            </div>
+  const fieldValue = (fieldId) => localInputs[fieldId] ?? "";
 
-            <div className="grid gap-2 sm:grid-cols-2 sm:gap-4">
-              <div className="grid gap-2">
-                <label
-                  htmlFor="time_commitment"
-                  className="text-sm font-semibold text-slate-700"
-                >
-                  Time Commitment
-                </label>
-                <select
-                  id="time_commitment"
-                  name="time_commitment"
-                  className={fieldClasses}
-                  value={localInputs.time_commitment}
-                  onChange={handleChange}
-                >
-                  {timeOptions.map((option) => (
-                    <option key={option} value={option}>
-                      {option}
-                    </option>
-                  ))}
-                </select>
-                <p className="text-xs text-slate-500">
-                  How many hours per week can you dedicate in the next 3-6 months?
-                </p>
-              </div>
-              <div className="grid gap-2">
-                <label
-                  htmlFor="interests"
-                  className="text-sm font-semibold text-slate-700"
-                >
-                  Interests & Expertise Areas
-                </label>
-                <input
-                  id="interests"
-                  name="interests"
-                  type="text"
-                  className={fieldClasses}
-                  value={localInputs.interests}
-                  onChange={handleChange}
-                />
-                <p className="text-xs text-slate-500">
-                  Separate multiple interests with commas (e.g. climate tech, edtech, AI).
-                </p>
-              </div>
-            </div>
-          </div>
-        );
-      case 1:
-        return (
-          <div className="grid gap-6">
-            <div className="grid gap-2">
-              <label
-                htmlFor="professional_background"
-                className="text-sm font-semibold text-slate-700"
-              >
-                Professional Background
-              </label>
-              <textarea
-                id="professional_background"
-                name="professional_background"
-                rows={3}
-                className={fieldClasses}
-                value={localInputs.professional_background}
-                onChange={handleChange}
-              />
-              <p className="text-xs text-slate-500">
-                Summarize recent roles, industries, and standout achievements.
-              </p>
-              {touched && localInputs.professional_background.trim().length === 0 && (
-                <p className="text-xs text-red-500">Tell us about your background.</p>
-              )}
-            </div>
-
-            <div className="grid gap-2 sm:grid-cols-2 sm:gap-4">
-              <div className="grid gap-2">
-                <label htmlFor="skills" className="text-sm font-semibold text-slate-700">
-                  Key Skills & Strengths
-                </label>
-                <textarea
-                  id="skills"
-                  name="skills"
-                  rows={2}
-                  className={fieldClasses}
-                  value={localInputs.skills}
-                  onChange={handleChange}
-                />
-                <p className="text-xs text-slate-500">
-                  List hard and soft skills you bring (e.g. sales, design, ops).
-                </p>
-              </div>
-              <div className="grid gap-2">
-                <label
-                  htmlFor="resources"
-                  className="text-sm font-semibold text-slate-700"
-                >
-                  Available Resources & Network
-                </label>
-                <textarea
-                  id="resources"
-                  name="resources"
-                  rows={2}
-                  className={fieldClasses}
-                  value={localInputs.resources}
-                  onChange={handleChange}
-                />
-                <p className="text-xs text-slate-500">
-                  Mention advisors, potential partners, distribution channels, tools, etc.
-                </p>
-              </div>
-            </div>
-          </div>
-        );
-      case 2:
-      default:
-        return (
-          <div className="grid gap-6">
-            <div className="grid gap-2 sm:grid-cols-3 sm:gap-4">
-              <div className="grid gap-2">
-                <label
-                  htmlFor="budget_range"
-                  className="text-sm font-semibold text-slate-700"
-                >
-                  Launch Budget
-                </label>
-                <select
-                  id="budget_range"
-                  name="budget_range"
-                  className={fieldClasses}
-                  value={localInputs.budget_range}
-                  onChange={handleChange}
-                >
-                  {budgetOptions.map((option) => (
-                    <option key={option} value={option}>
-                      {option}
-                    </option>
-                  ))}
-                </select>
-                <p className="text-xs text-slate-500">Estimated cash you can invest in the first 6 months.</p>
-              </div>
-              <div className="grid gap-2">
-                <label
-                  htmlFor="risk_tolerance"
-                  className="text-sm font-semibold text-slate-700"
-                >
-                  Risk Tolerance
-                </label>
-                <select
-                  id="risk_tolerance"
-                  name="risk_tolerance"
-                  className={fieldClasses}
-                  value={localInputs.risk_tolerance}
-                  onChange={handleChange}
-                >
-                  {riskOptions.map((option) => (
-                    <option key={option} value={option}>
-                      {option}
-                    </option>
-                  ))}
-                </select>
-                <p className="text-xs text-slate-500">Examples: Conservative, Moderate, Aggressive.</p>
-              </div>
-              <div className="grid gap-2">
-                <label
-                  htmlFor="preferred_model"
-                  className="text-sm font-semibold text-slate-700"
-                >
-                  Preferred Business Models / Industries
-                </label>
-                <select
-                  id="preferred_model"
-                  name="preferred_model"
-                  className={fieldClasses}
-                  value={localInputs.preferred_model}
-                  onChange={handleChange}
-                >
-                  {modelOptions.map((option) => (
-                    <option key={option} value={option}>
-                      {option}
-                    </option>
-                  ))}
-                </select>
-                <p className="text-xs text-slate-500">e.g. SaaS, marketplaces, services, climate, healthcare.</p>
-              </div>
-            </div>
-
-            <div className="grid gap-2">
-              <label
-                htmlFor="learning_goals"
-                className="text-sm font-semibold text-slate-700"
-              >
-                Learning Goals & Personal Priorities
-              </label>
-              <textarea
-                id="learning_goals"
-                name="learning_goals"
-                rows={2}
-                className={fieldClasses}
-                value={localInputs.learning_goals}
-                onChange={handleChange}
-              />
-              <p className="text-xs text-slate-500">
-                Skills you want to develop or lifestyle criteria you care about.
-              </p>
-            </div>
-          </div>
-        );
+  const showError = (fieldId) => {
+    if (!touched || !requiredFieldIds.has(fieldId)) {
+      return false;
     }
+    const value = fieldValue(fieldId);
+    if (typeof value === "string") {
+      return value.trim().length === 0;
+    }
+    return !value;
+  };
+
+  const renderSubField = (parentField) => {
+    if (!parentField.sub_field) {
+      return null;
+    }
+
+    const subField = parentField.sub_field;
+    const parentValue = fieldValue(parentField.id);
+    const optionsByParent = subField.options_by_parent ?? {};
+    const subOptions = optionsByParent[parentValue] ?? [];
+    const isCustomInput =
+      subOptions.length === 1 && subOptions[0] === "Custom Sub-Area Text Field";
+
+    if (isCustomInput) {
+      return (
+        <div className="grid gap-2" key={subField.id}>
+          <label htmlFor={subField.id} className="text-sm font-semibold text-slate-700">
+            {subField.label}
+            {subField.required && <span className="text-brand-500"> *</span>}
+          </label>
+          <input
+            id={subField.id}
+            name={subField.id}
+            type="text"
+            className={fieldClasses}
+            value={fieldValue(subField.id)}
+            onChange={handleChange}
+            placeholder="Describe your focus area"
+          />
+          {showError(subField.id) && (
+            <p className="text-xs text-red-500">Please add a sub-interest focus.</p>
+          )}
+        </div>
+      );
+    }
+
+    return (
+      <div className="grid gap-2" key={subField.id}>
+        <label htmlFor={subField.id} className="text-sm font-semibold text-slate-700">
+          {subField.label}
+          {subField.required && <span className="text-brand-500"> *</span>}
+        </label>
+        <select
+          id={subField.id}
+          name={subField.id}
+          className={fieldClasses}
+          value={fieldValue(subField.id)}
+          onChange={handleChange}
+        >
+          {subOptions.map((option) => (
+            <option key={option} value={option}>
+              {option}
+            </option>
+          ))}
+        </select>
+        {showError(subField.id) && (
+          <p className="text-xs text-red-500">Select the sub-interest that fits best.</p>
+        )}
+      </div>
+    );
+  };
+
+  const renderField = (field) => {
+    if (!field) {
+      return null;
+    }
+
+    if (field.id === "interest_area") {
+      return (
+        <div className="grid gap-4" key={field.id}>
+          <div className="grid gap-2">
+            <label htmlFor={field.id} className="text-sm font-semibold text-slate-700">
+              {field.label}
+              {field.required && <span className="text-brand-500"> *</span>}
+            </label>
+            <select
+              id={field.id}
+              name={field.id}
+              className={fieldClasses}
+              value={fieldValue(field.id)}
+              onChange={handleChange}
+            >
+              {field.options.map((option) => (
+                <option key={option} value={option}>
+                  {option}
+                </option>
+              ))}
+            </select>
+            {showError(field.id) && (
+              <p className="text-xs text-red-500">Choose the area that best matches your interest.</p>
+            )}
+          </div>
+          {renderSubField(field)}
+        </div>
+      );
+    }
+
+    if (field.type === "picklist") {
+      return (
+        <div className="grid gap-2" key={field.id}>
+          <label htmlFor={field.id} className="text-sm font-semibold text-slate-700">
+            {field.label}
+            {field.required && <span className="text-brand-500"> *</span>}
+          </label>
+          <select
+            id={field.id}
+            name={field.id}
+            className={fieldClasses}
+            value={fieldValue(field.id)}
+            onChange={handleChange}
+          >
+            {!field.required && (
+              <option value="">No preference</option>
+            )}
+            {field.options.map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </select>
+          {showError(field.id) && (
+            <p className="text-xs text-red-500">Please select an option.</p>
+          )}
+        </div>
+      );
+    }
+
+    if (field.type === "short_text") {
+      return (
+        <div className="grid gap-2" key={field.id}>
+          <label htmlFor={field.id} className="text-sm font-semibold text-slate-700">
+            {field.label}
+            {field.required && <span className="text-brand-500"> *</span>}
+          </label>
+          <input
+            id={field.id}
+            name={field.id}
+            type="text"
+            className={fieldClasses}
+            value={fieldValue(field.id)}
+            onChange={handleChange}
+            maxLength={field.max_length}
+            placeholder={field.placeholder}
+          />
+          {field.max_length && (
+            <p className="text-xs text-slate-500">
+              {fieldValue(field.id).length}/{field.max_length} characters
+            </p>
+          )}
+          {showError(field.id) && (
+            <p className="text-xs text-red-500">This field is required.</p>
+          )}
+        </div>
+      );
+    }
+
+    return null;
+  };
+
+  const renderStepContent = () => {
+    const fieldsForStep = STEP_STRUCTURE[step]
+      .map((fieldId) => FIELD_MAP[fieldId])
+      .filter(Boolean);
+
+    return <div className="grid gap-6">{fieldsForStep.map((field) => renderField(field))}</div>;
   };
 
   const progressPercent = Math.round(((step + 1) / TOTAL_STEPS) * 100);
@@ -403,10 +415,15 @@ export default function HomePage() {
       </section>
 
       <form
-        id="start"
+        id="intake-form"
         onSubmit={handleSubmit}
         className="grid gap-8 rounded-3xl border border-slate-200 bg-white/90 p-8 shadow-soft backdrop-blur"
       >
+        <header className="space-y-2">
+          <h2 className="text-xl font-semibold text-slate-900">{intakeScreen.screen_title}</h2>
+          <p className="text-sm text-slate-600">{intakeScreen.description}</p>
+        </header>
+
         <div className="space-y-3">
           <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wide text-slate-400">
             <span>Step {step + 1} of {TOTAL_STEPS}</span>

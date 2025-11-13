@@ -1,25 +1,26 @@
 import { NavLink } from "react-router-dom";
 
 const footerLinks = {
-  Company: [
-    { label: "About", to: "/about" },
-    { label: "Contact", to: "/contact" },
-    { label: "Blog", to: "/blog" },
+  "Build Your Plan": [
+    { label: "Start a New Run", to: "/" },
+    { label: "View Dashboard", to: "/dashboard" },
+    { label: "Profile Summary", to: "/results/profile" },
+    { label: "Recommendations", to: "/results/recommendations" },
   ],
-  Product: [
-    { label: "Product", to: "/product" },
-    { label: "Pricing", to: "/pricing" },
-    { label: "Dashboard", to: "/dashboard" },
+  "Compare & Decide": [
+    { label: "Top Product Benefits", to: "/product" },
+    { label: "Pricing & Access", to: "/pricing" },
+    { label: "Full Recommendation Report", to: "/results/recommendations/full" },
   ],
   Resources: [
-    { label: "Guides", to: "/resources" },
-    { label: "Playbooks", to: "/blog" },
-    { label: "Newsletter", to: "/resources#newsletter" },
+    { label: "How it Works Guide", to: "/resources" },
+    { label: "Founder Playbooks", to: "/blog" },
+    { label: "Support & Contact", to: "/contact" },
   ],
-  Legal: [
+  Company: [
+    { label: "About", to: "/about" },
     { label: "Privacy Policy", to: "/privacy" },
     { label: "Terms of Service", to: "/terms" },
-    { label: "Cookies", to: "/privacy#cookies" },
   ],
 };
 

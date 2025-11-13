@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useLocation } from "react-router-dom";
-import ReactMarkdown from "react-markdown";
+import { Link, useLocation } from "react-router-dom";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
 import Seo from "../components/Seo.jsx";
 import { useReports } from "../context/ReportsContext.jsx";
 import { trimFromHeading, parseTopIdeas } from "../utils/markdown.js";
+import { personalizeCopy } from "../utils/recommendationFormatters.js";
 
 function useQuery() {
   return new URLSearchParams(useLocation().search);
@@ -29,28 +29,9 @@ export default function RecommendationsReport() {
     [reports]
   );
 
-  const ideas = useMemo(() => parseTopIdeas(markdown, 5), [markdown]);
-  const [activeIdeaIndex, setActiveIdeaIndex] = useState(ideas[0]?.index ?? null);
-
-  useEffect(() => {
-    if (ideas.length > 0) {
-      setActiveIdeaIndex(ideas[0].index);
-    }
-  }, [ideas]);
-
-  const activeIdea = ideas.find((idea) => idea.index === activeIdeaIndex);
-
-  const remainderMarkdown = useMemo(() => {
-    if (!markdown) return "";
-    if (ideas.length === 0) return markdown;
-    let remainder = markdown;
-    ideas.forEach((idea) => {
-      if (idea.fullText) {
-        remainder = remainder.replace(idea.fullText, "");
-      }
-    });
-    return remainder.trim();
-  }, [markdown, ideas]);
+  const allIdeas = useMemo(() => parseTopIdeas(markdown, 10), [markdown]);
+  const topIdeas = allIdeas.slice(0, 3);
+  const secondaryIdeas = allIdeas.slice(3);
 
   const handleDownloadPDF = async () => {
     if (!reportRef.current || downloading) return;
@@ -90,13 +71,7 @@ export default function RecommendationsReport() {
       </div>
 
       <div ref={reportRef} className="grid gap-6">
-        <article className="rounded-3xl border border-slate-200 bg-white/95 p-8 shadow-soft">
-          <div className="prose prose-slate">
-            <ReactMarkdown>{markdown ? markdown.split("\n\n")[0] : "No recommendations available."}</ReactMarkdown>
-          </div>
-        </article>
-
-        {ideas.length === 0 && (
+        {topIdeas.length === 0 && (
           <div className="rounded-3xl border border-amber-200 bg-amber-50/80 p-6 text-amber-800 shadow-soft">
             <h2 className="text-lg font-semibold">Reports not generated yet</h2>
             <p className="mt-2 text-sm">
@@ -105,41 +80,50 @@ export default function RecommendationsReport() {
           </div>
         )}
 
-        {ideas.length > 0 && (
+        {topIdeas.length > 0 && (
           <div className="rounded-3xl border border-slate-200 bg-white/95 p-6 shadow-soft">
             <h2 className="text-xl font-semibold text-slate-900">
               Top Startup Ideas
             </h2>
             <p className="mt-1 text-sm text-slate-500">
-              Select an idea below to view the detailed recommendation.
+              Review your three tailored ideas. Click any row to open the full playbook with financial outlook, risk radar, validation questions, and more.
             </p>
-            <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200">
+            <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200 shadow-sm shadow-brand-100">
               <table className="min-w-full divide-y divide-slate-200 text-sm">
                 <thead className="bg-brand-500/10 text-left uppercase tracking-wide text-slate-500">
                   <tr>
                     <th className="px-4 py-3">#</th>
                     <th className="px-4 py-3">Idea</th>
                     <th className="px-4 py-3">Summary</th>
+                    <th className="px-4 py-3 text-right">Details</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200">
-                  {ideas.map((idea) => (
-                    <tr
-                      key={idea.index}
-                      className={`cursor-pointer transition hover:bg-brand-50/60 ${
-                        idea.index === activeIdeaIndex ? "bg-brand-50/80" : ""
-                      }`}
-                      onClick={() => setActiveIdeaIndex(idea.index)}
-                    >
-                      <td className="px-4 py-3 font-semibold text-slate-600">{idea.index}</td>
-                      <td className="px-4 py-3 font-medium text-slate-800">{idea.title}</td>
-                      <td className="px-4 py-3 text-slate-600">{idea.summary}</td>
-                    </tr>
-                  ))}
-                  {ideas.length < 5 && (
+                  {topIdeas.map((idea) => {
+                    const runQuery = runId || currentRunId;
+                    const detailPath = runQuery
+                      ? `/results/recommendations/${idea.index}?id=${runQuery}`
+                      : `/results/recommendations/${idea.index}`;
+                    return (
+                      <tr key={idea.index} className="transition hover:bg-brand-50/60">
+                        <td className="px-4 py-3 font-semibold text-slate-600">{idea.index}</td>
+                        <td className="px-4 py-3 font-medium text-slate-800">{idea.title}</td>
+                        <td className="px-4 py-3 text-slate-600">{personalizeCopy(idea.summary)}</td>
+                        <td className="px-4 py-3">
+                          <Link
+                            to={detailPath}
+                            className="mx-auto flex max-w-[8rem] justify-center rounded-full bg-gradient-to-r from-brand-500 via-brand-600 to-brand-700 px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:brightness-105"
+                          >
+                            View details
+                          </Link>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {topIdeas.length < 3 && (
                     <tr className="bg-slate-50/60 text-slate-500">
-                      <td colSpan={3} className="px-4 py-3 text-center italic">
-                        Awaiting additional ideas—try rerunning with broader preferences.
+                      <td colSpan={4} className="px-4 py-3 text-center italic">
+                        Fewer than three ideas generated—rerun with expanded preferences for more options.
                       </td>
                     </tr>
                   )}
@@ -148,24 +132,19 @@ export default function RecommendationsReport() {
             </div>
           </div>
         )}
-
-        {activeIdea && (
-          <article className="rounded-3xl border border-slate-200 bg-white/95 p-8 shadow-soft">
-            <h3 className="text-2xl font-semibold text-slate-900">
-              {activeIdea.index}. {activeIdea.title}
-            </h3>
-            <div className="mt-4 prose prose-slate">
-              <ReactMarkdown>{activeIdea.body || "Details coming soon."}</ReactMarkdown>
-            </div>
-          </article>
-        )}
-
-        {remainderMarkdown && (
-          <article className="rounded-3xl border border-slate-200 bg-white/95 p-8 shadow-soft">
-            <div className="prose prose-slate">
-              <ReactMarkdown>{remainderMarkdown}</ReactMarkdown>
-            </div>
-          </article>
+        {topIdeas.length > 0 && (
+          <div className="flex flex-wrap gap-3">
+            <Link
+              to={
+                runId || currentRunId
+                  ? `/results/recommendations/full?id=${runId || currentRunId}`
+                  : "/results/recommendations/full"
+              }
+              className="inline-flex items-center gap-2 rounded-xl border border-brand-300 bg-white px-4 py-2 text-sm font-semibold text-brand-700 shadow-sm transition hover:border-brand-400 hover:text-brand-800"
+            >
+              View full recommendation report
+            </Link>
+          </div>
         )}
       </div>
     </section>
