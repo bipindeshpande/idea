@@ -4,6 +4,8 @@ import Seo from "../components/Seo.jsx";
 const resources = [
   {
     category: "Playbooks",
+    icon: "📚",
+    color: "brand",
     items: [
       {
         title: "Founder Onboarding Checklist",
@@ -19,6 +21,8 @@ const resources = [
   },
   {
     category: "Templates",
+    icon: "📋",
+    color: "aqua",
     items: [
       {
         title: "Customer Interview Script",
@@ -34,6 +38,8 @@ const resources = [
   },
   {
     category: "Community",
+    icon: "👥",
+    color: "coral",
     items: [
       {
         title: "Builder Circle (Slack)",
@@ -51,52 +57,87 @@ const resources = [
 
 export default function ResourcesPage() {
   return (
-    <section className="grid gap-6 rounded-3xl border border-slate-200 bg-white/90 p-8 shadow-soft">
+    <section className="mx-auto max-w-6xl px-6 py-12">
       <Seo
         title="Resources & Guides | Startup Idea Advisor"
         description="Access AI startup guides, validation templates, and community links to accelerate your next venture."
         path="/resources"
       />
-      <header className="space-y-3">
-        <p className="text-xs uppercase tracking-wide text-slate-400">Toolbox</p>
-        <h1 className="text-3xl font-semibold text-slate-900">Resources to go from insight to traction</h1>
-        <p className="text-slate-600">
+
+      {/* Hero Section */}
+      <header className="mb-16 text-center">
+        <span className="inline-flex items-center gap-2 rounded-full bg-brand-50 px-4 py-1.5 text-xs font-semibold uppercase tracking-wide text-brand-700">
+          Resources
+        </span>
+        <h1 className="mt-6 text-4xl font-bold text-slate-900 md:text-5xl">
+          Resources to go from insight to traction
+        </h1>
+        <p className="mx-auto mt-4 max-w-2xl text-lg text-slate-600">
           Use these playbooks and templates alongside your reports to keep momentum—run experiments, gather signal, and rerun the crew when you need fresh direction.
         </p>
       </header>
 
-      <div className="grid gap-4 md:grid-cols-2">
-        {resources.map((group) => (
-          <div key={group.category} className="space-y-3 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h2 className="text-lg font-semibold text-slate-800">{group.category}</h2>
-            <ul className="space-y-3 text-sm text-slate-600">
-              {group.items.map((item) => (
-                <li key={item.title}>
-                  {item.link.startsWith("mailto") ? (
-                    <a href={item.link} className="font-semibold text-brand-600 underline">
-                      {item.title}
-                    </a>
-                  ) : (
-                    <Link to={item.link} className="font-semibold text-brand-600 underline">
-                      {item.title}
-                    </Link>
-                  )}
-                  <p className="text-slate-600">{item.description}</p>
-                </li>
-              ))}
-            </ul>
-          </div>
-        ))}
+      {/* Resource Categories */}
+      <div className="mb-16 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        {resources.map((group) => {
+          const colorClasses = {
+            brand: "border-brand-200 bg-brand-50",
+            aqua: "border-aqua-200 bg-aqua-50",
+            coral: "border-coral-200 bg-coral-50",
+            sand: "border-sand-200 bg-sand-50",
+          };
+
+          return (
+            <div
+              key={group.category}
+              className={`rounded-2xl border ${colorClasses[group.color]} p-6 shadow-sm`}
+            >
+              <div className="mb-4 flex items-center gap-3">
+                <span className="text-2xl">{group.icon}</span>
+                <h2 className="text-lg font-semibold text-slate-900">{group.category}</h2>
+              </div>
+              <ul className="space-y-4 text-sm">
+                {group.items.map((item) => (
+                  <li key={item.title} className="space-y-1">
+                    {item.link.startsWith("mailto") ? (
+                      <a
+                        href={item.link}
+                        className="font-semibold text-brand-600 underline hover:text-brand-700"
+                      >
+                        {item.title}
+                      </a>
+                    ) : (
+                      <Link
+                        to={item.link}
+                        className="font-semibold text-brand-600 underline hover:text-brand-700"
+                      >
+                        {item.title}
+                      </Link>
+                    )}
+                    <p className="text-slate-600">{item.description}</p>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          );
+        })}
       </div>
 
-      <section id="newsletter" className="rounded-2xl border border-brand-200 bg-brand-50/80 p-5 shadow-inner">
-        <h2 className="text-lg font-semibold text-brand-800">Newsletter</h2>
-        <p className="mt-2 text-sm text-brand-700">
-          Receive a weekly digest of real-world tests, AI prompts, and frameworks we refine while helping founders validate ideas.
-        </p>
-        <p className="mt-3 text-sm text-brand-700">
-          Subscribe from the footer and we’ll send the first edition when you join.
-        </p>
+      {/* Newsletter Section */}
+      <section
+        id="newsletter"
+        className="rounded-3xl border border-brand-200 bg-brand-50/80 p-8 shadow-soft"
+      >
+        <div className="mx-auto max-w-3xl text-center">
+          <div className="mb-4 text-3xl">📬</div>
+          <h2 className="mb-3 text-xl font-semibold text-slate-900">Newsletter</h2>
+          <p className="text-slate-600">
+            Receive a weekly digest of real-world tests, AI prompts, and frameworks we refine while helping founders validate ideas.
+          </p>
+          <p className="mt-3 text-sm text-slate-500">
+            Subscribe from the footer and we'll send the first edition when you join.
+          </p>
+        </div>
       </section>
     </section>
   );

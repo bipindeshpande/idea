@@ -64,28 +64,176 @@ function FitBadge({ value }) {
   );
 }
 
+const SAMPLE_REPORT = `### Comprehensive Recommendation Report
+
+### 1. AI-Powered Personal Finance Assistant
+- **Summary**: An intelligent assistant that helps users track expenses, optimize budgets, and make smarter financial decisions using AI-powered insights and automation.
+- **Why it fits now**: Your technical background and interest in automation make this a natural fit. The market for personal finance tools is growing, and there's room for AI-enhanced solutions that go beyond basic budgeting.
+
+### 2. Niche SaaS for Freelancers
+- **Summary**: A specialized SaaS platform designed specifically for freelancers, offering project management, invoicing, client communication, and tax preparation in one integrated solution.
+- **Why it fits now**: With your product development skills and understanding of workflow optimization, you can create a solution that addresses the fragmented tool landscape freelancers face.
+
+### 3. Content Creation Platform
+- **Summary**: A platform that combines AI-powered content generation with collaboration tools, helping creators produce, edit, and distribute content more efficiently.
+- **Why it fits now**: Your creative and technical skills align well with the content creation market, which is rapidly adopting AI tools to scale production.
+
+#### Recommendation Matrix
+
+| **Idea** | **Goal Alignment** | **Time Commitment** | **Budget** | **Skill Fit** | **Work Style** |
+|----------|-------------------|---------------------|------------|---------------|----------------|
+| **1. AI-Powered Personal Finance Assistant** | High | ≤ 5 hours/week | $3K Estimated | High (Technical + Design) | Strongly aligned |
+| **2. Niche SaaS for Freelancers** | Medium | ≤ 5 hours/week | $5K Estimated | Medium (Product + Marketing) | Aligned |
+| **3. Content Creation Platform** | High | ≤ 5 hours/week | $4K Estimated | High (Creative + Technical) | Strongly aligned |
+
+#### Financial Outlook
+
+- **Startup costs**: $3,000–$5,000 for initial setup (tools, hosting, basic marketing)
+- **Monthly operating costs**: $200–$500 (SaaS subscriptions, infrastructure)
+- **Revenue potential**: $1,000–$3,000/month within 6 months with 50–100 paying users
+- **Breakeven timeline**: 3–6 months at $29–$49/month pricing
+- **Profit margin**: 60–70% after initial setup costs
+
+#### Risk Radar
+
+- **Market saturation** (Medium severity): Mitigation: Focus on a specific niche or unique angle that larger players ignore. Validate demand through pre-launch waitlist.
+- **Technical complexity** (Low severity): Mitigation: Start with no-code tools (Bubble, Retool) or leverage existing APIs to reduce development time.
+- **Customer acquisition cost** (Medium severity): Mitigation: Use content marketing and community building to reduce paid acquisition dependency.
+
+#### Customer Persona
+
+**Primary**: Tech-savvy professionals (25–40) seeking productivity tools, willing to pay $29–$49/month for solutions that save 5+ hours/week.
+
+**Secondary**: Small business owners looking for affordable automation tools to streamline operations.
+
+#### Validation Questions
+
+1. What's the biggest pain point you face in managing your finances/workflow?
+   - What to listen for: Specific scenarios, frequency of the problem, current workarounds
+   - Act on it: Use responses to refine value proposition and feature prioritization
+
+2. How much time do you currently spend on this task per week?
+   - What to listen for: Quantified time investment, willingness to pay for time savings
+   - Act on it: Calculate ROI messaging and pricing strategy
+
+3. What tools or solutions have you tried before?
+   - What to listen for: Gaps in existing solutions, switching barriers
+   - Act on it: Position your solution to address specific gaps
+
+#### 30/60/90 Day Roadmap
+
+**Days 0–30**: Validate core assumptions
+- Build landing page with clear value proposition
+- Run 10 customer interviews using validation questions
+- Collect 20+ waitlist sign-ups
+- Test pricing sensitivity ($29 vs $49/month)
+
+**Days 30–60**: Build MVP
+- Develop core features using no-code tools or minimal code
+- Onboard 5 beta users for feedback
+- Iterate based on usage data and feedback
+- Set up basic analytics and tracking
+
+**Days 60–90**: Launch and iterate
+- Public launch with pricing in place
+- Focus on content marketing and community building
+- Aim for 20–30 paying customers
+- Plan next feature set based on user feedback
+
+#### Decision Checklist
+
+- [ ] Validated problem-solution fit through interviews
+- [ ] Confirmed willingness to pay at target price point
+- [ ] Identified clear differentiation from competitors
+- [ ] Secured initial budget for tools and marketing
+- [ ] Committed to 5 hours/week for next 90 days
+- [ ] Have backup plan if initial idea needs pivoting`;
+
+const SAMPLE_PROFILE_ANALYSIS = `## 1. Core Motivations and Objective Framing
+
+You're looking to generate extra income while maintaining flexibility. Your interest in technology and automation suggests you value efficiency and scalable solutions.
+
+## 2. Operating Constraints
+
+- **Time**: Limited to ≤ 5 hours/week, requiring solutions that can be built and managed part-time
+- **Budget**: Working with a lean budget, prioritizing cost-effective tools and strategies
+- **Work style**: Prefer structured, systematic approaches that allow for incremental progress
+
+## 3. Opportunity Angles
+
+Given your technical background and interest in automation, there are several opportunity angles:
+- SaaS products that solve specific workflow problems
+- Tools that leverage AI to reduce manual work
+- Platforms that connect service providers with customers
+
+## 4. Strengths
+
+- Technical skills enable rapid prototyping and iteration
+- Understanding of product development and user needs
+- Ability to work independently and systematically
+
+## 5. Strategic Considerations
+
+Focus on ideas that:
+- Can be validated quickly with minimal investment
+- Have clear monetization paths
+- Leverage your existing skills and knowledge
+- Can scale without requiring full-time commitment initially`;
+
+const SAMPLE_INPUTS = {
+  goal_type: "Extra Income",
+  time_commitment: "≤ 5 hours/week",
+  budget_range: "Up to $5 K",
+  interest_area: "Technology",
+  sub_interest_area: "Automation",
+  work_style: "Structured",
+  skill_strength: "Technical",
+};
+
 export default function RecommendationFullReport() {
   const { reports, loadRunById, currentRunId, inputs } = useReports();
   const query = useQuery();
   const runId = query.get("id");
+  const isSample = query.get("sample") === "true";
   const pdfRef = useRef(null);
   const [downloading, setDownloading] = useState(false);
 
   useEffect(() => {
-    if (runId) {
+    if (runId && !isSample) {
       loadRunById(runId);
     }
-  }, [runId, loadRunById]);
+  }, [runId, loadRunById, isSample]);
+
+  // Use sample data if in sample mode
+  const effectiveReports = isSample
+    ? { personalized_recommendations: SAMPLE_REPORT, profile_analysis: SAMPLE_PROFILE_ANALYSIS }
+    : reports;
+  
+  const effectiveInputs = isSample ? SAMPLE_INPUTS : inputs;
 
   const markdown = useMemo(
-    () => trimFromHeading(reports?.personalized_recommendations ?? "", "### Comprehensive Recommendation Report"),
-    [reports]
+    () => trimFromHeading(effectiveReports?.personalized_recommendations ?? "", "### Comprehensive Recommendation Report"),
+    [effectiveReports]
   );
 
   const ideas = useMemo(() => parseTopIdeas(markdown, 10), [markdown]);
   const topIdeas = ideas.slice(0, 3);
 
+  // For sample mode, use the sample report directly without removing ideas
+  const sampleRemainderMarkdown = useMemo(() => {
+    if (!isSample) return "";
+    // Extract everything after the ideas (from Recommendation Matrix onwards)
+    const matrixIndex = SAMPLE_REPORT.indexOf("#### Recommendation Matrix");
+    if (matrixIndex > 0) {
+      return SAMPLE_REPORT.slice(matrixIndex).replace(/^#### /, "#### ");
+    }
+    return SAMPLE_REPORT.replace(/### Comprehensive Recommendation Report\n\n/, "")
+      .replace(/### \d+\. [^\n]+[\s\S]*?(?=#### |$)/g, "")
+      .trim();
+  }, [isSample]);
+
   const remainderMarkdown = useMemo(() => {
+    if (isSample) return sampleRemainderMarkdown;
     if (!markdown) return "";
     let remainder = markdown;
     ideas.forEach((idea) => {
@@ -94,7 +242,7 @@ export default function RecommendationFullReport() {
       }
     });
     return stripReportHeading(remainder);
-  }, [markdown, ideas]);
+  }, [markdown, ideas, isSample, sampleRemainderMarkdown]);
 
   const runQuery = runId || currentRunId;
   const backPath = runQuery ? `/results/recommendations?id=${runQuery}` : "/results/recommendations";
@@ -144,14 +292,25 @@ export default function RecommendationFullReport() {
         path="/results/recommendations/full"
       />
 
+      {isSample && (
+        <div className="rounded-2xl border border-brand-200 bg-brand-50 p-4 text-center">
+          <p className="text-sm font-semibold text-brand-700">
+            📋 Sample Report — This is a demonstration of what you'll receive
+          </p>
+        </div>
+      )}
+
       <div className="flex items-center justify-between gap-3">
-        <Link to={backPath} className="inline-flex items-center gap-2 text-sm text-brand-700 hover:text-brand-800">
-          <span aria-hidden="true">←</span> Back to recommendations
+        <Link 
+          to={isSample ? "/product" : backPath} 
+          className="inline-flex items-center gap-2 text-sm text-brand-700 hover:text-brand-800"
+        >
+          <span aria-hidden="true">←</span> {isSample ? "Back to product" : "Back to recommendations"}
         </Link>
         <button
           type="button"
           onClick={handleDownloadPDF}
-          disabled={downloading || !remainderMarkdown}
+          disabled={downloading || (isSample ? false : !remainderMarkdown)}
           className="rounded-xl border border-brand-300 bg-white px-4 py-2 text-sm font-medium text-brand-700 shadow-sm transition hover:border-brand-400 hover:text-brand-800 disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-400 whitespace-nowrap"
         >
           {downloading ? "Preparing PDF..." : "Download Complete Report PDF"}
@@ -174,16 +333,23 @@ export default function RecommendationFullReport() {
         style={{ width: "210mm" }}
       >
         <CompleteReportPDF 
-          profileAnalysis={reports?.profile_analysis || ""}
+          profileAnalysis={effectiveReports?.profile_analysis || ""}
           topIdeas={topIdeas}
           remainderMarkdown={remainderMarkdown}
-          inputs={inputs}
+          inputs={effectiveInputs}
         />
       </div>
 
       {/* Visible content */}
-      {remainderMarkdown && (
-        <FullReportContent remainderMarkdown={remainderMarkdown} inputs={inputs} />
+      {remainderMarkdown ? (
+        <FullReportContent remainderMarkdown={remainderMarkdown} inputs={effectiveInputs} />
+      ) : (
+        <div className="rounded-3xl border border-amber-200 bg-amber-50/80 p-6 text-amber-800 shadow-soft">
+          <h2 className="text-lg font-semibold">Full report not available</h2>
+          <p className="mt-2 text-sm">
+            We couldn't find additional sections beyond the top ideas. Try rerunning the crew with more context.
+          </p>
+        </div>
       )}
     </section>
   );
@@ -404,6 +570,294 @@ function CompleteReportPDF({ profileAnalysis, topIdeas, remainderMarkdown, input
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+function SampleReportContent({ inputs }) {
+  const sampleMatrixRows = [
+    {
+      order: 1,
+      idea: "AI-Powered Personal Finance Assistant",
+      goal: "High",
+      time: "≤ 5 hours/week",
+      budget: "$3K Estimated",
+      skill: "High (Technical + Design)",
+      workStyle: "Strongly aligned",
+    },
+    {
+      order: 2,
+      idea: "Niche SaaS for Freelancers",
+      goal: "Medium",
+      time: "≤ 5 hours/week",
+      budget: "$5K Estimated",
+      skill: "Medium (Product + Marketing)",
+      workStyle: "Aligned",
+    },
+    {
+      order: 3,
+      idea: "Content Creation Platform",
+      goal: "High",
+      time: "≤ 5 hours/week",
+      budget: "$4K Estimated",
+      skill: "High (Creative + Technical)",
+      workStyle: "Strongly aligned",
+    },
+  ];
+
+  const sampleFinancialOutlook = [
+    {
+      focus: "Startup costs",
+      estimate: "$3,000–$5,000 for initial setup (tools, hosting, basic marketing)",
+      metric: "$3K–$5K",
+    },
+    {
+      focus: "Monthly operating costs",
+      estimate: "$200–$500 (SaaS subscriptions, infrastructure)",
+      metric: "$200–$500/mo",
+    },
+    {
+      focus: "Revenue potential",
+      estimate: "$1,000–$3,000/month within 6 months with 50–100 paying users",
+      metric: "$1K–$3K/mo",
+    },
+    {
+      focus: "Breakeven timeline",
+      estimate: "3–6 months at $29–$49/month pricing",
+      metric: "3–6 months",
+    },
+    {
+      focus: "Profit margin",
+      estimate: "60–70% after initial setup costs",
+      metric: "60–70%",
+    },
+  ];
+
+  const sampleRiskRows = [
+    {
+      risk: "Market saturation",
+      severity: "MEDIUM",
+      mitigation: "Focus on a specific niche or unique angle that larger players ignore. Validate demand through pre-launch waitlist.",
+    },
+    {
+      risk: "Technical complexity",
+      severity: "LOW",
+      mitigation: "Start with no-code tools (Bubble, Retool) or leverage existing APIs to reduce development time.",
+    },
+    {
+      risk: "Customer acquisition cost",
+      severity: "MEDIUM",
+      mitigation: "Use content marketing and community building to reduce paid acquisition dependency.",
+    },
+  ];
+
+  const sampleValidationQuestions = [
+    {
+      question: "What's the biggest pain point you face in managing your finances/workflow?",
+      listenFor: "Specific scenarios, frequency of the problem, current workarounds",
+      actOn: "Use responses to refine value proposition and feature prioritization",
+    },
+    {
+      question: "How much time do you currently spend on this task per week?",
+      listenFor: "Quantified time investment, willingness to pay for time savings",
+      actOn: "Calculate ROI messaging and pricing strategy",
+    },
+    {
+      question: "What tools or solutions have you tried before?",
+      listenFor: "Gaps in existing solutions, switching barriers",
+      actOn: "Position your solution to address specific gaps",
+    },
+  ];
+
+  const sampleDecisionChecklist = [
+    "Validated problem-solution fit through interviews",
+    "Confirmed willingness to pay at target price point",
+    "Identified clear differentiation from competitors",
+    "Secured initial budget for tools and marketing",
+    "Committed to 5 hours/week for next 90 days",
+    "Have backup plan if initial idea needs pivoting",
+  ];
+
+  return (
+    <div className="grid gap-6">
+      <article className="rounded-3xl border border-slate-200 bg-white/95 p-8 shadow-soft">
+        <h1 className="text-3xl font-semibold text-slate-900">Full recommendation report</h1>
+        <p className="mt-2 text-sm text-slate-500">
+          Review the matrix, financial outlook, risk radar, persona, validation plan, roadmap, and decision checklist so
+          you can move forward confidently.
+        </p>
+      </article>
+
+      {/* Recommendation Matrix */}
+      <article className="rounded-3xl border border-slate-200 bg-white/95 p-8 shadow-soft">
+        <h2 className="text-2xl font-semibold text-slate-900 mb-2">Recommendation Matrix</h2>
+        <p className="text-sm text-slate-600 mb-6">Compare how each idea aligns with your goals, capacity, and preferences.</p>
+        <div className="mt-4 overflow-x-auto rounded-2xl border border-slate-200">
+          <table className="min-w-full divide-y divide-slate-200 text-sm">
+            <thead className="bg-brand-500/10 text-left uppercase tracking-wide text-slate-600">
+              <tr>
+                <th className="px-4 py-3 w-12 font-semibold">#</th>
+                <th className="px-4 py-3 font-semibold">Idea</th>
+                <th className="px-4 py-3 font-semibold">Goal Fit</th>
+                <th className="px-4 py-3 font-semibold">Time Fit</th>
+                <th className="px-4 py-3 font-semibold">Budget Fit</th>
+                <th className="px-4 py-3 font-semibold">Skill Fit</th>
+                <th className="px-4 py-3 font-semibold">Work Style Fit</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-200 bg-white">
+              {sampleMatrixRows.map((row) => (
+                <tr key={row.order} className="hover:bg-slate-50 transition-colors">
+                  <td className="px-4 py-4 font-semibold text-brand-600">{row.order}</td>
+                  <td className="px-4 py-4 font-semibold text-slate-900">{row.idea}</td>
+                  <td className="px-4 py-4">
+                    <FitBadge value={row.goal} />
+                  </td>
+                  <td className="px-4 py-4">
+                    <FitBadge value={row.time} />
+                  </td>
+                  <td className="px-4 py-4">
+                    <FitBadge value={row.budget} />
+                  </td>
+                  <td className="px-4 py-4">
+                    <FitBadge value={row.skill} />
+                  </td>
+                  <td className="px-4 py-4">
+                    <FitBadge value={row.workStyle} />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </article>
+
+      {/* Financial Outlook */}
+      <article className="rounded-3xl border border-amber-100 bg-amber-50/80 p-8 shadow-soft">
+        <h2 className="text-2xl font-semibold text-slate-900">Financial outlook</h2>
+        <div className="mt-4 overflow-hidden rounded-2xl border border-amber-100 bg-white">
+          <table className="min-w-full divide-y divide-amber-100 text-sm">
+            <thead className="bg-amber-100/60 text-left uppercase tracking-wide text-amber-700">
+              <tr>
+                <th className="px-4 py-3 w-10"></th>
+                <th className="px-4 py-3">Focus</th>
+                <th className="px-4 py-3">Estimate</th>
+                <th className="px-4 py-3 text-right">Benchmark</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-amber-100 text-slate-700">
+              {sampleFinancialOutlook.map(({ focus, estimate, metric }, index) => (
+                <tr key={`${focus}-${index}`}>
+                  <td className="px-4 py-3 text-brand-500">✓</td>
+                  <td className="px-4 py-3 font-semibold text-amber-800">{focus}</td>
+                  <td className="px-4 py-3">{estimate}</td>
+                  <td className="px-4 py-3 text-right font-semibold text-amber-700">{metric}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </article>
+
+      {/* Risk Radar */}
+      <article className="rounded-3xl border border-slate-200 bg-white/95 p-8 shadow-soft">
+        <h2 className="text-2xl font-semibold text-slate-900">Risk radar</h2>
+        <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200">
+          <table className="min-w-full divide-y divide-slate-200 text-sm">
+            <thead className="bg-brand-500/10 text-left uppercase tracking-wide text-slate-500">
+              <tr>
+                <th className="px-4 py-3">Risk</th>
+                <th className="px-4 py-3 w-32">Severity</th>
+                <th className="px-4 py-3">Mitigation</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-200">
+              {sampleRiskRows.map((row, index) => (
+                <tr key={index}>
+                  <td className="px-4 py-3 text-slate-700">{row.risk}</td>
+                  <td className="px-4 py-3 text-slate-700">{row.severity}</td>
+                  <td className="px-4 py-3 text-slate-700">{row.mitigation}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </article>
+
+      {/* Validation Questions */}
+      <article className="rounded-3xl border border-slate-200 bg-white/95 p-8 shadow-soft">
+        <h2 className="text-2xl font-semibold text-slate-900 mb-2">Validation questions</h2>
+        <p className="text-sm text-slate-600 mb-6">
+          Use these questions to validate your idea with potential customers. Each question includes guidance on what to listen for and how to act on the responses.
+        </p>
+        <div className="grid gap-4 md:grid-cols-2">
+          {sampleValidationQuestions.map((q, index) => (
+            <div key={index} className="rounded-2xl border border-slate-200 bg-white p-6">
+              <p className="font-semibold text-slate-900 mb-3">{q.question}</p>
+              <div className="space-y-2 text-sm">
+                <p className="text-slate-600">
+                  <strong className="text-slate-900">What to listen for:</strong> {q.listenFor}
+                </p>
+                <p className="text-slate-600">
+                  <strong className="text-slate-900">Act on it:</strong> {q.actOn}
+                </p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </article>
+
+      {/* 30/60/90 Day Roadmap */}
+      <article className="rounded-3xl border border-slate-200 bg-white/95 p-8 shadow-soft">
+        <h2 className="text-2xl font-semibold text-slate-900 mb-6">30/60/90 Day Roadmap</h2>
+        <div className="grid gap-4 md:grid-cols-3">
+          <div className="rounded-2xl border border-brand-200 bg-brand-50 p-6">
+            <h3 className="text-lg font-semibold text-slate-900 mb-3">Days 0–30</h3>
+            <p className="text-sm font-semibold text-slate-700 mb-2">Validate core assumptions</p>
+            <ul className="space-y-2 text-sm text-slate-600">
+              <li>• Build landing page with clear value proposition</li>
+              <li>• Run 10 customer interviews using validation questions</li>
+              <li>• Collect 20+ waitlist sign-ups</li>
+              <li>• Test pricing sensitivity ($29 vs $49/month)</li>
+            </ul>
+          </div>
+          <div className="rounded-2xl border border-aqua-200 bg-aqua-50 p-6">
+            <h3 className="text-lg font-semibold text-slate-900 mb-3">Days 30–60</h3>
+            <p className="text-sm font-semibold text-slate-700 mb-2">Build MVP</p>
+            <ul className="space-y-2 text-sm text-slate-600">
+              <li>• Develop core features using no-code tools or minimal code</li>
+              <li>• Onboard 5 beta users for feedback</li>
+              <li>• Iterate based on usage data and feedback</li>
+              <li>• Set up basic analytics and tracking</li>
+            </ul>
+          </div>
+          <div className="rounded-2xl border border-coral-200 bg-coral-50 p-6">
+            <h3 className="text-lg font-semibold text-slate-900 mb-3">Days 60–90</h3>
+            <p className="text-sm font-semibold text-slate-700 mb-2">Launch and iterate</p>
+            <ul className="space-y-2 text-sm text-slate-600">
+              <li>• Public launch with pricing in place</li>
+              <li>• Focus on content marketing and community building</li>
+              <li>• Aim for 20–30 paying customers</li>
+              <li>• Plan next feature set based on user feedback</li>
+            </ul>
+          </div>
+        </div>
+      </article>
+
+      {/* Decision Checklist */}
+      <article className="rounded-3xl border border-slate-200 bg-white/95 p-8 shadow-soft">
+        <h2 className="text-2xl font-semibold text-slate-900 mb-4">Decision Checklist</h2>
+        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6">
+          <ul className="space-y-3 text-sm text-slate-700">
+            {sampleDecisionChecklist.map((item, index) => (
+              <li key={index} className="flex items-start gap-3">
+                <span className="mt-0.5 text-brand-500">□</span>
+                <span>{item}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </article>
     </div>
   );
 }
