@@ -444,7 +444,7 @@ export default function HomePage() {
             <button
               type="button"
               onClick={handleBack}
-              className="rounded-xl border border-slate-300 px-5 py-2 text-sm font-medium text-slate-700 shadow-sm hover:border-brand-300"
+              className="rounded-xl border border-slate-300 px-5 py-2 text-sm font-medium text-slate-700 shadow-sm hover:border-brand-300 whitespace-nowrap"
             >
               Back
             </button>
@@ -453,7 +453,7 @@ export default function HomePage() {
             <button
               type="button"
               onClick={handleNext}
-              className="rounded-xl bg-gradient-to-r from-brand-500 to-brand-600 px-6 py-2 text-sm font-medium text-white shadow-md transition hover:from-brand-600 hover:to-brand-700"
+              className="rounded-xl bg-gradient-to-r from-brand-500 to-brand-600 px-6 py-2 text-sm font-medium text-white shadow-md transition hover:from-brand-600 hover:to-brand-700 whitespace-nowrap"
             >
               Continue
             </button>
@@ -462,7 +462,7 @@ export default function HomePage() {
             <button
               type="submit"
               disabled={loading}
-              className="rounded-xl bg-gradient-to-r from-brand-500 to-brand-600 px-6 py-3 text-white shadow-md transition hover:from-brand-600 hover:to-brand-700 disabled:cursor-not-allowed disabled:from-brand-300 disabled:to-brand-300"
+              className="rounded-xl bg-gradient-to-r from-brand-500 to-brand-600 px-6 py-3 text-white shadow-md transition hover:from-brand-600 hover:to-brand-700 disabled:cursor-not-allowed disabled:from-brand-300 disabled:to-brand-300 whitespace-nowrap"
             >
               {loading ? "Running crew..." : "Generate recommendations"}
             </button>

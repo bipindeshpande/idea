@@ -55,7 +55,7 @@ export default function DashboardPage() {
         </div>
         <Link
           to="/#intake-form"
-          className="rounded-xl bg-brand-500 px-4 py-2 text-sm font-medium text-white shadow hover:bg-brand-600"
+          className="rounded-xl bg-brand-500 px-4 py-2 text-sm font-medium text-white shadow hover:bg-brand-600 whitespace-nowrap"
         >
           New request
         </Link>
@@ -89,13 +89,13 @@ export default function DashboardPage() {
                   </button>
                   <Link
                     to={`/results/profile?id=${run.id}`}
-                    className="rounded-lg border border-slate-200 px-3 py-1 text-sm hover:border-brand-300 whitespace-nowrap"
+                    className="rounded-lg border border-brand-300 bg-brand-50 px-3 py-1 text-sm font-medium text-brand-700 hover:border-brand-400 hover:bg-brand-100 whitespace-nowrap"
                   >
                     View profile
                   </Link>
                   <Link
                     to={`/results/recommendations?id=${run.id}`}
-                    className="rounded-lg border border-slate-200 px-3 py-1 text-sm hover:border-brand-300 whitespace-nowrap"
+                    className="rounded-lg border border-brand-300 bg-brand-50 px-3 py-1 text-sm font-medium text-brand-700 hover:border-brand-400 hover:bg-brand-100 whitespace-nowrap"
                   >
                     View recommendations
                   </Link>

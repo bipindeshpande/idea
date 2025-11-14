@@ -64,7 +64,7 @@ export default function RecommendationsReport() {
           type="button"
           onClick={handleDownloadPDF}
           disabled={downloading || !markdown}
-          className="rounded-xl border border-brand-300 bg-white px-4 py-2 text-sm font-medium text-brand-700 shadow-sm transition hover:border-brand-400 hover:text-brand-800 disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-400"
+          className="rounded-xl border border-brand-300 bg-white px-4 py-2 text-sm font-medium text-brand-700 shadow-sm transition hover:border-brand-400 hover:text-brand-800 disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-400 whitespace-nowrap"
         >
           {downloading ? "Preparing PDF..." : "Download PDF"}
         </button>
@@ -112,7 +112,7 @@ export default function RecommendationsReport() {
                         <td className="px-4 py-3">
                           <Link
                             to={detailPath}
-                            className="mx-auto flex max-w-[8rem] justify-center rounded-full bg-gradient-to-r from-brand-500 via-brand-600 to-brand-700 px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:brightness-105"
+                            className="mx-auto flex max-w-[8rem] justify-center rounded-full bg-gradient-to-r from-brand-500 via-brand-600 to-brand-700 px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:brightness-105 whitespace-nowrap"
                           >
                             View details
                           </Link>

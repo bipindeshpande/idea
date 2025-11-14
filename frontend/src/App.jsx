@@ -225,7 +225,7 @@ function Navigation() {
             <Link
               to="/"
               onClick={closeAllMenus}
-              className="rounded-full bg-gradient-to-r from-brand-500 to-brand-600 px-5 py-2 text-sm font-semibold text-white shadow-md transition hover:from-brand-600 hover:to-brand-700"
+              className="rounded-full bg-gradient-to-r from-brand-500 to-brand-600 px-5 py-2 text-sm font-semibold text-white shadow-md transition hover:from-brand-600 hover:to-brand-700 whitespace-nowrap"
             >
               Start Run
             </Link>
@@ -283,7 +283,7 @@ function Navigation() {
               <Link
                 to="/"
                 onClick={closeAllMenus}
-                className="block rounded-xl bg-gradient-to-r from-brand-500 to-brand-600 px-4 py-2 text-center text-sm font-semibold text-white shadow-md transition hover:from-brand-600 hover:to-brand-700"
+                className="block rounded-xl bg-gradient-to-r from-brand-500 to-brand-600 px-4 py-2 text-center text-sm font-semibold text-white shadow-md transition hover:from-brand-600 hover:to-brand-700 whitespace-nowrap"
               >
                 Start Run
               </Link>

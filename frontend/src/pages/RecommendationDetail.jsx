@@ -50,7 +50,7 @@ export default function RecommendationDetail() {
 
   const sections = useMemo(() => (activeIdea ? splitIdeaSections(activeIdea.body) : {}), [activeIdea]);
 
-  const whyFit = useMemo(() => extractWhyFit(sections["why it fits now"]), [sections]);
+  const whyFit = useMemo(() => extractWhyFit(sections.intro || ""), [sections]);
   const executionSteps = useMemo(
     () =>
       buildExecutionSteps(sections["execution path"], activeIdea?.title || "", {
@@ -152,10 +152,21 @@ export default function RecommendationDetail() {
   }, [marketSectionKey, sections]);
 
   const personaMarkdown = useMemo(() => sections["customer persona"] || "", [sections]);
-  const fitNarrativeMarkdown = useMemo(
-    () => sections["why it fits now"] || sections.intro || "",
-    [sections]
-  );
+  const fitNarrativeMarkdown = useMemo(() => {
+    const raw = sections.intro || "";
+    if (!raw) return "";
+    
+    // Remove "Why it fits now:" from anywhere in the content (case-insensitive, with optional colon and spaces)
+    let cleaned = raw
+      .replace(/^why\s+it\s+fits\s+now[:\s]*/gi, "")
+      .replace(/\*\*why\s+it\s+fits\s+now\*\*[:\s]*/gi, "")
+      .replace(/why\s+it\s+fits\s+now[:\s]*/gi, "")
+      .trim();
+    
+    // Don't use cleanNarrativeMarkdown here as it breaks list structure
+    // Just personalize the copy while preserving markdown structure
+    return personalizeCopy(cleaned);
+  }, [sections]);
   const immediateExperimentsList = useMemo(
     () => dedupeStrings(extractValidationQuestions(sections["immediate experiments"])),
     [sections]
@@ -176,7 +187,6 @@ export default function RecommendationDetail() {
   const handledKeys = useMemo(() => {
     const keys = [
       "intro",
-      "why it fits now",
       "execution path",
       "financial snapshot",
       "key risks & mitigations",
@@ -262,31 +272,87 @@ export default function RecommendationDetail() {
             )}
           </article>
 
-          {(fitNarrativeMarkdown || fitHighlights.length > 0) && (
+          {fitNarrativeMarkdown && (
             <article className="rounded-3xl border border-brand-100 bg-white/95 p-8 shadow-soft">
               <h2 className="text-2xl font-semibold text-slate-900">Why this Idea Fits You</h2>
-              <p className="mt-2 text-sm text-slate-500">
-                Quick recap of what you shared and the advantages you bring into this idea.
-              </p>
-              <ProfilePanels inputs={inputs} />
+             
               {fitNarrativeMarkdown && (
-                <div className="mt-6 prose prose-slate">
-                  <ReactMarkdown>{cleanNarrativeMarkdown(fitNarrativeMarkdown)}</ReactMarkdown>
-                </div>
-              )}
-              {fitHighlights.length > 0 && (
-                <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
-                  <p className="text-xs uppercase tracking-wide text-slate-500">
-                    Highlights in plain language
-                  </p>
-                  <ul className="mt-3 space-y-2 text-sm text-slate-700">
-                    {fitHighlights.map((item, index) => (
-                      <li key={index} className="flex gap-2">
-                        <span className="mt-1 text-brand-500">•</span>
-                        <span>{cleanNarrativeMarkdown(item)}</span>
-                      </li>
-                    ))}
-                  </ul>
+                <div className="mt-6 text-slate-700">
+                  <style>{`
+                    .fit-narrative-content ul {
+                      list-style-type: disc;
+                      margin-left: 1.5rem;
+                      margin-top: 0.75rem;
+                      margin-bottom: 0.75rem;
+                      padding-left: 0;
+                    }
+                    .fit-narrative-content ul ul {
+                      list-style-type: circle;
+                      margin-left: 2rem;
+                      margin-top: 0.5rem;
+                      margin-bottom: 0.5rem;
+                    }
+                    .fit-narrative-content ul ul ul {
+                      list-style-type: square;
+                      margin-left: 2rem;
+                    }
+                    .fit-narrative-content ol {
+                      list-style-type: decimal;
+                      margin-left: 1.5rem;
+                      margin-top: 0.75rem;
+                      margin-bottom: 0.75rem;
+                    }
+                    .fit-narrative-content ol ol {
+                      list-style-type: lower-alpha;
+                      margin-left: 2rem;
+                    }
+                    .fit-narrative-content li {
+                      margin-top: 0.5rem;
+                      margin-bottom: 0.5rem;
+                      line-height: 1.7;
+                      padding-left: 0.25rem;
+                    }
+                    .fit-narrative-content li > p {
+                      margin: 0;
+                      display: inline;
+                    }
+                    .fit-narrative-content p {
+                      margin-bottom: 1rem;
+                      line-height: 1.7;
+                    }
+                    .fit-narrative-content strong {
+                      font-weight: 600;
+                      color: #1e293b;
+                    }
+                  `}</style>
+                  <div className="fit-narrative-content">
+                    <ReactMarkdown
+                      components={{
+                        p: ({ node, ...props }) => (
+                          <p className="leading-relaxed mb-4" {...props} />
+                        ),
+                        ul: ({ node, ...props }) => (
+                          <ul {...props} />
+                        ),
+                        ol: ({ node, ...props }) => (
+                          <ol {...props} />
+                        ),
+                        li: ({ node, children, ...props }) => (
+                          <li className="leading-relaxed" {...props}>
+                            {children}
+                          </li>
+                        ),
+                        strong: ({ node, ...props }) => (
+                          <strong className="font-semibold text-slate-900" {...props} />
+                        ),
+                        em: ({ node, ...props }) => (
+                          <em className="italic text-slate-600" {...props} />
+                        ),
+                      }}
+                    >
+                      {fitNarrativeMarkdown}
+                    </ReactMarkdown>
+                  </div>
                 </div>
               )}
             </article>

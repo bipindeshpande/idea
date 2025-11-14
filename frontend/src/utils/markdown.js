@@ -34,12 +34,16 @@ export function parseTopIdeas(markdown = "", limit = 5) {
     const start = match.index !== undefined ? match.index + match[0].length : 0;
     const body = markdown.slice(start, nextMatchIndex).trim();
     const summaryMatch = body.replace(/\s+/g, " ").match(/([^.!?]+[.!?])/);
+    let summary = summaryMatch ? summaryMatch[0].trim() : rawTitle;
+    
+    // Remove "why it fits now" prefix from summary (case-insensitive)
+    summary = summary.replace(/^why\s+it\s+fits\s+now[:\s]*/i, "").trim();
 
     ideas.push({
       index,
       title: rawTitle.replace(/^#+\s*/, ""),
       body,
-      summary: summaryMatch ? summaryMatch[0].trim() : rawTitle,
+      summary,
       fullText: markdown.slice(match.index ?? 0, nextMatchIndex).trim(),
     });
   }

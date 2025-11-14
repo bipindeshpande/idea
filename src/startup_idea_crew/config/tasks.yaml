@@ -214,7 +214,6 @@ recommendation_task:
     - `#### Profile Fit Summary` with at least six bullet points translating inputs (goal type, time commitment, budget, interest focus, work style, skill strength, experience summary)
     - `#### Recommendation Matrix` comparing the top ideas against goal alignment, time, budget, skill fit, and work style
     - Numbered ideas `1.` to `3.` where each idea covers:
-      * **Why it fits now** (referencing goal type, time commitment, budget range, and work style preferences)
       * **Execution path** with immediate actions, partners, and required skills; include at least one milestone or channel unique to this idea
       * **Financial snapshot** (costs, revenue projections, breakeven) citing tool outputs
       * **Key risks & mitigations** leveraging assess_startup_risks results and tailored to the idea’s model and focus
