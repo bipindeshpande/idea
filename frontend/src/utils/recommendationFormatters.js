@@ -630,26 +630,129 @@ export function splitFullReportSections(markdown = "") {
 }
 
 export function parseRecommendationMatrix(matrixText = "") {
-  const lines = matrixText.split(/\r?\n/);
+  if (!matrixText) return [];
+  
+  const lines = matrixText.split(/\r?\n/).map(l => l.trim()).filter(l => l);
   const rows = [];
+  
+  // First, try to parse as markdown table (primary format)
+  let tableStartIndex = -1;
+  let headerLine = null;
+  let separatorLine = null;
+  
+  // Find the table header and separator
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    // Check if this looks like a table header (contains | and common column names)
+    if (line.includes('|') && (
+      line.toLowerCase().includes('idea') || 
+      line.toLowerCase().includes('goal') || 
+      line.toLowerCase().includes('time') || 
+      line.toLowerCase().includes('budget')
+    )) {
+      headerLine = line;
+      // Check if next line is a separator
+      if (i + 1 < lines.length && lines[i + 1].match(/^\|[\s\-:]+\|/)) {
+        separatorLine = lines[i + 1];
+        tableStartIndex = i;
+        break;
+      }
+    }
+  }
+  
+  // If we found a markdown table, parse it
+  if (tableStartIndex >= 0 && headerLine) {
+    const headerCells = headerLine.split('|').map(c => c.trim()).filter(c => c);
+    
+    // Find column indices
+    const ideaCol = headerCells.findIndex(c => c.toLowerCase().includes('idea'));
+    const goalCol = headerCells.findIndex(c => c.toLowerCase().includes('goal') || c.toLowerCase().includes('alignment'));
+    const timeCol = headerCells.findIndex(c => c.toLowerCase().includes('time') || c.toLowerCase().includes('commitment'));
+    const budgetCol = headerCells.findIndex(c => c.toLowerCase().includes('budget'));
+    const skillCol = headerCells.findIndex(c => c.toLowerCase().includes('skill') || c.toLowerCase().includes('fit'));
+    const workStyleCol = headerCells.findIndex(c => c.toLowerCase().includes('work') || c.toLowerCase().includes('style'));
+    
+    // Parse data rows (skip header and separator, stop at empty line or next heading)
+    for (let i = tableStartIndex + 2; i < lines.length; i++) {
+      const line = lines[i];
+      
+      // Stop if we hit a new section (heading) or empty line
+      if (line.startsWith('#') || line.startsWith('###') || line === '') {
+        break;
+      }
+      
+      // Skip separator lines
+      if (line.match(/^\|[\s\-:]+\|/)) continue;
+      
+      // Parse table row
+      if (line.includes('|')) {
+        const cells = line.split('|').map(c => c.trim()).filter(c => c);
+        
+        if (cells.length > 0) {
+          const idea = cells[ideaCol] || cells[0] || '';
+          const goal = cells[goalCol] || '';
+          const time = cells[timeCol] || '';
+          const budget = cells[budgetCol] || '';
+          const skill = cells[skillCol] || '';
+          const workStyle = cells[workStyleCol] || '';
+          
+          // Extract idea number and name
+          const ideaMatch = idea.match(/(\d+)\.\s*(.+)/) || idea.match(/\*\*(\d+)\.\s*(.+?)\*\*/);
+          const order = ideaMatch ? parseInt(ideaMatch[1], 10) : rows.length + 1;
+          const ideaName = ideaMatch ? ideaMatch[2] : idea.replace(/\*\*/g, '').trim();
+          
+          rows.push({
+            order,
+            idea: personalizeCopy(ideaName),
+            goal: personalizeCopy(goal.replace(/\*\*/g, '').trim() || 'Strong'),
+            time: personalizeCopy(time.replace(/\*\*/g, '').trim() || 'Aligned'),
+            budget: personalizeCopy(budget.replace(/\*\*/g, '').trim() || 'Within range'),
+            skill: personalizeCopy(skill.replace(/\*\*/g, '').trim() || 'Leverages strengths'),
+            workStyle: personalizeCopy(workStyle.replace(/\*\*/g, '').trim() || 'Matches preferences'),
+            notes: '', // Notes column not typically in the table
+          });
+        }
+      }
+    }
+    
+    if (rows.length > 0) {
+      return rows;
+    }
+  }
+  
+  // Fallback: try to parse as bullet list format (legacy)
   let current = null;
-
   lines.forEach((line) => {
     const trimmed = line.trim();
+    
+    // Stop if we hit a new section
+    if (trimmed.startsWith('#') || trimmed.startsWith('###')) {
+      if (current) {
+        rows.push(current);
+        current = null;
+      }
+      return;
+    }
+    
     if (/^[-*+]\s*\*\*(.+?)\*\*/.test(trimmed)) {
       if (current) {
         rows.push(current);
       }
       const ideaMatch = trimmed.match(/^[-*+]\s*\*\*(.+?)\*\*\s*[:\-–—]?\s*(.*)$/u);
+      const ideaText = ideaMatch ? ideaMatch[1].trim() : trimmed.replace(/^[-*+]\s*/, "").trim();
+      const ideaNumMatch = ideaText.match(/(\d+)\.\s*(.+)/);
+      const order = ideaNumMatch ? parseInt(ideaNumMatch[1], 10) : rows.length + 1;
+      const ideaName = ideaNumMatch ? ideaNumMatch[2] : ideaText;
+      
       current = {
-        idea: ideaMatch ? ideaMatch[1].trim() : trimmed.replace(/^[-*+]\s*/, "").trim(),
+        idea: ideaName,
         goal: "",
         time: "",
         budget: "",
         skill: "",
         workStyle: "",
         notes: "",
-        order: rows.length + 1,
+        order,
       };
       const extra = ideaMatch && ideaMatch[2] ? ideaMatch[2].trim() : "";
       if (extra) {
@@ -658,23 +761,11 @@ export function parseRecommendationMatrix(matrixText = "") {
     } else if (/^[-*+]\s+/.test(trimmed) && current) {
       const attribute = trimmed.replace(/^[-*+]\s+/, "");
       parseMatrixAttributes(attribute, current);
-    } else if (/^\d+[\.\)]\s+/.test(trimmed)) {
-      // Handle numbered lists as backups.
-      const attribute = trimmed.replace(/^\d+[\.\)]\s+/, "");
-      if (!current) {
-        current = {
-          idea: "Idea",
-          goal: "",
-          time: "",
-          budget: "",
-          skill: "",
-          workStyle: "",
-          notes: "",
-        };
+    } else if (trimmed && current && !trimmed.match(/^\|[\s\-:]+\|/)) {
+      // Don't add table separators or markdown table content to notes
+      if (!trimmed.startsWith('|') || trimmed.split('|').length <= 2) {
+        current.notes = current.notes ? `${current.notes} ${trimmed}` : trimmed;
       }
-      parseMatrixAttributes(attribute, current);
-    } else if (trimmed && current) {
-      current.notes = current.notes ? `${current.notes} ${trimmed}` : trimmed;
     }
   });
 
@@ -722,10 +813,15 @@ function parseMatrixAttributes(attribute, row) {
 function sanitizeMatrixNotes(notes = "") {
   if (!notes) return "";
   const stripped = notes
-    .replace(/^#+\s+/gm, "")
-    .replace(/\|/g, " ")
-    .replace(/\*\*/g, "")
-    .replace(/\s+/g, " ")
+    .replace(/^#+\s+/gm, "") // Remove markdown headings
+    .replace(/###\s+30\/60\/90\s+Day\s+Roadmap.*$/gmi, "") // Remove roadmap tables
+    .replace(/###\s+Decision\s+Checklist.*$/gmi, "") // Remove decision checklist
+    .replace(/\|[\s\-:]+\|/g, "") // Remove table separators
+    .replace(/\|/g, " ") // Replace remaining pipes with spaces
+    .replace(/\*\*/g, "") // Remove bold markers
+    .replace(/Days\s*\|\s*Milestones/g, "") // Remove table headers
+    .replace(/\d+-\d+\s*\|\s*[^\|]+/g, "") // Remove table rows (e.g., "0-30 | Define business model")
+    .replace(/\s+/g, " ") // Normalize whitespace
     .trim();
   return personalizeCopy(stripped);
 }

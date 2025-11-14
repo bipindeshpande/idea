@@ -48,29 +48,20 @@ function Navigation() {
   const learnMenuRef = useRef(null);
   const reportsMenuRef = useRef(null);
 
-  const summaryChips = hasReports
-    ? [
-        inputs?.goal_type && `Goal: ${inputs.goal_type}`,
-        inputs?.sub_interest_area
-          ? `Focus: ${inputs.sub_interest_area}`
-          : inputs?.interest_area && `Focus: ${inputs.interest_area}`,
-      ].filter(Boolean)
-    : [];
-
   const desktopLinkClass = ({ isActive }) =>
     `rounded-full px-4 py-2 text-sm font-medium transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-300 ${
       isActive ? "bg-brand-500/15 text-brand-700 shadow-sm" : "hover:bg-slate-100"
     }`;
 
   const sessionsLinkClass = ({ isActive }) =>
-    `rounded-full border px-4 py-2 text-sm font-semibold transition ${
+    `rounded-full border px-4 py-2 text-sm font-semibold transition whitespace-nowrap ${
       isActive
         ? "border-brand-400 bg-brand-50 text-brand-700"
         : "border-slate-300 text-slate-700 hover:border-brand-300 hover:text-brand-700"
     }`;
 
   const mobileLinkClass = ({ isActive }) =>
-    `rounded-xl px-4 py-2 text-left text-sm font-medium ${
+    `rounded-xl px-4 py-2 text-left text-sm font-medium whitespace-nowrap ${
       isActive ? "bg-brand-50 text-brand-700" : "text-slate-700 hover:bg-slate-100"
     }`;
 
@@ -123,18 +114,6 @@ function Navigation() {
           >
             Startup Idea Advisor
           </NavLink>
-          {summaryChips.length > 0 && (
-            <div className="hidden md:flex items-center gap-2 text-xs">
-              {summaryChips.map((chip) => (
-                <span
-                  key={chip}
-                  className="rounded-full bg-brand-50 px-3 py-1 font-semibold text-brand-700"
-                >
-                  {chip}
-                </span>
-              ))}
-            </div>
-          )}
         </div>
         <div className="flex items-center gap-3">
           <nav className="hidden lg:flex items-center gap-2 text-sm font-medium text-slate-600">
@@ -288,18 +267,6 @@ function Navigation() {
                 Start Run
               </Link>
             </div>
-            {summaryChips.length > 0 && (
-              <div className="flex flex-wrap gap-2">
-                {summaryChips.map((chip) => (
-                  <span
-                    key={chip}
-                    className="rounded-full bg-brand-50 px-3 py-1 text-xs font-semibold text-brand-700"
-                  >
-                    {chip}
-                  </span>
-                ))}
-              </div>
-            )}
           </nav>
         </div>
       )}

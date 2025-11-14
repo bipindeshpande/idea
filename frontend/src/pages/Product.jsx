@@ -1,241 +1,195 @@
 import { Link } from "react-router-dom";
 import Seo from "../components/Seo.jsx";
 
-const reportSlices = [
+const valuePanels = [
   {
-    title: "Ranked shortlist with context",
-    summary:
-      "Each idea is scored against your goal, time commitment, budget, and strengths so trade-offs are immediate.",
-    bullets: ["Fit badges for goal, time, budget, skill", "Narrative on where the leverage comes from"],
-    accent: "from-brand-50 via-white to-aqua-100",
+    title: "Personalized Profile Analysis",
+    summary: "Deep insights into your motivations, constraints, strengths, and opportunity angles tailored to your unique profile.",
+    icon: "🎯",
+    color: "brand",
   },
   {
-    title: "Financial guardrails",
-    summary: "Startup costs, revenue levers, and breakeven watchpoints presented as a checklist you can act on.",
-    bullets: ["Launch spend range with notes", "Pricing anchors + sensitivity cues"],
-    accent: "from-coral-50 via-white to-sand-100",
+    title: "Ranked Startup Ideas",
+    summary: "Top 3 ideas scored against your goals, time commitment, budget, and skills with detailed fit analysis.",
+    icon: "💡",
+    color: "aqua",
   },
   {
-    title: "Validation + execution runway",
-    summary:
-      "Discovery scripts, risk radar, and a 30/60/90 day roadmap so you know the first ten moves before committing budget.",
-    bullets: ["Interview prompts with listen/act guidance", "Decision checklist before scaling"],
-    accent: "from-aqua-50 via-white to-brand-100",
-  },
-];
-
-const ideaTiles = [
-  {
-    title: "AI Compliance Companion",
-    fit: "Strong fit",
-    focus: "Healthcare operations automation",
-    whyNow: "Your workflow background + appetite for regulated sectors make this a fast credibility win.",
-    nextStep: "Line up 3 pilot clinics; validate legal review demand.",
-    risk: "Regulatory shifts",
-    mitigation: "Partner with pro-bono legal clinic for updates.",
+    title: "Financial Outlook",
+    summary: "Realistic startup costs, revenue projections, and breakeven timelines that respect your budget constraints.",
+    icon: "💰",
+    color: "coral",
   },
   {
-    title: "Creator Finance OS",
-    fit: "Selective fit",
-    focus: "Digital creators & solo operators",
-    whyNow: "Budget discipline and product marketing skill cover positioning and onboarding.",
-    nextStep: "Interview 5 creators about tax prep fatigue; test pricing at $49/mo.",
-    risk: "Feature creep",
-    mitigation: "Ship only bookkeeping + cashflow alerts in first release.",
+    title: "Risk Radar",
+    summary: "Identified risks with severity ratings and actionable mitigation strategies for each recommendation.",
+    icon: "⚠️",
+    color: "sand",
+  },
+  {
+    title: "Validation Questions",
+    summary: "Customer discovery scripts with guidance on what to listen for and how to act on responses.",
+    icon: "🔍",
+    color: "brand",
+  },
+  {
+    title: "30/60/90 Day Roadmap",
+    summary: "Customized execution plan with specific milestones and checkpoints for your chosen idea.",
+    icon: "🗺️",
+    color: "aqua",
   },
 ];
 
-const workflow = [
+const howItWorks = [
   {
-    label: "Capture reality",
-    detail: "Profile intake trims noise to your constraints: time, budget, strengths, industries.",
+    step: "1",
+    title: "Tell us about you",
+    detail: "Share your goals, time commitment, budget, interests, work style, and experience. Our intake form captures what matters.",
   },
   {
-    label: "Agent collaboration",
-    detail: "Research, financial, and customer agents exchange findings until a single report is ready.",
+    step: "2",
+    title: "AI crew analyzes",
+    detail: "Multiple specialized agents research, analyze financials, assess risks, and validate ideas based on your profile.",
   },
   {
-    label: "Advisor-grade delivery",
-    detail: "You receive the same structure a growth advisor would hand over before day one of a project.",
+    step: "3",
+    title: "Get your reports",
+    detail: "Receive a comprehensive profile analysis, ranked recommendations, and a full report with actionable next steps.",
   },
 ];
 
-const decisionSignals = [
+const deliverables = [
   {
-    label: "Score breakdown",
-    value: "Goal fit · Time fit · Budget window · Skill leverage",
+    title: "Profile Summary",
+    description: "Structured analysis of your motivations, constraints, strengths, and strategic considerations.",
   },
   {
-    label: "Market conviction",
-    value: "Demand signals, competitor map, differentiation story",
+    title: "Recommendation Matrix",
+    description: "Compare ideas across goal fit, time fit, budget fit, skill fit, and work style alignment.",
   },
   {
-    label: "Execution clarity",
-    value: "First 10 moves, risk plan, validation scripts, checkpoint metrics",
+    title: "Complete PDF Report",
+    description: "Download a comprehensive PDF combining profile analysis, recommendations, and full report sections.",
   },
 ];
 
 export default function ProductPage() {
   return (
-    <section className="rounded-[40px] bg-gradient-to-br from-brand-900/70 via-aqua-800/50 to-coral-800/60 p-[1px] shadow-[0_28px_80px_-42px_rgba(11,29,58,0.6)]">
+    <section className="mx-auto max-w-6xl px-6 py-12">
       <Seo
         title="Product Overview | Startup Idea Advisor"
-        description="See how our AI crew transforms your profile into validated startup ideas with advisor-grade insights."
+        description="Transform your profile into validated startup ideas with AI-powered analysis, financial outlook, and actionable roadmaps."
         path="/product"
       />
-      <div className="rounded-[38px] bg-white/97 p-10 md:p-14">
-        <header className="grid gap-6 md:grid-cols-[1.1fr_0.9fr] md:items-center">
-          <div className="space-y-4">
-            <span className="inline-flex items-center gap-2 rounded-full bg-brand-50 px-4 py-1 text-xs font-semibold uppercase tracking-wide text-brand-700">
-              Product overview
-            </span>
-            <h1 className="text-3xl font-semibold text-brand-900 md:text-4xl">
-              Ship your next idea with an advisor in the loop
-            </h1>
-            <p className="max-w-2xl text-sm text-cloud-700 md:text-base">
-              Startup Idea Advisor turns your profile into a ranked, defensible shortlist plus a validation plan you can run the same week.
-              No recycled hustles—just the research, numbers, and scripts an operator needs to move.
-            </p>
-            <div className="flex flex-col gap-3 sm:flex-row">
-              <Link
-                to="/"
-                className="inline-flex items-center justify-center rounded-full bg-coral-500 px-5 py-3 text-sm font-semibold text-white shadow-lg transition hover:bg-coral-600"
-              >
-                Generate my report
-              </Link>
-              <Link
-                to="/results/recommendations/full"
-                className="inline-flex items-center justify-center rounded-full border border-cloud-300 px-5 py-3 text-sm font-semibold text-brand-800 transition hover:bg-cloud-100"
-              >
-                View sample structure
-              </Link>
-            </div>
-          </div>
-          <div className="rounded-3xl border border-brand-100 bg-gradient-to-br from-brand-50 via-white to-aqua-100 p-6 shadow-[0_30px_80px_-48px_rgba(17,31,66,0.45)]">
-            <p className="text-xs uppercase tracking-wide text-brand-600">Inside the ranked shortlist</p>
-            <div className="mt-4 grid gap-4">
-              {ideaTiles.map((idea) => (
-                <article
-                  key={idea.title}
-                  className="rounded-2xl border border-white/60 bg-white/95 p-4 text-sm text-cloud-700 shadow-sm"
-                >
-                  <div className="flex items-center justify-between">
-                    <p className="text-base font-semibold text-brand-900">{idea.title}</p>
-                    <span className="rounded-full bg-brand-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-brand-700">
-                      {idea.fit}
-                    </span>
-                  </div>
-                  <p className="mt-2 text-xs uppercase tracking-wide text-cloud-500">Focus</p>
-                  <p>{idea.focus}</p>
-                  <p className="mt-2 text-xs uppercase tracking-wide text-cloud-500">Why it works for you</p>
-                  <p>{idea.whyNow}</p>
-                  <div className="mt-3 grid gap-3 rounded-2xl bg-brand-50/40 p-3 text-xs text-brand-900 md:grid-cols-2">
-                    <div>
-                      <p className="font-semibold uppercase tracking-wide">Immediate move</p>
-                      <p className="mt-1 text-cloud-700">{idea.nextStep}</p>
-                    </div>
-                    <div>
-                      <p className="font-semibold uppercase tracking-wide text-rose-600">Key risk</p>
-                      <p className="mt-1 text-cloud-700">
-                        {idea.risk} → <span className="text-rose-600">Mitigate:</span> {idea.mitigation}
-                      </p>
-                    </div>
-                  </div>
-                </article>
-              ))}
-            </div>
-          </div>
-        </header>
 
-        <section className="mt-12 grid gap-6 md:grid-cols-3">
-          {reportSlices.map((item) => (
-            <article
-              key={item.title}
-              className={`rounded-[28px] border border-white/60 bg-gradient-to-br ${item.accent} p-6 shadow-[0_24px_60px_-36px_rgba(17,31,66,0.4)]`}
-            >
-              <h2 className="text-lg font-semibold text-brand-900">{item.title}</h2>
-              <p className="mt-3 text-sm text-cloud-700">{item.summary}</p>
-              <ul className="mt-4 space-y-2 text-sm text-cloud-700">
-                {item.bullets.map((bullet) => (
-                  <li key={bullet} className="flex gap-2">
-                    <span className="mt-1 text-brand-600">•</span>
-                    <span>{bullet}</span>
-                  </li>
-                ))}
-              </ul>
+      {/* Hero Section */}
+      <header className="mb-16 text-center">
+        <span className="inline-flex items-center gap-2 rounded-full bg-brand-50 px-4 py-1.5 text-xs font-semibold uppercase tracking-wide text-brand-700">
+          Product Overview
+        </span>
+        <h1 className="mt-6 text-4xl font-bold text-slate-900 md:text-5xl">
+          Get AI-validated startup ideas tailored to your profile
+        </h1>
+        <p className="mx-auto mt-4 max-w-2xl text-lg text-slate-600">
+          Our AI crew analyzes your goals, constraints, and strengths to deliver ranked recommendations with financial outlook, risk assessment, and execution roadmaps.
+        </p>
+        <div className="mt-8 flex flex-col items-center justify-center gap-4 sm:flex-row">
+          <Link
+            to="/"
+            className="inline-flex items-center justify-center whitespace-nowrap rounded-xl bg-gradient-to-r from-brand-500 to-brand-600 px-6 py-3 text-sm font-semibold text-white shadow-md transition hover:from-brand-600 hover:to-brand-700"
+          >
+            Start Run
+          </Link>
+          <Link
+            to="/results/recommendations/full"
+            className="inline-flex items-center justify-center whitespace-nowrap rounded-xl border border-brand-300 bg-white px-6 py-3 text-sm font-semibold text-brand-700 shadow-sm transition hover:border-brand-400 hover:bg-brand-50"
+          >
+            View Sample Report
+          </Link>
+        </div>
+      </header>
+
+      {/* Value Panels */}
+      <section className="mb-16">
+        <h2 className="mb-8 text-center text-2xl font-semibold text-slate-900">What You Get</h2>
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+          {valuePanels.map((panel) => {
+            const colorClasses = {
+              brand: "border-brand-200 bg-brand-50",
+              aqua: "border-aqua-200 bg-aqua-50",
+              coral: "border-coral-200 bg-coral-50",
+              sand: "border-sand-200 bg-sand-50",
+            };
+            return (
+              <article
+                key={panel.title}
+                className={`rounded-2xl border ${colorClasses[panel.color]} p-6 shadow-sm`}
+              >
+                <div className="mb-4 text-3xl">{panel.icon}</div>
+                <h3 className="mb-2 text-lg font-semibold text-slate-900">{panel.title}</h3>
+                <p className="text-sm text-slate-600">{panel.summary}</p>
+              </article>
+            );
+          })}
+        </div>
+      </section>
+
+      {/* How It Works */}
+      <section className="mb-16 rounded-3xl border border-slate-200 bg-white/95 p-8 shadow-soft">
+        <div className="mb-8 text-center">
+          <h2 className="text-2xl font-semibold text-slate-900">How It Works</h2>
+          <p className="mt-2 text-slate-600">
+            Three simple steps from profile to actionable recommendations
+          </p>
+        </div>
+        <div className="grid gap-6 md:grid-cols-3">
+          {howItWorks.map((item) => (
+            <article key={item.step} className="rounded-2xl border border-brand-100 bg-brand-50/40 p-6">
+              <div className="mb-4 inline-flex h-10 w-10 items-center justify-center rounded-full bg-brand-500 text-sm font-bold text-white">
+                {item.step}
+              </div>
+              <h3 className="mb-2 text-lg font-semibold text-slate-900">{item.title}</h3>
+              <p className="text-sm text-slate-600">{item.detail}</p>
             </article>
           ))}
-        </section>
+        </div>
+      </section>
 
-        <section className="mt-12 rounded-[32px] border border-brand-100 bg-white/98 p-8 shadow-[0_30px_80px_-48px_rgba(17,31,66,0.45)]">
-          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-            <div>
-              <h2 className="text-2xl font-semibold text-brand-900">How the crew works on your behalf</h2>
-              <p className="mt-2 text-sm text-cloud-600">
-                Multiple agents pair research, finance, and customer development until the output is decision ready. You see the result, not the back-and-forth.
-              </p>
-            </div>
+      {/* Deliverables */}
+      <section className="mb-16 rounded-3xl border border-sand-200 bg-sand-50/80 p-8 shadow-soft">
+        <h2 className="mb-8 text-center text-2xl font-semibold text-slate-900">Your Deliverables</h2>
+        <div className="grid gap-6 md:grid-cols-3">
+          {deliverables.map((item) => (
+            <article key={item.title} className="rounded-2xl border border-sand-200 bg-white/95 p-6">
+              <h3 className="mb-2 text-lg font-semibold text-slate-900">{item.title}</h3>
+              <p className="text-sm text-slate-600">{item.description}</p>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      {/* CTA Section */}
+      <div className="rounded-3xl border border-coral-200 bg-gradient-to-br from-coral-50 to-aqua-50 p-8 shadow-soft">
+        <div className="mx-auto max-w-3xl text-center">
+          <h2 className="text-2xl font-semibold text-slate-900">Ready to get started?</h2>
+          <p className="mt-2 text-slate-600">
+            Generate your personalized startup idea recommendations in minutes. No credit card required.
+          </p>
+          <div className="mt-6 flex flex-col items-center justify-center gap-4 sm:flex-row">
+            <Link
+              to="/"
+              className="inline-flex items-center justify-center whitespace-nowrap rounded-xl bg-gradient-to-r from-coral-500 to-coral-600 px-6 py-3 text-sm font-semibold text-white shadow-md transition hover:from-coral-600 hover:to-coral-700"
+            >
+              Start Free Run
+            </Link>
             <Link
               to="/pricing"
-              className="inline-flex items-center justify-center rounded-full border border-brand-300 px-4 py-2 text-sm font-semibold text-brand-800 transition hover:bg-brand-50"
+              className="inline-flex items-center justify-center whitespace-nowrap rounded-xl border border-slate-300 bg-white px-6 py-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
             >
-              Compare plans
+              View Pricing
             </Link>
           </div>
-          <div className="mt-6 grid gap-4 md:grid-cols-3">
-            {workflow.map((step, index) => (
-              <article
-                key={step.label}
-                className="rounded-2xl border border-brand-100 bg-brand-50/40 p-4 text-sm text-cloud-700"
-              >
-                <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-brand-500 text-xs font-semibold uppercase tracking-wide text-white">
-                  {index + 1}
-                </span>
-                <h3 className="mt-3 text-base font-semibold text-brand-900">{step.label}</h3>
-                <p className="mt-2">{step.detail}</p>
-              </article>
-            ))}
-          </div>
-        </section>
-
-        <section className="mt-12 rounded-[32px] border border-sand-200 bg-sand-50/80 p-8 shadow-[0_24px_70px_-46px_rgba(17,31,66,0.4)]">
-          <h2 className="text-2xl font-semibold text-brand-900">Signals you get in every report</h2>
-          <div className="mt-6 grid gap-4 md:grid-cols-3">
-            {decisionSignals.map((signal) => (
-              <article key={signal.label} className="rounded-2xl border border-sand-200 bg-white/95 p-5 text-sm text-cloud-700">
-                <p className="text-xs uppercase tracking-wide text-cloud-500">{signal.label}</p>
-                <p className="mt-2 font-semibold text-brand-800">{signal.value}</p>
-              </article>
-            ))}
-          </div>
-        </section>
-
-        <div className="mt-12 rounded-3xl bg-gradient-to-r from-coral-500 via-coral-400 to-aqua-400 p-[1px] shadow-[0_24px_70px_-42px_rgba(240,79,67,0.55)]">
-          <div className="flex flex-col gap-4 rounded-[28px] bg-white/97 p-6 md:flex-row md:items-center md:justify-between">
-            <div>
-              <p className="text-xs uppercase tracking-wide text-coral-500">Next step</p>
-              <h3 className="mt-1 text-lg font-semibold text-brand-900">Ship your next experiment with confidence</h3>
-              <p className="mt-2 text-sm text-cloud-700">
-                Start a free beta run or jump to pricing for unlimited reports. Your next validation cycle can be underway by tomorrow.
-              </p>
-            </div>
-            <div className="flex flex-col gap-3 md:flex-row">
-              <Link
-                to="/"
-                className="inline-flex items-center justify-center rounded-full bg-coral-500 px-5 py-3 text-sm font-semibold text-white shadow-lg transition hover:bg-coral-600"
-              >
-                Start a free run
-              </Link>
-              <Link
-                to="/pricing"
-                className="inline-flex items-center justify-center rounded-full border border-cloud-300 px-5 py-3 text-sm font-semibold text-brand-800 transition hover:bg-cloud-100"
-              >
-                View pricing
-              </Link>
-            </div>
-          </div>
         </div>
-
       </div>
     </section>
   );
