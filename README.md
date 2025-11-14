@@ -253,10 +253,61 @@ npm run dev
 
 With both the Flask API (`python api.py`) and the React dev server running, open the UI at [http://localhost:5173](http://localhost:5173). The app proxies API requests to `http://localhost:8000/run`.
 
+### Features
+
+#### 1. Idea Discovery Flow
+- **Landing Page** (`/`) - Choose between validating an existing idea or discovering new ideas
+- **Idea Discovery** (`/advisor`) - Fill out a profile form to get personalized startup recommendations
+- **Recommendations** - View top 3 ideas with detailed analysis, financial outlook, risk assessment, and execution roadmaps
+
+#### 2. Idea Validator Flow
+- **Validate Idea** (`/validate-idea`) - Validate your existing startup idea across 10 key parameters:
+  - Market Opportunity
+  - Problem-Solution Fit
+  - Competitive Landscape
+  - Target Audience Clarity
+  - Business Model Viability
+  - Technical Feasibility
+  - Financial Sustainability
+  - Scalability Potential
+  - Risk Assessment
+  - Go-to-Market Strategy
+- **Validation Results** (`/validate-result`) - View detailed validation scores, analysis, and recommendations
+- **Discover Related Ideas** - After validation, seamlessly transition to idea discovery with pre-filled data
+
+#### 3. Admin Panel
+See [ADMIN_README.md](ADMIN_README.md) for detailed admin panel documentation.
+
 ## 📈 Analytics & SEO
 
 - Set `VITE_GA_ID` in `frontend/.env` to enable Google Analytics (e.g. `VITE_GA_ID=G-XXXXXXXXXX`).
 - Static SEO assets live in `frontend/public/robots.txt` and `frontend/public/sitemap.xml`.
 - Page-level metadata is managed via `react-helmet-async` in each page component.
 - Blog posts under `/blog` help with long-tail keywords and provide shareable content.
+- Validation pages include comprehensive SEO with dynamic titles and descriptions based on validation scores.
+
+## 🔍 Idea Validator API
+
+The validator uses OpenAI to analyze startup ideas. Endpoint:
+
+```bash
+POST /api/validate-idea
+Content-Type: application/json
+
+{
+  "category_answers": {
+    "industry": "Technology / Software",
+    "target_audience": "Individual consumers (B2C)",
+    "business_model": "SaaS (Subscription)"
+  },
+  "idea_explanation": "Your detailed idea explanation..."
+}
+```
+
+Response includes:
+- Overall score (0-10)
+- Individual parameter scores
+- Detailed analysis for each parameter
+- Actionable recommendations
+- Final conclusion with decision rationale
 

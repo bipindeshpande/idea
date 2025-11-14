@@ -4,14 +4,30 @@ import json
 import os
 import re
 import time
+import secrets
+from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, send_from_directory
+from flask_cors import CORS
+from werkzeug.security import generate_password_hash, check_password_hash
+from sqlalchemy import func
 
 from startup_idea_crew.crew import StartupIdeaCrew
+from database import db, User, UserSession, UserRun, UserValidation, Payment
 
 app = Flask(__name__)
+CORS(app)
+
+# Database configuration
+app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get(
+    "DATABASE_URL", "sqlite:///startup_idea_advisor.db"
+)
+app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", secrets.token_hex(32))
+
+db.init_app(app)
 
 OUTPUT_DIR = Path("output")
 
@@ -164,13 +180,71 @@ def _fix_profile_analysis_format(content: str) -> str:
   return '\n'.join(fixed_lines)
 
 
+# Helper functions (must be defined before routes that use them)
+def create_user_session(user_id: int, ip_address: Optional[str] = None, user_agent: Optional[str] = None) -> UserSession:
+    """Create a new user session."""
+    session_token = secrets.token_urlsafe(32)
+    expires_at = datetime.utcnow() + timedelta(days=7)  # 7 days
+    
+    session = UserSession(
+        user_id=user_id,
+        session_token=session_token,
+        expires_at=expires_at,
+        ip_address=ip_address,
+        user_agent=user_agent,
+    )
+    db.session.add(session)
+    db.session.commit()
+    return session
+
+
+def get_current_session() -> Optional[UserSession]:
+    """Get current user session from token."""
+    auth_header = request.headers.get("Authorization", "")
+    if not auth_header.startswith("Bearer "):
+        return None
+    
+    token = auth_header.replace("Bearer ", "").strip()
+    session = UserSession.query.filter_by(session_token=token).first()
+    
+    if not session or not session.is_valid():
+        return None
+    
+    session.refresh()
+    db.session.commit()
+    return session
+
+
+def require_auth(f):
+    """Decorator to require authentication."""
+    from functools import wraps
+    
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        session = get_current_session()
+        if not session:
+            return jsonify({"success": False, "error": "Authentication required"}), 401
+        
+        if not session.user.is_subscription_active():
+            return jsonify({
+                "success": False,
+                "error": "Subscription expired",
+                "subscription": session.user.to_dict(),
+            }), 403
+        
+        return f(*args, **kwargs)
+    
+    return decorated_function
+
+
 @app.get("/health")
 def health() -> Any:
   """Simple health check endpoint."""
   return jsonify({"status": "ok"})
 
 
-@app.post("/run")
+@app.post("/api/run")
+@require_auth
 def run_crew() -> Any:
   """Run the Startup Idea Crew with provided inputs."""
   data: Dict[str, Any] = request.get_json(force=True, silent=True) or {}
@@ -198,18 +272,37 @@ def run_crew() -> Any:
     payload["experience_summary"] = "No detailed experience summary provided."
 
   try:
+    session = get_current_session()
+    user = session.user if session else None
+    
     app.logger.info("Starting crew run with inputs: %s", payload)
     crew = StartupIdeaCrew().crew()
     result = crew.kickoff(inputs=payload)
 
+    outputs = {
+      "profile_analysis": _read_output_file("profile_analysis.md"),
+      "startup_ideas_research": _read_output_file("startup_ideas_research.md"),
+      "personalized_recommendations": _read_output_file("personalized_recommendations.md"),
+    }
+    
+    # Save to database if user is authenticated
+    run_id = None
+    if user:
+      run_id = f"run_{int(time.time())}_{user.id}"
+      user_run = UserRun(
+        user_id=user.id,
+        run_id=run_id,
+        inputs=json.dumps(payload),
+        reports=json.dumps(outputs),
+      )
+      db.session.add(user_run)
+      db.session.commit()
+
     response = {
       "success": True,
+      "run_id": run_id,
       "inputs": payload,
-      "outputs": {
-        "profile_analysis": _read_output_file("profile_analysis.md"),
-        "startup_ideas_research": _read_output_file("startup_ideas_research.md"),
-        "personalized_recommendations": _read_output_file("personalized_recommendations.md"),
-      },
+      "outputs": outputs,
       "raw_result": str(result),
     }
     return jsonify(response)
@@ -226,7 +319,8 @@ def run_crew() -> Any:
     )
 
 
-@app.post("/validate-idea")
+@app.post("/api/validate-idea")
+@require_auth
 def validate_idea() -> Any:
   """Validate a startup idea across 10 key parameters using OpenAI."""
   from openai import OpenAI
@@ -406,6 +500,20 @@ REMEMBER:
     
     validation_id = f"val_{int(time.time())}"
     
+    # Save to database if user is authenticated
+    session = get_current_session()
+    if session:
+      user = session.user
+      user_validation = UserValidation(
+        user_id=user.id,
+        validation_id=validation_id,
+        category_answers=json.dumps(category_answers),
+        idea_explanation=idea_explanation,
+        validation_result=json.dumps(validation_data),
+      )
+      db.session.add(user_validation)
+      db.session.commit()
+    
     return jsonify({
       "success": True,
       "validation_id": validation_id,
@@ -495,13 +603,32 @@ def get_admin_stats() -> Any:
     return jsonify({"success": False, "error": "Unauthorized"}), 401
   
   try:
-    # Count saved runs
-    runs_file = Path("frontend") / "src" / "context" / "ReportsContext.jsx"
-    # This is a simplified version - in production, you'd query a database
+    # Get stats from database
+    total_users = User.query.count()
+    total_runs = UserRun.query.count()
+    total_validations = UserValidation.query.count()
+    total_payments = Payment.query.filter_by(status="completed").count()
+    total_revenue = db.session.query(func.sum(Payment.amount)).filter_by(status="completed").scalar() or 0
+    
+    # Subscription stats
+    active_subscriptions = User.query.filter(
+      User.payment_status == "active",
+      User.subscription_expires_at > datetime.utcnow()
+    ).count()
+    free_trial_users = User.query.filter_by(subscription_type="free_trial").count()
+    weekly_subscribers = User.query.filter_by(subscription_type="weekly").count()
+    monthly_subscribers = User.query.filter_by(subscription_type="monthly").count()
+    
     stats = {
-      "total_runs": 0,  # Would come from database
-      "total_validations": 0,  # Would come from database
-      "recent_activity": [],
+      "total_users": total_users,
+      "total_runs": total_runs,
+      "total_validations": total_validations,
+      "total_payments": total_payments,
+      "total_revenue": float(total_revenue),
+      "active_subscriptions": active_subscriptions,
+      "free_trial_users": free_trial_users,
+      "weekly_subscribers": weekly_subscribers,
+      "monthly_subscribers": monthly_subscribers,
     }
     
     return jsonify({"success": True, "stats": stats})
@@ -510,6 +637,447 @@ def get_admin_stats() -> Any:
     return jsonify({"success": False, "error": str(exc)}), 500
 
 
+@app.get("/api/admin/users")
+def get_admin_users() -> Any:
+    """Get all users (admin only)."""
+    if not check_admin_auth():
+        return jsonify({"success": False, "error": "Unauthorized"}), 401
+    
+    try:
+        users = User.query.order_by(User.created_at.desc()).all()
+        users_data = [user.to_dict() for user in users]
+        return jsonify({"success": True, "users": users_data})
+    except Exception as exc:
+        app.logger.exception("Failed to get users: %s", exc)
+        return jsonify({"success": False, "error": str(exc)}), 500
+
+
+@app.get("/api/admin/payments")
+def get_admin_payments() -> Any:
+    """Get all payments (admin only)."""
+    if not check_admin_auth():
+        return jsonify({"success": False, "error": "Unauthorized"}), 401
+    
+    try:
+        payments = Payment.query.order_by(Payment.created_at.desc()).limit(100).all()
+        payments_data = [{
+            "id": p.id,
+            "user_id": p.user_id,
+            "user_email": p.user.email,
+            "amount": p.amount,
+            "currency": p.currency,
+            "subscription_type": p.subscription_type,
+            "status": p.status,
+            "stripe_payment_intent_id": p.stripe_payment_intent_id,
+            "created_at": p.created_at.isoformat() if p.created_at else None,
+            "completed_at": p.completed_at.isoformat() if p.completed_at else None,
+        } for p in payments]
+        return jsonify({"success": True, "payments": payments_data})
+    except Exception as exc:
+        app.logger.exception("Failed to get payments: %s", exc)
+        return jsonify({"success": False, "error": str(exc)}), 500
+
+
+@app.get("/api/admin/user/<int:user_id>")
+def get_admin_user_detail(user_id: int) -> Any:
+    """Get detailed user information (admin only)."""
+    if not check_admin_auth():
+        return jsonify({"success": False, "error": "Unauthorized"}), 401
+    
+    try:
+        user = User.query.get_or_404(user_id)
+        runs = UserRun.query.filter_by(user_id=user_id).order_by(UserRun.created_at.desc()).limit(10).all()
+        validations = UserValidation.query.filter_by(user_id=user_id).order_by(UserValidation.created_at.desc()).limit(10).all()
+        payments = Payment.query.filter_by(user_id=user_id).order_by(Payment.created_at.desc()).all()
+        sessions = UserSession.query.filter_by(user_id=user_id).order_by(UserSession.created_at.desc()).limit(10).all()
+        
+        return jsonify({
+            "success": True,
+            "user": user.to_dict(),
+            "runs": [{
+                "id": r.id,
+                "run_id": r.run_id,
+                "created_at": r.created_at.isoformat() if r.created_at else None,
+            } for r in runs],
+            "validations": [{
+                "id": v.id,
+                "validation_id": v.validation_id,
+                "created_at": v.created_at.isoformat() if v.created_at else None,
+            } for v in validations],
+            "payments": [{
+                "id": p.id,
+                "amount": p.amount,
+                "currency": p.currency,
+                "subscription_type": p.subscription_type,
+                "status": p.status,
+                "created_at": p.created_at.isoformat() if p.created_at else None,
+            } for p in payments],
+            "sessions": [{
+                "id": s.id,
+                "created_at": s.created_at.isoformat() if s.created_at else None,
+                "expires_at": s.expires_at.isoformat() if s.expires_at else None,
+                "ip_address": s.ip_address,
+            } for s in sessions],
+        })
+    except Exception as exc:
+        app.logger.exception("Failed to get user detail: %s", exc)
+        return jsonify({"success": False, "error": str(exc)}), 500
+
+
+@app.post("/api/admin/user/<int:user_id>/subscription")
+def update_user_subscription(user_id: int) -> Any:
+    """Update user subscription (admin only)."""
+    if not check_admin_auth():
+        return jsonify({"success": False, "error": "Unauthorized"}), 401
+    
+    try:
+        user = User.query.get_or_404(user_id)
+        data: Dict[str, Any] = request.get_json(force=True, silent=True) or {}
+        
+        subscription_type = data.get("subscription_type", "").strip()
+        duration_days = data.get("duration_days", 0)
+        
+        if subscription_type and duration_days > 0:
+            user.activate_subscription(subscription_type, duration_days)
+            db.session.commit()
+            return jsonify({"success": True, "message": "Subscription updated", "user": user.to_dict()})
+        else:
+            return jsonify({"success": False, "error": "Invalid subscription data"}), 400
+    except Exception as exc:
+        app.logger.exception("Failed to update subscription: %s", exc)
+        return jsonify({"success": False, "error": str(exc)}), 500
+
+
+# Initialize database tables
+with app.app_context():
+    db.create_all()
+
+
+# Authentication & User Management Endpoints
+@app.post("/api/auth/register")
+def register() -> Any:
+    """Register a new user."""
+    data: Dict[str, Any] = request.get_json(force=True, silent=True) or {}
+    email = data.get("email", "").strip().lower()
+    password = data.get("password", "").strip()
+    
+    if not email or not password:
+        return jsonify({"success": False, "error": "Email and password are required"}), 400
+    
+    if len(password) < 8:
+        return jsonify({"success": False, "error": "Password must be at least 8 characters"}), 400
+    
+    # Check if user exists
+    existing_user = User.query.filter_by(email=email).first()
+    if existing_user:
+        return jsonify({"success": False, "error": "Email already registered"}), 400
+    
+    # Create new user with 3-day free trial
+    user = User(
+        email=email,
+        subscription_type="free_trial",
+        subscription_started_at=datetime.utcnow(),
+        subscription_expires_at=datetime.utcnow() + timedelta(days=3),
+        payment_status="trial",
+    )
+    user.set_password(password)
+    
+    try:
+        db.session.add(user)
+        db.session.commit()
+        
+        # Create session
+        session = create_user_session(user.id, request.remote_addr, request.headers.get("User-Agent"))
+        
+        return jsonify({
+            "success": True,
+            "user": user.to_dict(),
+            "session_token": session.session_token,
+        })
+    except Exception as exc:
+        db.session.rollback()
+        app.logger.exception("Registration failed: %s", exc)
+        return jsonify({"success": False, "error": "Registration failed"}), 500
+
+
+@app.post("/api/auth/login")
+def login() -> Any:
+    """Login user."""
+    data: Dict[str, Any] = request.get_json(force=True, silent=True) or {}
+    email = data.get("email", "").strip().lower()
+    password = data.get("password", "").strip()
+    
+    if not email or not password:
+        return jsonify({"success": False, "error": "Email and password are required"}), 400
+    
+    user = User.query.filter_by(email=email).first()
+    if not user or not user.check_password(password):
+        return jsonify({"success": False, "error": "Invalid email or password"}), 401
+    
+    if not user.is_active:
+        return jsonify({"success": False, "error": "Account is deactivated"}), 403
+    
+    # Create session
+    session = create_user_session(user.id, request.remote_addr, request.headers.get("User-Agent"))
+    
+    return jsonify({
+        "success": True,
+        "user": user.to_dict(),
+        "session_token": session.session_token,
+    })
+
+
+@app.post("/api/auth/logout")
+def logout() -> Any:
+    """Logout user."""
+    session = get_current_session()
+    if session:
+        db.session.delete(session)
+        db.session.commit()
+    
+    return jsonify({"success": True})
+
+
+@app.get("/api/auth/me")
+def get_current_user() -> Any:
+    """Get current user info."""
+    session = get_current_session()
+    if not session:
+        return jsonify({"success": False, "error": "Not authenticated"}), 401
+    
+    user = session.user
+    return jsonify({
+        "success": True,
+        "user": user.to_dict(),
+    })
+
+
+@app.post("/api/auth/forgot-password")
+def forgot_password() -> Any:
+    """Request password reset."""
+    data: Dict[str, Any] = request.get_json(force=True, silent=True) or {}
+    email = data.get("email", "").strip().lower()
+    
+    if not email:
+        return jsonify({"success": False, "error": "Email is required"}), 400
+    
+    user = User.query.filter_by(email=email).first()
+    if not user:
+        # Don't reveal if email exists
+        return jsonify({"success": True, "message": "If email exists, reset link sent"})
+    
+    token = user.generate_reset_token()
+    db.session.commit()
+    
+    # In production, send email with reset link
+    # For now, return token (in production, send via email)
+    reset_link = f"{os.environ.get('FRONTEND_URL', 'http://localhost:5173')}/reset-password?token={token}"
+    
+    app.logger.info(f"Password reset for {email}: {reset_link}")
+    
+    return jsonify({
+        "success": True,
+        "message": "If email exists, reset link sent",
+        # Remove in production - only for development
+        "reset_link": reset_link if os.environ.get("DEBUG") else None,
+    })
+
+
+@app.post("/api/auth/reset-password")
+def reset_password() -> Any:
+    """Reset password with token."""
+    data: Dict[str, Any] = request.get_json(force=True, silent=True) or {}
+    token = data.get("token", "").strip()
+    new_password = data.get("password", "").strip()
+    
+    if not token or not new_password:
+        return jsonify({"success": False, "error": "Token and password are required"}), 400
+    
+    if len(new_password) < 8:
+        return jsonify({"success": False, "error": "Password must be at least 8 characters"}), 400
+    
+    user = User.query.filter(User.reset_token.isnot(None)).first()
+    if not user or not user.verify_reset_token(token):
+        return jsonify({"success": False, "error": "Invalid or expired reset token"}), 400
+    
+    user.set_password(new_password)
+    user.clear_reset_token()
+    db.session.commit()
+    
+    return jsonify({"success": True, "message": "Password reset successful"})
+
+
+@app.post("/api/auth/change-password")
+def change_password() -> Any:
+    """Change password (requires current password)."""
+    session = get_current_session()
+    if not session:
+        return jsonify({"success": False, "error": "Not authenticated"}), 401
+    
+    data: Dict[str, Any] = request.get_json(force=True, silent=True) or {}
+    current_password = data.get("current_password", "").strip()
+    new_password = data.get("new_password", "").strip()
+    
+    if not current_password or not new_password:
+        return jsonify({"success": False, "error": "Current and new passwords are required"}), 400
+    
+    if len(new_password) < 8:
+        return jsonify({"success": False, "error": "Password must be at least 8 characters"}), 400
+    
+    user = session.user
+    if not user.check_password(current_password):
+        return jsonify({"success": False, "error": "Current password is incorrect"}), 400
+    
+    user.set_password(new_password)
+    db.session.commit()
+    
+    return jsonify({"success": True, "message": "Password changed successfully"})
+
+
+# Subscription & Payment Endpoints
+@app.get("/api/subscription/status")
+def get_subscription_status() -> Any:
+    """Get current subscription status."""
+    session = get_current_session()
+    if not session:
+        return jsonify({"success": False, "error": "Not authenticated"}), 401
+    
+    user = session.user
+    is_active = user.is_subscription_active()
+    days_remaining = user.days_remaining()
+    
+    return jsonify({
+        "success": True,
+        "subscription": {
+            "type": user.subscription_type,
+            "status": user.payment_status,
+            "is_active": is_active,
+            "days_remaining": days_remaining,
+            "expires_at": user.subscription_expires_at.isoformat() if user.subscription_expires_at else None,
+        },
+    })
+
+
+@app.post("/api/payment/create-intent")
+def create_payment_intent() -> Any:
+    """Create Stripe payment intent."""
+    session = get_current_session()
+    if not session:
+        return jsonify({"success": False, "error": "Not authenticated"}), 401
+    
+    data: Dict[str, Any] = request.get_json(force=True, silent=True) or {}
+    subscription_type = data.get("subscription_type", "").strip()  # weekly or monthly
+    
+    if subscription_type not in ["weekly", "monthly"]:
+        return jsonify({"success": False, "error": "Invalid subscription type"}), 400
+    
+    user = session.user
+    
+    # Amounts in cents
+    amounts = {
+        "weekly": 500,  # $5.00
+        "monthly": 1500,  # $15.00
+    }
+    
+    duration_days = {
+        "weekly": 7,
+        "monthly": 30,
+    }
+    
+    try:
+        import stripe
+        stripe.api_key = os.environ.get("STRIPE_SECRET_KEY")
+        
+        if not stripe.api_key:
+            return jsonify({"success": False, "error": "Stripe not configured"}), 500
+        
+        # Create payment intent
+        intent = stripe.PaymentIntent.create(
+            amount=amounts[subscription_type],
+            currency="usd",
+            metadata={
+                "user_id": str(user.id),
+                "subscription_type": subscription_type,
+                "duration_days": str(duration_days[subscription_type]),
+            },
+        )
+        
+        return jsonify({
+            "success": True,
+            "client_secret": intent.client_secret,
+            "amount": amounts[subscription_type] / 100,
+            "subscription_type": subscription_type,
+        })
+    except ImportError:
+        return jsonify({"success": False, "error": "Stripe not installed"}), 500
+    except Exception as exc:
+        app.logger.exception("Payment intent creation failed: %s", exc)
+        return jsonify({"success": False, "error": "Payment processing failed"}), 500
+
+
+@app.post("/api/payment/confirm")
+def confirm_payment() -> Any:
+    """Confirm payment and activate subscription."""
+    session = get_current_session()
+    if not session:
+        return jsonify({"success": False, "error": "Not authenticated"}), 401
+    
+    data: Dict[str, Any] = request.get_json(force=True, silent=True) or {}
+    payment_intent_id = data.get("payment_intent_id", "").strip()
+    subscription_type = data.get("subscription_type", "").strip()
+    
+    if not payment_intent_id or not subscription_type:
+        return jsonify({"success": False, "error": "Payment intent ID and subscription type required"}), 400
+    
+    user = session.user
+    
+    try:
+        import stripe
+        stripe.api_key = os.environ.get("STRIPE_SECRET_KEY")
+        
+        # Verify payment intent
+        intent = stripe.PaymentIntent.retrieve(payment_intent_id)
+        
+        if intent.status != "succeeded":
+            return jsonify({"success": False, "error": "Payment not completed"}), 400
+        
+        # Check if already processed
+        existing_payment = Payment.query.filter_by(stripe_payment_intent_id=payment_intent_id).first()
+        if existing_payment:
+            return jsonify({"success": False, "error": "Payment already processed"}), 400
+        
+        duration_days = {"weekly": 7, "monthly": 30}[subscription_type]
+        
+        # Activate subscription
+        user.activate_subscription(subscription_type, duration_days)
+        
+        # Record payment
+        payment = Payment(
+            user_id=user.id,
+            amount=intent.amount / 100,
+            subscription_type=subscription_type,
+            stripe_payment_intent_id=payment_intent_id,
+            status="completed",
+            completed_at=datetime.utcnow(),
+        )
+        db.session.add(payment)
+        db.session.commit()
+        
+        return jsonify({
+            "success": True,
+            "user": user.to_dict(),
+            "message": "Subscription activated",
+        })
+    except ImportError:
+        return jsonify({"success": False, "error": "Stripe not installed"}), 500
+    except Exception as exc:
+        db.session.rollback()
+        app.logger.exception("Payment confirmation failed: %s", exc)
+        return jsonify({"success": False, "error": "Payment confirmation failed"}), 500
+
+
+
+
 if __name__ == "__main__":
-  port = int(os.environ.get("PORT", 8000))
-  app.run(host="0.0.0.0", port=port, debug=True)
+    port = int(os.environ.get("PORT", 8000))
+    app.run(host="0.0.0.0", port=port, debug=True)

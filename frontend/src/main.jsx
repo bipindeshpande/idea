@@ -5,6 +5,7 @@ import { HelmetProvider } from "react-helmet-async";
 import App from "./App.jsx";
 import { ReportsProvider } from "./context/ReportsContext.jsx";
 import { ValidationProvider } from "./context/ValidationContext.jsx";
+import { AuthProvider } from "./context/AuthContext.jsx";
 import "./styles.css";
 
 const GA_ID = import.meta.env.VITE_GA_ID;
@@ -28,13 +29,15 @@ function Root() {
   return (
     <React.StrictMode>
       <HelmetProvider>
-        <ReportsProvider>
-          <ValidationProvider>
-            <BrowserRouter>
-              <App />
-            </BrowserRouter>
-          </ValidationProvider>
-        </ReportsProvider>
+        <AuthProvider>
+          <ReportsProvider>
+            <ValidationProvider>
+              <BrowserRouter>
+                <App />
+              </BrowserRouter>
+            </ValidationProvider>
+          </ReportsProvider>
+        </AuthProvider>
       </HelmetProvider>
     </React.StrictMode>
   );

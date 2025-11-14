@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, NavLink, Navigate, Route, Routes } from "react-router-dom";
 import { useReports } from "./context/ReportsContext.jsx";
+import { useAuth } from "./context/AuthContext.jsx";
 import LoadingIndicator from "./components/LoadingIndicator.jsx";
 import Seo from "./components/Seo.jsx";
 import LandingPage from "./pages/Landing.jsx";
@@ -22,6 +23,10 @@ import BlogPage from "./pages/Blog.jsx";
 import PrivacyPage from "./pages/Privacy.jsx";
 import TermsPage from "./pages/Terms.jsx";
 import AdminPage from "./pages/Admin.jsx";
+import RegisterPage from "./pages/Register.jsx";
+import LoginPage from "./pages/Login.jsx";
+import ForgotPasswordPage from "./pages/ForgotPassword.jsx";
+import ResetPasswordPage from "./pages/ResetPassword.jsx";
 
 const primaryNavLinks = [
   { label: "Product", to: "/product" },
@@ -43,6 +48,7 @@ const reportNavLinks = [
 
 function Navigation() {
   const { reports, inputs } = useReports();
+  const { user, isAuthenticated, subscription, logout } = useAuth();
   const hasReports = Boolean(
     reports?.profile_analysis || reports?.personalized_recommendations
   );
@@ -51,6 +57,12 @@ function Navigation() {
   const [reportsMenuOpen, setReportsMenuOpen] = useState(false);
   const learnMenuRef = useRef(null);
   const reportsMenuRef = useRef(null);
+
+  const handleLogout = async () => {
+    await logout();
+    closeAllMenus();
+    window.location.href = "/";
+  };
 
   const desktopLinkClass = ({ isActive }) =>
     `rounded-full px-4 py-2 text-sm font-medium transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-300 ${
@@ -202,16 +214,51 @@ function Navigation() {
             )}
           </nav>
           <div className="hidden lg:flex items-center gap-2">
-            <NavLink to="/dashboard" className={sessionsLinkClass} onClick={closeAllMenus}>
-              My Sessions
-            </NavLink>
-            <Link
-              to="/advisor"
-              onClick={closeAllMenus}
-              className="rounded-full bg-gradient-to-r from-brand-500 to-brand-600 px-5 py-2 text-sm font-semibold text-white shadow-md transition hover:from-brand-600 hover:to-brand-700 whitespace-nowrap"
-            >
-              Start Run
-            </Link>
+            {isAuthenticated ? (
+              <>
+                {subscription && (
+                  <span className="text-xs text-slate-500 whitespace-nowrap">
+                    {subscription.days_remaining > 0 ? `${subscription.days_remaining} days left` : "Expired"}
+                  </span>
+                )}
+                <NavLink to="/dashboard" className={sessionsLinkClass} onClick={closeAllMenus}>
+                  My Sessions
+                </NavLink>
+                <Link
+                  to="/advisor"
+                  onClick={closeAllMenus}
+                  className="rounded-full bg-gradient-to-r from-brand-500 to-brand-600 px-5 py-2 text-sm font-semibold text-white shadow-md transition hover:from-brand-600 hover:to-brand-700 whitespace-nowrap"
+                >
+                  Start Run
+                </Link>
+                <div className="flex items-center gap-2 border-l border-slate-300 pl-3">
+                  <span className="text-xs text-slate-600 max-w-[150px] truncate">{user?.email}</span>
+                  <button
+                    onClick={handleLogout}
+                    className="rounded-full border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 whitespace-nowrap"
+                  >
+                    Logout
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <Link
+                  to="/login"
+                  onClick={closeAllMenus}
+                  className="rounded-full border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 whitespace-nowrap"
+                >
+                  Sign In
+                </Link>
+                <Link
+                  to="/register"
+                  onClick={closeAllMenus}
+                  className="rounded-full bg-gradient-to-r from-brand-500 to-brand-600 px-5 py-2 text-sm font-semibold text-white shadow-md transition hover:from-brand-600 hover:to-brand-700 whitespace-nowrap"
+                >
+                  Get Started
+                </Link>
+              </>
+            )}
           </div>
           <button
             type="button"
@@ -259,18 +306,51 @@ function Navigation() {
                 ))}
               </div>
             )}
-            <div className="space-y-2">
-              <NavLink to="/dashboard" className={mobileLinkClass} onClick={closeAllMenus}>
-                My Sessions
-              </NavLink>
-              <Link
-                to="/advisor"
-                onClick={closeAllMenus}
-                className="block rounded-xl bg-gradient-to-r from-brand-500 to-brand-600 px-4 py-2 text-center text-sm font-semibold text-white shadow-md transition hover:from-brand-600 hover:to-brand-700 whitespace-nowrap"
-              >
-                Start Run
-              </Link>
-            </div>
+            {isAuthenticated ? (
+              <div className="space-y-2">
+                {subscription && (
+                  <div className="px-4 py-2 text-xs text-slate-500">
+                    {subscription.days_remaining > 0 ? `${subscription.days_remaining} days remaining` : "Subscription expired"}
+                  </div>
+                )}
+                <div className="px-4 py-2 text-xs text-slate-600 border-b border-slate-200">
+                  {user?.email}
+                </div>
+                <NavLink to="/dashboard" className={mobileLinkClass} onClick={closeAllMenus}>
+                  My Sessions
+                </NavLink>
+                <Link
+                  to="/advisor"
+                  onClick={closeAllMenus}
+                  className="block rounded-xl bg-gradient-to-r from-brand-500 to-brand-600 px-4 py-2 text-center text-sm font-semibold text-white shadow-md transition hover:from-brand-600 hover:to-brand-700 whitespace-nowrap"
+                >
+                  Start Run
+                </Link>
+                <button
+                  onClick={handleLogout}
+                  className="block w-full rounded-xl border border-slate-300 px-4 py-2 text-center text-sm font-semibold text-slate-700 transition hover:bg-slate-50 whitespace-nowrap"
+                >
+                  Logout
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <Link
+                  to="/login"
+                  onClick={closeAllMenus}
+                  className="block rounded-xl border border-slate-300 px-4 py-2 text-center text-sm font-semibold text-slate-700 transition hover:bg-slate-50 whitespace-nowrap"
+                >
+                  Sign In
+                </Link>
+                <Link
+                  to="/register"
+                  onClick={closeAllMenus}
+                  className="block rounded-xl bg-gradient-to-r from-brand-500 to-brand-600 px-4 py-2 text-center text-sm font-semibold text-white shadow-md transition hover:from-brand-600 hover:to-brand-700 whitespace-nowrap"
+                >
+                  Get Started
+                </Link>
+              </div>
+            )}
           </nav>
         </div>
       )}
@@ -292,9 +372,34 @@ export default function App() {
         {!loading && (
           <Routes>
             <Route path="/" element={<LandingPage />} />
-            <Route path="/advisor" element={<HomePage />} />
-            <Route path="/validate-idea" element={<IdeaValidator />} />
-            <Route path="/validate-result" element={<ValidationResult />} />
+            <Route path="/register" element={<RegisterPage />} />
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+            <Route path="/reset-password" element={<ResetPasswordPage />} />
+            <Route
+              path="/advisor"
+              element={
+                <ProtectedRoute>
+                  <HomePage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/validate-idea"
+              element={
+                <ProtectedRoute>
+                  <IdeaValidator />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/validate-result"
+              element={
+                <ProtectedRoute>
+                  <ValidationResult />
+                </ProtectedRoute>
+              }
+            />
             <Route path="/product" element={<ProductPage />} />
             <Route path="/pricing" element={<PricingPage />} />
             <Route path="/resources" element={<ResourcesPage />} />
@@ -302,19 +407,48 @@ export default function App() {
             <Route path="/blog/:slug" element={<BlogPage />} />
             <Route path="/about" element={<AboutPage />} />
             <Route path="/contact" element={<ContactPage />} />
-            <Route path="/dashboard" element={<DashboardPage />} />
+            <Route
+              path="/dashboard"
+              element={
+                <ProtectedRoute>
+                  <DashboardPage />
+                </ProtectedRoute>
+              }
+            />
             <Route path="/admin" element={<AdminPage />} />
             <Route path="/privacy" element={<PrivacyPage />} />
             <Route path="/terms" element={<TermsPage />} />
-            <Route path="/results/profile" element={<ProfileReport />} />
-            <Route path="/results/recommendations" element={<RecommendationsReport />} />
+            <Route
+              path="/results/profile"
+              element={
+                <ProtectedRoute>
+                  <ProfileReport />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/results/recommendations"
+              element={
+                <ProtectedRoute>
+                  <RecommendationsReport />
+                </ProtectedRoute>
+              }
+            />
             <Route
               path="/results/recommendations/:ideaIndex"
-              element={<RecommendationDetail />}
+              element={
+                <ProtectedRoute>
+                  <RecommendationDetail />
+                </ProtectedRoute>
+              }
             />
             <Route
               path="/results/recommendations/full"
-              element={<RecommendationFullReport />}
+              element={
+                <ProtectedRoute>
+                  <RecommendationFullReport />
+                </ProtectedRoute>
+              }
             />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
@@ -323,4 +457,51 @@ export default function App() {
       <Footer />
     </div>
   );
+}
+
+function ProtectedRoute({ children }) {
+  const { isAuthenticated, isSubscriptionActive, subscription, loading } = useAuth();
+  const [showPaymentPrompt, setShowPaymentPrompt] = useState(false);
+
+  useEffect(() => {
+    if (!loading && !isAuthenticated) {
+      // Will redirect via Navigate
+    } else if (!loading && isAuthenticated && !isSubscriptionActive) {
+      setShowPaymentPrompt(true);
+    }
+  }, [loading, isAuthenticated, isSubscriptionActive]);
+
+  if (loading) {
+    return <LoadingIndicator />;
+  }
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" state={{ from: { pathname: window.location.pathname } }} replace />;
+  }
+
+  if (!isSubscriptionActive) {
+    return (
+      <div className="mx-auto max-w-4xl px-6 py-12">
+        <div className="rounded-3xl border-2 border-amber-200 bg-amber-50/80 p-8 text-center shadow-soft">
+          <h2 className="mb-4 text-2xl font-bold text-amber-900">Subscription Expired</h2>
+          <p className="mb-2 text-amber-800">
+            {subscription?.days_remaining === 0
+              ? "Your free trial has ended."
+              : `Your subscription expires in ${subscription?.days_remaining || 0} days.`}
+          </p>
+          <p className="mb-6 text-sm text-amber-700">
+            Subscribe now to continue accessing all features and get personalized startup recommendations.
+          </p>
+          <Link
+            to="/pricing"
+            className="inline-block rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 px-6 py-3 text-sm font-semibold text-white shadow-md transition hover:from-amber-600 hover:to-amber-700"
+          >
+            View Pricing & Subscribe
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  return <>{children}</>;
 }

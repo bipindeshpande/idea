@@ -1,0 +1,269 @@
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+
+const AuthContext = createContext(null);
+const SESSION_TOKEN_KEY = "sia_session_token";
+
+export function AuthProvider({ children }) {
+  const [user, setUser] = useState(null);
+  const [sessionToken, setSessionToken] = useState(localStorage.getItem(SESSION_TOKEN_KEY));
+  const [loading, setLoading] = useState(true);
+  const [subscription, setSubscription] = useState(null);
+
+  // Load user on mount
+  useEffect(() => {
+    if (sessionToken) {
+      checkAuth();
+    } else {
+      setLoading(false);
+    }
+  }, [sessionToken]);
+
+  const checkAuth = useCallback(async () => {
+    if (!sessionToken) {
+      setUser(null);
+      setSubscription(null);
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const response = await fetch("/api/auth/me", {
+        headers: {
+          Authorization: `Bearer ${sessionToken}`,
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setUser(data.user);
+        await checkSubscription();
+      } else {
+        // Invalid session
+        localStorage.removeItem(SESSION_TOKEN_KEY);
+        setSessionToken(null);
+        setUser(null);
+        setSubscription(null);
+      }
+    } catch (error) {
+      console.error("Auth check failed:", error);
+      localStorage.removeItem(SESSION_TOKEN_KEY);
+      setSessionToken(null);
+      setUser(null);
+      setSubscription(null);
+    } finally {
+      setLoading(false);
+    }
+  }, [sessionToken]);
+
+  const checkSubscription = useCallback(async () => {
+    if (!sessionToken) return;
+
+    try {
+      const response = await fetch("/api/subscription/status", {
+        headers: {
+          Authorization: `Bearer ${sessionToken}`,
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setSubscription(data.subscription);
+      }
+    } catch (error) {
+      console.error("Subscription check failed:", error);
+    }
+  }, [sessionToken]);
+
+  const register = useCallback(async (email, password) => {
+    try {
+      const response = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email, password }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        let errorData;
+        try {
+          errorData = JSON.parse(errorText);
+        } catch {
+          return { success: false, error: `Server error: ${response.status}` };
+        }
+        return { success: false, error: errorData.error || "Registration failed" };
+      }
+
+      const data = await response.json();
+      if (data.success) {
+        localStorage.setItem(SESSION_TOKEN_KEY, data.session_token);
+        setSessionToken(data.session_token);
+        setUser(data.user);
+        await checkSubscription();
+        return { success: true };
+      } else {
+        return { success: false, error: data.error || "Registration failed" };
+      }
+    } catch (error) {
+      console.error("Registration error:", error);
+      return { success: false, error: error.message || "Network error" };
+    }
+  }, [checkSubscription]);
+
+  const login = useCallback(async (email, password) => {
+    try {
+      const response = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email, password }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        let errorData;
+        try {
+          errorData = JSON.parse(errorText);
+        } catch {
+          return { success: false, error: `Server error: ${response.status}` };
+        }
+        return { success: false, error: errorData.error || "Login failed" };
+      }
+
+      const data = await response.json();
+      if (data.success) {
+        localStorage.setItem(SESSION_TOKEN_KEY, data.session_token);
+        setSessionToken(data.session_token);
+        setUser(data.user);
+        await checkSubscription();
+        return { success: true };
+      } else {
+        return { success: false, error: data.error || "Login failed" };
+      }
+    } catch (error) {
+      console.error("Login error:", error);
+      return { success: false, error: error.message || "Network error" };
+    }
+  }, [checkSubscription]);
+
+  const logout = useCallback(async () => {
+    try {
+      if (sessionToken) {
+        await fetch("/api/auth/logout", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${sessionToken}`,
+          },
+        });
+      }
+    } catch (error) {
+      console.error("Logout failed:", error);
+    } finally {
+      localStorage.removeItem(SESSION_TOKEN_KEY);
+      setSessionToken(null);
+      setUser(null);
+      setSubscription(null);
+    }
+  }, [sessionToken]);
+
+  const forgotPassword = useCallback(async (email) => {
+    try {
+      const response = await fetch("/api/auth/forgot-password", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email }),
+      });
+
+      const data = await response.json();
+      return { success: data.success, message: data.message, reset_link: data.reset_link };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  }, []);
+
+  const resetPassword = useCallback(async (token, password) => {
+    try {
+      const response = await fetch("/api/auth/reset-password", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ token, password }),
+      });
+
+      const data = await response.json();
+      return { success: data.success, error: data.error, message: data.message };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  }, []);
+
+  const changePassword = useCallback(async (currentPassword, newPassword) => {
+    if (!sessionToken) {
+      return { success: false, error: "Not authenticated" };
+    }
+
+    try {
+      const response = await fetch("/api/auth/change-password", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${sessionToken}`,
+        },
+        body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
+      });
+
+      const data = await response.json();
+      return { success: data.success, error: data.error, message: data.message };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  }, [sessionToken]);
+
+  const refreshSubscription = useCallback(async () => {
+    await checkSubscription();
+  }, [checkSubscription]);
+
+  const getAuthHeaders = useCallback(() => {
+    if (!sessionToken) return {};
+    return {
+      Authorization: `Bearer ${sessionToken}`,
+    };
+  }, [sessionToken]);
+
+  const value = useMemo(
+    () => ({
+      user,
+      subscription,
+      sessionToken,
+      loading,
+      isAuthenticated: !!user,
+      isSubscriptionActive: subscription?.is_active ?? false,
+      register,
+      login,
+      logout,
+      forgotPassword,
+      resetPassword,
+      changePassword,
+      refreshSubscription,
+      checkAuth,
+      getAuthHeaders,
+    }),
+    [user, subscription, sessionToken, loading, register, login, logout, forgotPassword, resetPassword, changePassword, refreshSubscription, checkAuth, getAuthHeaders]
+  );
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+}
+
+export function useAuth() {
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error("useAuth must be used within AuthProvider");
+  }
+  return context;
+}
+

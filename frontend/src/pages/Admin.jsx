@@ -93,10 +93,40 @@ export default function Admin() {
       </div>
 
       {/* Tabs */}
-      <div className="mb-6 flex gap-2 border-b border-slate-200">
+      <div className="mb-6 flex gap-2 border-b border-slate-200 overflow-x-auto">
+        <button
+          onClick={() => setActiveTab("stats")}
+          className={`px-4 py-2 text-sm font-semibold transition whitespace-nowrap ${
+            activeTab === "stats"
+              ? "border-b-2 border-brand-500 text-brand-700"
+              : "text-slate-600 hover:text-slate-900"
+          }`}
+        >
+          Statistics
+        </button>
+        <button
+          onClick={() => setActiveTab("users")}
+          className={`px-4 py-2 text-sm font-semibold transition whitespace-nowrap ${
+            activeTab === "users"
+              ? "border-b-2 border-brand-500 text-brand-700"
+              : "text-slate-600 hover:text-slate-900"
+          }`}
+        >
+          Users
+        </button>
+        <button
+          onClick={() => setActiveTab("payments")}
+          className={`px-4 py-2 text-sm font-semibold transition whitespace-nowrap ${
+            activeTab === "payments"
+              ? "border-b-2 border-brand-500 text-brand-700"
+              : "text-slate-600 hover:text-slate-900"
+          }`}
+        >
+          Payments
+        </button>
         <button
           onClick={() => setActiveTab("validation")}
-          className={`px-4 py-2 text-sm font-semibold transition ${
+          className={`px-4 py-2 text-sm font-semibold transition whitespace-nowrap ${
             activeTab === "validation"
               ? "border-b-2 border-brand-500 text-brand-700"
               : "text-slate-600 hover:text-slate-900"
@@ -106,7 +136,7 @@ export default function Admin() {
         </button>
         <button
           onClick={() => setActiveTab("intake")}
-          className={`px-4 py-2 text-sm font-semibold transition ${
+          className={`px-4 py-2 text-sm font-semibold transition whitespace-nowrap ${
             activeTab === "intake"
               ? "border-b-2 border-brand-500 text-brand-700"
               : "text-slate-600 hover:text-slate-900"
@@ -114,22 +144,14 @@ export default function Admin() {
         >
           Intake Form Fields
         </button>
-        <button
-          onClick={() => setActiveTab("stats")}
-          className={`px-4 py-2 text-sm font-semibold transition ${
-            activeTab === "stats"
-              ? "border-b-2 border-brand-500 text-brand-700"
-              : "text-slate-600 hover:text-slate-900"
-          }`}
-        >
-          Statistics
-        </button>
       </div>
 
       {/* Content Management */}
+      {activeTab === "stats" && <AdminStats />}
+      {activeTab === "users" && <UsersManagement />}
+      {activeTab === "payments" && <PaymentsManagement />}
       {activeTab === "validation" && <ValidationQuestionsEditor />}
       {activeTab === "intake" && <IntakeFieldsEditor />}
-      {activeTab === "stats" && <AdminStats />}
     </section>
   );
 }
@@ -557,7 +579,7 @@ function AdminStats() {
     const loadStats = async () => {
       try {
         const authToken = localStorage.getItem(ADMIN_STORAGE_KEY) === "true" ? ADMIN_PASSWORD : "";
-        const response = await fetch("/api/admin/stats", {
+        const response = await fetch("/admin/stats", {
           headers: {
             "Authorization": `Bearer ${authToken}`,
           },
@@ -577,59 +599,447 @@ function AdminStats() {
     loadStats();
   }, []);
 
-  // Get stats from localStorage as fallback
-  const savedRuns = JSON.parse(localStorage.getItem("sia_saved_runs") || "[]");
-  const savedValidations = JSON.parse(localStorage.getItem("sia_validations") || "[]");
+  if (loading) {
+    return (
+      <div className="rounded-3xl border border-slate-200 bg-white/95 p-8 shadow-soft">
+        <p className="text-slate-600">Loading statistics...</p>
+      </div>
+    );
+  }
+
+  if (!stats) {
+    return (
+      <div className="rounded-3xl border border-slate-200 bg-white/95 p-8 shadow-soft">
+        <p className="text-slate-600">Failed to load statistics</p>
+      </div>
+    );
+  }
 
   return (
     <div className="rounded-3xl border border-slate-200 bg-white/95 p-8 shadow-soft">
       <h2 className="mb-6 text-2xl font-semibold text-slate-900">Statistics</h2>
       
-      {loading && <p className="text-slate-600">Loading statistics...</p>}
-      
-      <div className="grid gap-6 md:grid-cols-3">
+      <div className="grid gap-6 md:grid-cols-3 lg:grid-cols-4">
         <div className="rounded-2xl border border-brand-200 bg-brand-50 p-6">
-          <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-brand-700">Total Runs</h3>
-          <p className="text-3xl font-bold text-brand-900">{savedRuns.length}</p>
-          <p className="mt-2 text-xs text-brand-600">Idea discovery sessions</p>
+          <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-brand-700">Total Users</h3>
+          <p className="text-3xl font-bold text-brand-900">{stats.total_users || 0}</p>
+          <p className="mt-2 text-xs text-brand-600">Registered users</p>
         </div>
 
         <div className="rounded-2xl border border-coral-200 bg-coral-50 p-6">
-          <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-coral-700">Total Validations</h3>
-          <p className="text-3xl font-bold text-coral-900">{savedValidations.length}</p>
-          <p className="mt-2 text-xs text-coral-600">Idea validations completed</p>
+          <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-coral-700">Total Runs</h3>
+          <p className="text-3xl font-bold text-coral-900">{stats.total_runs || 0}</p>
+          <p className="mt-2 text-xs text-coral-600">Idea discovery sessions</p>
         </div>
 
         <div className="rounded-2xl border border-aqua-200 bg-aqua-50 p-6">
-          <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-aqua-700">Total Users</h3>
-          <p className="text-3xl font-bold text-aqua-900">{new Set([...savedRuns.map(r => r.id), ...savedValidations.map(v => v.id)]).size}</p>
-          <p className="mt-2 text-xs text-aqua-600">Unique sessions</p>
+          <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-aqua-700">Total Validations</h3>
+          <p className="text-3xl font-bold text-aqua-900">{stats.total_validations || 0}</p>
+          <p className="mt-2 text-xs text-aqua-600">Idea validations completed</p>
+        </div>
+
+        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-6">
+          <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-emerald-700">Total Revenue</h3>
+          <p className="text-3xl font-bold text-emerald-900">${(stats.total_revenue || 0).toFixed(2)}</p>
+          <p className="mt-2 text-xs text-emerald-600">From completed payments</p>
+        </div>
+      </div>
+
+      <div className="mt-8 grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+          <h3 className="mb-2 text-sm font-semibold text-slate-700">Active Subscriptions</h3>
+          <p className="text-2xl font-bold text-slate-900">{stats.active_subscriptions || 0}</p>
+        </div>
+
+        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+          <h3 className="mb-2 text-sm font-semibold text-slate-700">Free Trial Users</h3>
+          <p className="text-2xl font-bold text-slate-900">{stats.free_trial_users || 0}</p>
+        </div>
+
+        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+          <h3 className="mb-2 text-sm font-semibold text-slate-700">Weekly Subscribers</h3>
+          <p className="text-2xl font-bold text-slate-900">{stats.weekly_subscribers || 0}</p>
+        </div>
+
+        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+          <h3 className="mb-2 text-sm font-semibold text-slate-700">Monthly Subscribers</h3>
+          <p className="text-2xl font-bold text-slate-900">{stats.monthly_subscribers || 0}</p>
         </div>
       </div>
 
       <div className="mt-8">
-        <h3 className="mb-4 text-xl font-semibold text-slate-800">Recent Activity</h3>
-        <div className="space-y-2">
-          {savedRuns.slice(0, 5).map((run) => (
-            <div key={run.id} className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm">
-              <div className="flex items-center justify-between">
-                <span className="font-semibold text-slate-700">Idea Discovery Run</span>
-                <span className="text-slate-500">{new Date(run.timestamp).toLocaleDateString()}</span>
-              </div>
-            </div>
-          ))}
-          {savedValidations.slice(0, 5).map((validation) => (
-            <div key={validation.id} className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm">
-              <div className="flex items-center justify-between">
-                <span className="font-semibold text-slate-700">Idea Validation</span>
-                <span className="text-slate-500">{new Date(validation.timestamp).toLocaleDateString()}</span>
-              </div>
-            </div>
-          ))}
-          {savedRuns.length === 0 && savedValidations.length === 0 && (
-            <p className="text-slate-500">No activity yet</p>
-          )}
+        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+          <h3 className="mb-2 text-sm font-semibold text-slate-700">Completed Payments</h3>
+          <p className="text-2xl font-bold text-slate-900">{stats.total_payments || 0}</p>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function UsersManagement() {
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedUser, setSelectedUser] = useState(null);
+  const [userDetail, setUserDetail] = useState(null);
+
+  useEffect(() => {
+    loadUsers();
+  }, []);
+
+  const loadUsers = async () => {
+    try {
+      const authToken = localStorage.getItem(ADMIN_STORAGE_KEY) === "true" ? ADMIN_PASSWORD : "";
+      const response = await fetch("/api/admin/users", {
+        headers: {
+          "Authorization": `Bearer ${authToken}`,
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setUsers(data.users || []);
+      }
+    } catch (error) {
+      console.error("Failed to load users:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadUserDetail = async (userId) => {
+    try {
+      const authToken = localStorage.getItem(ADMIN_STORAGE_KEY) === "true" ? ADMIN_PASSWORD : "";
+      const response = await fetch(`/api/admin/user/${userId}`, {
+        headers: {
+          "Authorization": `Bearer ${authToken}`,
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setUserDetail(data);
+        setSelectedUser(userId);
+      }
+    } catch (error) {
+      console.error("Failed to load user detail:", error);
+    }
+  };
+
+  const getStatusBadge = (user) => {
+    if (user.is_subscription_active) {
+      return (
+        <span className="inline-block rounded-full bg-emerald-100 px-2 py-1 text-xs font-semibold text-emerald-700">
+          Active
+        </span>
+      );
+    } else if (user.subscription_type === "free_trial") {
+      return (
+        <span className="inline-block rounded-full bg-amber-100 px-2 py-1 text-xs font-semibold text-amber-700">
+          Free Trial
+        </span>
+      );
+    } else {
+      return (
+        <span className="inline-block rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-700">
+          Expired
+        </span>
+      );
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="rounded-3xl border border-slate-200 bg-white/95 p-8 shadow-soft">
+        <p className="text-slate-600">Loading users...</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="rounded-3xl border border-slate-200 bg-white/95 p-8 shadow-soft">
+        <div className="mb-6 flex items-center justify-between">
+          <h2 className="text-2xl font-semibold text-slate-900">Users ({users.length})</h2>
+          <button
+            onClick={loadUsers}
+            className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+          >
+            Refresh
+          </button>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-slate-200">
+                <th className="px-4 py-3 text-left font-semibold text-slate-700">Email</th>
+                <th className="px-4 py-3 text-left font-semibold text-slate-700">Subscription</th>
+                <th className="px-4 py-3 text-left font-semibold text-slate-700">Status</th>
+                <th className="px-4 py-3 text-left font-semibold text-slate-700">Days Remaining</th>
+                <th className="px-4 py-3 text-left font-semibold text-slate-700">Created</th>
+                <th className="px-4 py-3 text-left font-semibold text-slate-700">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {users.map((user) => (
+                <tr key={user.id} className="border-b border-slate-100 hover:bg-slate-50">
+                  <td className="px-4 py-3 text-slate-700">{user.email}</td>
+                  <td className="px-4 py-3 text-slate-600">{user.subscription_type || "N/A"}</td>
+                  <td className="px-4 py-3">{getStatusBadge(user)}</td>
+                  <td className="px-4 py-3 text-slate-600">{user.days_remaining || 0}</td>
+                  <td className="px-4 py-3 text-slate-500">
+                    {user.subscription_started_at ? new Date(user.subscription_started_at).toLocaleDateString() : "N/A"}
+                  </td>
+                  <td className="px-4 py-3">
+                    <button
+                      onClick={() => loadUserDetail(user.id)}
+                      className="rounded-lg border border-brand-300 bg-brand-50 px-3 py-1 text-xs font-semibold text-brand-700 transition hover:bg-brand-100"
+                    >
+                      View Details
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {userDetail && (
+        <UserDetailModal
+          userDetail={userDetail}
+          onClose={() => {
+            setUserDetail(null);
+            setSelectedUser(null);
+          }}
+          onUpdate={loadUsers}
+        />
+      )}
+    </div>
+  );
+}
+
+function UserDetailModal({ userDetail, onClose, onUpdate }) {
+  const [subscriptionType, setSubscriptionType] = useState(userDetail.user.subscription_type || "free_trial");
+  const [durationDays, setDurationDays] = useState(7);
+  const [saving, setSaving] = useState(false);
+
+  const handleUpdateSubscription = async () => {
+    setSaving(true);
+    try {
+      const authToken = localStorage.getItem(ADMIN_STORAGE_KEY) === "true" ? ADMIN_PASSWORD : "";
+      const response = await fetch(`/api/admin/user/${userDetail.user.id}/subscription`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${authToken}`,
+        },
+        body: JSON.stringify({
+          subscription_type: subscriptionType,
+          duration_days: durationDays,
+        }),
+      });
+
+      if (response.ok) {
+        alert("Subscription updated successfully");
+        onUpdate();
+        onClose();
+      } else {
+        const data = await response.json();
+        alert(`Failed to update: ${data.error}`);
+      }
+    } catch (error) {
+      alert(`Error: ${error.message}`);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 backdrop-blur-sm">
+      <div className="mx-4 w-full max-w-2xl rounded-3xl border border-slate-200 bg-white p-8 shadow-xl">
+        <div className="mb-6 flex items-center justify-between">
+          <h2 className="text-2xl font-bold text-slate-900">User Details</h2>
+          <button
+            onClick={onClose}
+            className="rounded-lg p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+          >
+            ×
+          </button>
+        </div>
+
+        <div className="space-y-4">
+          <div>
+            <h3 className="mb-2 font-semibold text-slate-700">Email</h3>
+            <p className="text-slate-600">{userDetail.user.email}</p>
+          </div>
+
+          <div>
+            <h3 className="mb-2 font-semibold text-slate-700">Current Subscription</h3>
+            <p className="text-slate-600">
+              {userDetail.user.subscription_type || "N/A"} - {userDetail.user.days_remaining || 0} days remaining
+            </p>
+          </div>
+
+          <div>
+            <h3 className="mb-2 font-semibold text-slate-700">Update Subscription</h3>
+            <div className="space-y-3">
+              <select
+                value={subscriptionType}
+                onChange={(e) => setSubscriptionType(e.target.value)}
+                className="w-full rounded-lg border border-slate-200 bg-white p-2 text-sm"
+              >
+                <option value="free_trial">Free Trial</option>
+                <option value="weekly">Weekly ($5)</option>
+                <option value="monthly">Monthly ($15)</option>
+              </select>
+              <input
+                type="number"
+                value={durationDays}
+                onChange={(e) => setDurationDays(parseInt(e.target.value) || 0)}
+                placeholder="Duration in days"
+                className="w-full rounded-lg border border-slate-200 bg-white p-2 text-sm"
+              />
+              <button
+                onClick={handleUpdateSubscription}
+                disabled={saving}
+                className="w-full rounded-xl bg-gradient-to-r from-brand-500 to-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-md transition hover:from-brand-600 hover:to-brand-700 disabled:opacity-50"
+              >
+                {saving ? "Updating..." : "Update Subscription"}
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <h3 className="mb-2 font-semibold text-slate-700">Runs ({userDetail.runs?.length || 0})</h3>
+            <div className="max-h-40 space-y-1 overflow-y-auto">
+              {userDetail.runs?.map((run) => (
+                <div key={run.id} className="rounded-lg border border-slate-200 bg-slate-50 p-2 text-xs">
+                  {run.run_id} - {run.created_at ? new Date(run.created_at).toLocaleString() : "N/A"}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <h3 className="mb-2 font-semibold text-slate-700">Validations ({userDetail.validations?.length || 0})</h3>
+            <div className="max-h-40 space-y-1 overflow-y-auto">
+              {userDetail.validations?.map((validation) => (
+                <div key={validation.id} className="rounded-lg border border-slate-200 bg-slate-50 p-2 text-xs">
+                  {validation.validation_id} - {validation.created_at ? new Date(validation.created_at).toLocaleString() : "N/A"}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <h3 className="mb-2 font-semibold text-slate-700">Payments ({userDetail.payments?.length || 0})</h3>
+            <div className="max-h-40 space-y-1 overflow-y-auto">
+              {userDetail.payments?.map((payment) => (
+                <div key={payment.id} className="rounded-lg border border-slate-200 bg-slate-50 p-2 text-xs">
+                  ${payment.amount} {payment.currency} - {payment.subscription_type} - {payment.status} -{" "}
+                  {payment.created_at ? new Date(payment.created_at).toLocaleString() : "N/A"}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PaymentsManagement() {
+  const [payments, setPayments] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    loadPayments();
+  }, []);
+
+  const loadPayments = async () => {
+    try {
+      const authToken = localStorage.getItem(ADMIN_STORAGE_KEY) === "true" ? ADMIN_PASSWORD : "";
+      const response = await fetch("/api/admin/payments", {
+        headers: {
+          "Authorization": `Bearer ${authToken}`,
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setPayments(data.payments || []);
+      }
+    } catch (error) {
+      console.error("Failed to load payments:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getStatusBadge = (status) => {
+    const colors = {
+      completed: "bg-emerald-100 text-emerald-700",
+      pending: "bg-amber-100 text-amber-700",
+      failed: "bg-coral-100 text-coral-700",
+    };
+    return (
+      <span className={`inline-block rounded-full px-2 py-1 text-xs font-semibold ${colors[status] || "bg-slate-100 text-slate-700"}`}>
+        {status}
+      </span>
+    );
+  };
+
+  if (loading) {
+    return (
+      <div className="rounded-3xl border border-slate-200 bg-white/95 p-8 shadow-soft">
+        <p className="text-slate-600">Loading payments...</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-3xl border border-slate-200 bg-white/95 p-8 shadow-soft">
+      <div className="mb-6 flex items-center justify-between">
+        <h2 className="text-2xl font-semibold text-slate-900">Payments ({payments.length})</h2>
+        <button
+          onClick={loadPayments}
+          className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+        >
+          Refresh
+        </button>
+      </div>
+
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-slate-200">
+              <th className="px-4 py-3 text-left font-semibold text-slate-700">User</th>
+              <th className="px-4 py-3 text-left font-semibold text-slate-700">Amount</th>
+              <th className="px-4 py-3 text-left font-semibold text-slate-700">Type</th>
+              <th className="px-4 py-3 text-left font-semibold text-slate-700">Status</th>
+              <th className="px-4 py-3 text-left font-semibold text-slate-700">Stripe ID</th>
+              <th className="px-4 py-3 text-left font-semibold text-slate-700">Date</th>
+            </tr>
+          </thead>
+          <tbody>
+            {payments.map((payment) => (
+              <tr key={payment.id} className="border-b border-slate-100 hover:bg-slate-50">
+                <td className="px-4 py-3 text-slate-700">{payment.user_email}</td>
+                <td className="px-4 py-3 font-semibold text-slate-900">
+                  ${payment.amount} {payment.currency}
+                </td>
+                <td className="px-4 py-3 text-slate-600">{payment.subscription_type}</td>
+                <td className="px-4 py-3">{getStatusBadge(payment.status)}</td>
+                <td className="px-4 py-3 text-xs text-slate-500 font-mono">{payment.stripe_payment_intent_id}</td>
+                <td className="px-4 py-3 text-slate-500">
+                  {payment.created_at ? new Date(payment.created_at).toLocaleString() : "N/A"}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
     </div>
   );
