@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, Navigate, useLocation, useParams } from "react-router-dom";
 import ReactMarkdown from "react-markdown";
 import Seo from "../components/Seo.jsx";
@@ -24,26 +24,239 @@ function useQuery() {
   return new URLSearchParams(useLocation().search);
 }
 
+// Get theme for different sections
+function getSectionTheme(sectionTitle) {
+  const lowerTitle = sectionTitle.toLowerCase();
+  
+  if (lowerTitle.includes("financial") || lowerTitle.includes("snapshot")) {
+    return {
+      icon: "💰",
+      border: "border-amber-300",
+      bg: "bg-amber-50",
+      headerBg: "bg-amber-100",
+      text: "text-amber-800",
+      borderColor: "#FCD34D",
+      bgColor: "#FEF3C7",
+      headerBgColor: "#FDE68A",
+      textColor: "#92400E",
+    };
+  }
+  
+  if (lowerTitle.includes("execution") || lowerTitle.includes("roadmap")) {
+    return {
+      icon: "🗺️",
+      border: "border-brand-300",
+      bg: "bg-brand-50",
+      headerBg: "bg-brand-100",
+      text: "text-brand-800",
+      borderColor: "#A5B6E0",
+      bgColor: "#E8ECF7",
+      headerBgColor: "#D0D9F0",
+      textColor: "#1B4091",
+    };
+  }
+  
+  if (lowerTitle.includes("risk") || lowerTitle.includes("radar")) {
+    return {
+      icon: "⚠️",
+      border: "border-rose-300",
+      bg: "bg-rose-50",
+      headerBg: "bg-rose-100",
+      text: "text-rose-800",
+      borderColor: "#FDA4AF",
+      bgColor: "#FFF1F2",
+      headerBgColor: "#FFE4E6",
+      textColor: "#BE123C",
+    };
+  }
+  
+  if (lowerTitle.includes("market") || lowerTitle.includes("signal")) {
+    return {
+      icon: "📈",
+      border: "border-teal-300",
+      bg: "bg-teal-50",
+      headerBg: "bg-teal-100",
+      text: "text-teal-800",
+      borderColor: "#5EEAD4",
+      bgColor: "#F0FDFA",
+      headerBgColor: "#CCFBF1",
+      textColor: "#134E4A",
+    };
+  }
+  
+  if (lowerTitle.includes("customer") || lowerTitle.includes("persona")) {
+    return {
+      icon: "👤",
+      border: "border-violet-300",
+      bg: "bg-violet-50",
+      headerBg: "bg-violet-100",
+      text: "text-violet-800",
+      borderColor: "#C4B5FD",
+      bgColor: "#F5F3FF",
+      headerBgColor: "#EDE9FE",
+      textColor: "#6D28D9",
+    };
+  }
+  
+  if (lowerTitle.includes("validation") || lowerTitle.includes("question")) {
+    return {
+      icon: "❓",
+      border: "border-brand-300",
+      bg: "bg-brand-50",
+      headerBg: "bg-brand-100",
+      text: "text-brand-800",
+      borderColor: "#A5B6E0",
+      bgColor: "#E8ECF7",
+      headerBgColor: "#D0D9F0",
+      textColor: "#1B4091",
+    };
+  }
+  
+  if (lowerTitle.includes("experiment") || lowerTitle.includes("next")) {
+    return {
+      icon: "🧪",
+      border: "border-amber-300",
+      bg: "bg-amber-50",
+      headerBg: "bg-amber-100",
+      text: "text-amber-800",
+      borderColor: "#FCD34D",
+      bgColor: "#FEF3C7",
+      headerBgColor: "#FDE68A",
+      textColor: "#92400E",
+    };
+  }
+  
+  if (lowerTitle.includes("decision") || lowerTitle.includes("checkpoint")) {
+    return {
+      icon: "✅",
+      border: "border-emerald-300",
+      bg: "bg-emerald-50",
+      headerBg: "bg-emerald-100",
+      text: "text-emerald-800",
+      borderColor: "#86EFAC",
+      bgColor: "#ECFDF5",
+      headerBgColor: "#D1FAE5",
+      textColor: "#047857",
+    };
+  }
+  
+  if (lowerTitle.includes("30") || lowerTitle.includes("60") || lowerTitle.includes("90") || lowerTitle.includes("outlook")) {
+    return {
+      icon: "📅",
+      border: "border-brand-300",
+      bg: "bg-brand-50",
+      headerBg: "bg-brand-100",
+      text: "text-brand-800",
+      borderColor: "#A5B6E0",
+      bgColor: "#E8ECF7",
+      headerBgColor: "#D0D9F0",
+      textColor: "#1B4091",
+    };
+  }
+  
+  return {
+    icon: "📋",
+    border: "border-slate-300",
+    bg: "bg-slate-50",
+    headerBg: "bg-slate-100",
+    text: "text-slate-800",
+    borderColor: "#CAD2DA",
+    bgColor: "#F8FAFC",
+    headerBgColor: "#EEF2F6",
+    textColor: "#47505B",
+  };
+}
+
+function CollapsibleSection({ title, description, theme, isOpen, onToggle, children }) {
+  return (
+    <article
+      className={`rounded-3xl border-2 ${theme.border} ${theme.bg} p-0 overflow-hidden shadow-md`}
+      style={{
+        borderColor: theme.borderColor,
+        backgroundColor: theme.bgColor,
+      }}
+    >
+      <button
+        onClick={onToggle}
+        className={`w-full flex items-center justify-between gap-3 px-6 py-4 ${theme.headerBg} border-b-2 hover:opacity-90 transition-opacity`}
+        style={{
+          backgroundColor: theme.headerBgColor,
+          borderBottomColor: theme.borderColor,
+        }}
+      >
+        <div className="flex items-center gap-3">
+          <span className="text-2xl">{theme.icon}</span>
+          <div className="text-left">
+            <h2
+              className={`text-xl font-semibold ${theme.text}`}
+              style={{ color: theme.textColor }}
+            >
+              {title}
+            </h2>
+            {description && (
+              <p className="text-xs mt-1 text-slate-500">{description}</p>
+            )}
+          </div>
+        </div>
+        <span className={`text-xl transition-transform flex-shrink-0 ${isOpen ? "rotate-180" : ""}`}>
+          ▼
+        </span>
+      </button>
+      
+      {isOpen && (
+        <div className="p-6 bg-white">
+          {children}
+        </div>
+      )}
+    </article>
+  );
+}
+
 export default function RecommendationDetail() {
   const { ideaIndex } = useParams();
-  const { reports, loadRunById, currentRunId, inputs } = useReports();
+  const { reports, loadRunById, currentRunId, inputs, loading } = useReports();
   const query = useQuery();
   const runId = query.get("id");
+  const [openSections, setOpenSections] = useState(new Set(["why-fits"]));
 
   useEffect(() => {
     if (runId) {
       loadRunById(runId);
+    } else if (currentRunId && !reports) {
+      // If no runId in URL but we have a currentRunId, load it
+      loadRunById(currentRunId);
     }
-  }, [runId, loadRunById]);
+  }, [runId, currentRunId, loadRunById, reports]);
 
   const markdown = useMemo(
     () => trimFromHeading(reports?.personalized_recommendations ?? "", "### Comprehensive Recommendation Report"),
     [reports]
   );
 
-  const ideas = useMemo(() => parseTopIdeas(markdown, 10), [markdown]);
+  const ideas = useMemo(() => {
+    const parsed = parseTopIdeas(markdown, 10);
+    console.log("Parsed ideas:", parsed);
+    return parsed;
+  }, [markdown]);
+  
   const numericIndex = Number.parseInt(ideaIndex ?? "", 10);
   const activeIdea = ideas.find((idea) => idea.index === numericIndex);
+  
+  console.log("RecommendationDetail Debug:", {
+    ideaIndex,
+    numericIndex,
+    ideasCount: ideas.length,
+    activeIdea: activeIdea ? { index: activeIdea.index, title: activeIdea.title } : null,
+    hasMarkdown: !!markdown,
+    hasReports: !!reports,
+  });
+
+  // Open first section by default (matching Profile Summary behavior)
+  useEffect(() => {
+    if (activeIdea && openSections.size === 0) {
+      setOpenSections(new Set(["why-fits"]));
+    }
+  }, [activeIdea, openSections.size]);
 
   const runQuery = runId || currentRunId;
   const backPath = runQuery ? `/results/recommendations?id=${runQuery}` : "/results/recommendations";
@@ -64,8 +277,12 @@ export default function RecommendationDetail() {
     [sections, activeIdea?.title, inputs]
   );
   const financialSnapshot = useMemo(
-    () => buildFinancialSnapshots(sections["financial snapshot"], activeIdea?.title || ""),
-    [sections, activeIdea?.title]
+    () => buildFinancialSnapshots(
+      sections["financial snapshot"], 
+      activeIdea?.title || "",
+      inputs?.budget_range || ""
+    ),
+    [sections, activeIdea?.title, inputs?.budget_range]
   );
   const riskRows = useMemo(() => parseRiskRows(sections["key risks & mitigations"]), [sections]);
   const validationQuestions = useMemo(
@@ -221,6 +438,19 @@ export default function RecommendationDetail() {
     [ideas, activeIdea]
   );
 
+  const toggleSection = (sectionKey) => {
+    setOpenSections((prev) => {
+      const next = new Set(prev);
+      if (next.has(sectionKey)) {
+        next.delete(sectionKey);
+      } else {
+        next.add(sectionKey);
+      }
+      return next;
+    });
+  };
+
+  // Redirect if we have markdown but the idea index doesn't match
   if (markdown && !activeIdea && ideas.length > 0) {
     return <Navigate to={backPath} replace />;
   }
@@ -243,12 +473,31 @@ export default function RecommendationDetail() {
         </Link>
       </div>
 
-      {!markdown && (
+      {loading && (
+        <div className="rounded-3xl border border-blue-200 bg-blue-50/80 p-6 text-blue-800 shadow-soft">
+          <h2 className="text-lg font-semibold">Loading recommendation details...</h2>
+          <p className="mt-2 text-sm">Please wait while we load the data.</p>
+        </div>
+      )}
+
+      {!loading && !markdown && (
         <div className="rounded-3xl border border-amber-200 bg-amber-50/80 p-6 text-amber-800 shadow-soft">
           <h2 className="text-lg font-semibold">No report available</h2>
           <p className="mt-2 text-sm">
-            We couldn’t find a saved recommendation report. Return to the home page to run a new session.
+            We couldn't find a saved recommendation report. Return to the home page to run a new session.
           </p>
+        </div>
+      )}
+
+      {markdown && ideas.length > 0 && !activeIdea && (
+        <div className="rounded-3xl border border-amber-200 bg-amber-50/80 p-6 text-amber-800 shadow-soft">
+          <h2 className="text-lg font-semibold">Idea not found</h2>
+          <p className="mt-2 text-sm">
+            Idea #{ideaIndex} not found in the recommendations. Available ideas: {ideas.map(i => i.index).join(", ")}
+          </p>
+          <Link to={backPath} className="mt-4 inline-block text-sm font-semibold text-amber-900 underline">
+            Back to recommendations
+          </Link>
         </div>
       )}
 
@@ -273,9 +522,12 @@ export default function RecommendationDetail() {
           </article>
 
           {fitNarrativeMarkdown && (
-            <article className="rounded-3xl border border-brand-100 bg-white/95 p-8 shadow-soft">
-              <h2 className="text-2xl font-semibold text-slate-900">Why this Idea Fits You</h2>
-             
+            <CollapsibleSection
+              title="Why this Idea Fits You"
+              theme={getSectionTheme("Why this Idea Fits You")}
+              isOpen={openSections.has("why-fits")}
+              onToggle={() => toggleSection("why-fits")}
+            >
               {fitNarrativeMarkdown && (
                 <div className="mt-6 text-slate-700">
                   <style>{`
@@ -355,13 +607,17 @@ export default function RecommendationDetail() {
                   </div>
                 </div>
               )}
-            </article>
+            </CollapsibleSection>
           )}
 
           {financialSnapshot.length > 0 && (
-            <article className="rounded-3xl border border-amber-100 bg-amber-50/80 p-8 shadow-soft shadow-amber-200/60">
-              <h2 className="text-2xl font-semibold text-slate-900">Financial snapshot</h2>
-              <div className="mt-4 overflow-hidden rounded-2xl border border-amber-100 bg-white">
+            <CollapsibleSection
+              title="Financial snapshot"
+              theme={getSectionTheme("Financial snapshot")}
+              isOpen={openSections.has("financial")}
+              onToggle={() => toggleSection("financial")}
+            >
+              <div className="overflow-hidden rounded-2xl border border-amber-100 bg-white">
                 <table className="min-w-full divide-y divide-amber-100 text-sm">
                   <thead className="bg-amber-100/60 text-left uppercase tracking-wide text-amber-700">
                     <tr>
@@ -383,23 +639,18 @@ export default function RecommendationDetail() {
                   </tbody>
                 </table>
               </div>
-            </article>
+            </CollapsibleSection>
           )}
 
             {executionPhaseCards.length > 0 && (
-              <article className="rounded-3xl border border-brand-100 bg-white/95 p-8 shadow-soft">
-              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                <div>
-                  <h2 className="text-2xl font-semibold text-slate-900">Execution roadmap</h2>
-                  <p className="text-sm text-slate-500">
-                    Move from validation to scale with focused sprints that match your capacity.
-                  </p>
-                </div>
-                <div className="h-2 w-40 overflow-hidden rounded-full bg-brand-100">
-                  <div className="h-full w-full bg-gradient-to-r from-brand-400 via-brand-500 to-brand-600" />
-                </div>
-              </div>
-              <div className="mt-6 grid gap-4 md:grid-cols-2">
+              <CollapsibleSection
+                title="Execution roadmap"
+                description="Move from validation to scale with focused sprints that match your capacity."
+                theme={getSectionTheme("Execution roadmap")}
+                isOpen={openSections.has("execution")}
+                onToggle={() => toggleSection("execution")}
+              >
+              <div className="grid gap-4 md:grid-cols-2">
                 {executionPhaseCards.map((phase) => (
                   <div key={phase.title} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-inner">
                     <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">{phase.title}</h3>
@@ -416,13 +667,17 @@ export default function RecommendationDetail() {
                   </div>
                 ))}
               </div>
-            </article>
+            </CollapsibleSection>
           )}
 
           {riskRows.length > 0 && (
-            <article className="rounded-3xl border border-rose-100 bg-rose-50/70 p-8 shadow-soft shadow-rose-200/50">
-              <h2 className="text-2xl font-semibold text-slate-900">Risk radar</h2>
-              <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200">
+            <CollapsibleSection
+              title="Risk radar"
+              theme={getSectionTheme("Risk radar")}
+              isOpen={openSections.has("risk")}
+              onToggle={() => toggleSection("risk")}
+            >
+              <div className="overflow-hidden rounded-2xl border border-slate-200">
                 <table className="min-w-full divide-y divide-slate-200 text-sm">
                   <thead className="bg-brand-500/10 text-left uppercase tracking-wide text-slate-500">
                     <tr>
@@ -442,18 +697,20 @@ export default function RecommendationDetail() {
                   </tbody>
                 </table>
               </div>
-            </article>
+            </CollapsibleSection>
           )}
 
           {(marketInsights.length > 0 || personaMarkdown) && (
             <div className="grid gap-6 lg:grid-cols-2">
               {marketInsights.length > 0 && (
-                <article className="rounded-3xl border border-teal-100 bg-gradient-to-br from-teal-50 via-white to-white p-8 shadow-soft">
-                  <h2 className="text-2xl font-semibold text-slate-900">Market signals</h2>
-                  <p className="mt-1 text-sm text-slate-500">
-                    Trends and proof points worth validating as you move forward.
-                  </p>
-                  <ul className="mt-4 space-y-3 text-sm text-slate-700">
+                <CollapsibleSection
+                  title="Market signals"
+                  description="Trends and proof points worth validating as you move forward."
+                  theme={getSectionTheme("Market signals")}
+                  isOpen={openSections.has("market")}
+                  onToggle={() => toggleSection("market")}
+                >
+                  <ul className="space-y-3 text-sm text-slate-700">
                     {marketInsights.map((insight, index) => (
                       <li
                         key={index}
@@ -464,15 +721,19 @@ export default function RecommendationDetail() {
                       </li>
                     ))}
                   </ul>
-                </article>
+                </CollapsibleSection>
               )}
               {personaMarkdown && (
-                <article className="rounded-3xl border border-violet-100 bg-gradient-to-br from-violet-50 via-white to-white p-8 shadow-soft">
-                  <h2 className="text-2xl font-semibold text-slate-900">Customer persona</h2>
-                  <div className="mt-4 rounded-2xl border border-violet-100 bg-white/90 p-4 shadow-inner">
+                <CollapsibleSection
+                  title="Customer persona"
+                  theme={getSectionTheme("Customer persona")}
+                  isOpen={openSections.has("persona")}
+                  onToggle={() => toggleSection("persona")}
+                >
+                  <div className="rounded-2xl border border-violet-100 bg-white/90 p-4 shadow-inner">
                     <ReactMarkdown>{cleanNarrativeMarkdown(personaMarkdown)}</ReactMarkdown>
                   </div>
-                </article>
+                </CollapsibleSection>
               )}
             </div>
           )}
@@ -482,16 +743,14 @@ export default function RecommendationDetail() {
             immediateNextSteps.length > 0) && (
             <div className="grid gap-6">
               {validationQuestions.length > 0 && (
-                <article className="rounded-3xl border border-brand-100 bg-white/95 p-8 shadow-soft">
-                  <header className="space-y-1">
-                    <h2 className="text-2xl font-semibold text-slate-900">Validation questions</h2>
-                    <p className="text-sm text-slate-500">
-                      Ask these during discovery interviews, quick surveys, or pilot onboarding to confirm demand,
-                      willingness to pay, and whether the idea solves the right pain. Capture verbatims and note which
-                      answers indicate a fast “go” versus red flags that require pivots.
-                    </p>
-                  </header>
-          <div className="mt-4 grid gap-4 md:grid-cols-2">
+                <CollapsibleSection
+                  title="Validation questions"
+                  description="Ask these during discovery interviews, quick surveys, or pilot onboarding to confirm demand, willingness to pay, and whether the idea solves the right pain. Capture verbatims and note which answers indicate a fast 'go' versus red flags that require pivots."
+                  theme={getSectionTheme("Validation questions")}
+                  isOpen={openSections.has("validation")}
+                  onToggle={() => toggleSection("validation")}
+                >
+          <div className="grid gap-4 md:grid-cols-2">
             {validationQuestions.map(({ question, listenFor, actOn }, index) => (
                       <div
                         key={index}
@@ -508,12 +767,16 @@ export default function RecommendationDetail() {
                       </div>
                     ))}
                   </div>
-                </article>
+                </CollapsibleSection>
               )}
               {immediateExperimentsList.length > 0 && (
-                <article className="rounded-3xl border border-amber-100 bg-amber-50/70 p-8 shadow-soft">
-                  <h2 className="text-2xl font-semibold text-slate-900">Experiments to run next</h2>
-                  <ul className="mt-4 space-y-2 text-sm text-slate-700">
+                <CollapsibleSection
+                  title="Experiments to run next"
+                  theme={getSectionTheme("Experiments")}
+                  isOpen={openSections.has("experiments")}
+                  onToggle={() => toggleSection("experiments")}
+                >
+                  <ul className="space-y-2 text-sm text-slate-700">
                     {immediateExperimentsList.map((item, index) => (
                       <li key={index} className="flex gap-2">
                         <span className="mt-1 text-brand-500">•</span>
@@ -521,12 +784,16 @@ export default function RecommendationDetail() {
                       </li>
                     ))}
                   </ul>
-                </article>
+                </CollapsibleSection>
               )}
               {immediateNextSteps.length > 0 && (
-                <article className="rounded-3xl border border-brand-100 bg-white/95 p-8 shadow-soft">
-                  <h2 className="text-2xl font-semibold text-slate-900">Immediate next moves</h2>
-                  <ul className="mt-4 space-y-2 text-sm text-slate-700">
+                <CollapsibleSection
+                  title="Immediate next moves"
+                  theme={getSectionTheme("Next moves")}
+                  isOpen={openSections.has("next-steps")}
+                  onToggle={() => toggleSection("next-steps")}
+                >
+                  <ul className="space-y-2 text-sm text-slate-700">
                     {immediateNextSteps.map((item, index) => (
                       <li key={index} className="flex gap-2">
                         <span className="mt-1 text-brand-500">•</span>
@@ -534,15 +801,19 @@ export default function RecommendationDetail() {
                       </li>
                     ))}
                   </ul>
-                </article>
+                </CollapsibleSection>
               )}
             </div>
           )}
 
             {decisionChecklist.length > 0 && (
-              <article className="rounded-3xl border border-emerald-100 bg-emerald-50/70 p-8 shadow-soft">
-              <h2 className="text-2xl font-semibold text-slate-900">Decision checkpoint</h2>
-              <ul className="mt-4 space-y-2 text-sm text-slate-700">
+              <CollapsibleSection
+                title="Decision checkpoint"
+                theme={getSectionTheme("Decision checkpoint")}
+                isOpen={openSections.has("decision")}
+                onToggle={() => toggleSection("decision")}
+              >
+              <ul className="space-y-2 text-sm text-slate-700">
                 {decisionChecklist.map((item, index) => (
                   <li key={index} className="flex gap-2">
                     <span className="mt-1 text-brand-500">•</span>
@@ -550,13 +821,17 @@ export default function RecommendationDetail() {
                   </li>
                 ))}
               </ul>
-            </article>
+            </CollapsibleSection>
           )}
 
             {roadmapMarkdown && (
-              <article className="rounded-3xl border border-brand-100 bg-brand-50/70 p-8 shadow-soft">
-              <h2 className="text-2xl font-semibold text-slate-900">30/60/90 day outlook</h2>
-              <div className="mt-4 grid gap-4 md:grid-cols-3">
+              <CollapsibleSection
+                title="30/60/90 day outlook"
+                theme={getSectionTheme("30/60/90 day outlook")}
+                isOpen={openSections.has("roadmap")}
+                onToggle={() => toggleSection("roadmap")}
+              >
+              <div className="grid gap-4 md:grid-cols-3">
                 {["0-30 Days", "30-60 Days", "60-90 Days"].map((window, index) => (
                   <div key={window} className="rounded-2xl border border-brand-100 bg-white/95 p-4 shadow-inner">
                     <p className="text-xs uppercase tracking-wide text-brand-500">{window}</p>
@@ -568,13 +843,17 @@ export default function RecommendationDetail() {
                   </div>
                 ))}
               </div>
-            </article>
+            </CollapsibleSection>
           )}
 
             {additionalSections.length > 0 && (
-              <article className="rounded-3xl border border-slate-200 bg-white/95 p-8 shadow-soft">
-              <h2 className="text-2xl font-semibold text-slate-900">Additional insights</h2>
-              <div className="mt-4 grid gap-4">
+              <CollapsibleSection
+                title="Additional insights"
+                theme={getSectionTheme("Additional insights")}
+                isOpen={openSections.has("additional")}
+                onToggle={() => toggleSection("additional")}
+              >
+              <div className="grid gap-4">
                 {additionalSections.map((section) => (
                   <div key={section.heading} className="rounded-2xl border border-slate-100 bg-white/90 p-5">
                     <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
@@ -586,7 +865,7 @@ export default function RecommendationDetail() {
                   </div>
                 ))}
               </div>
-            </article>
+            </CollapsibleSection>
           )}
 
           <div className="flex flex-wrap gap-3">

@@ -94,7 +94,7 @@ function FullReportContent({ remainderMarkdown, inputs }) {
 
   const profileSummary = useMemo(() => buildConciseProfileSummary(inputs), [inputs]);
   const matrixRows = parseRecommendationMatrix(sections["recommendation matrix"]);
-  const financialOutlook = buildFinancialSnapshots(sections["financial outlook"], "");
+  const financialOutlook = buildFinancialSnapshots(sections["financial outlook"], "", inputs?.budget_range || "");
   const riskRows = parseRiskRows(sections["risk radar"]);
   const validationQuestions = buildValidationQuestions(
     sections["validation questions"],

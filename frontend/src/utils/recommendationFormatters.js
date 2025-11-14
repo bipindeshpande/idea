@@ -183,9 +183,39 @@ export function buildExecutionSteps(
     }
   });
 
+  // Create idea-specific variations by using idea title to seed template selection
+  // This ensures different ideas get different step orders and variations
+  const ideaHash = normalizedTitle.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  const shuffledTemplates = [...EXECUTION_TEMPLATES];
+  
+  // Shuffle templates based on idea title to vary the order
+  for (let i = shuffledTemplates.length - 1; i > 0; i--) {
+    const j = (ideaHash + i) % (i + 1);
+    [shuffledTemplates[i], shuffledTemplates[j]] = [shuffledTemplates[j], shuffledTemplates[i]];
+  }
+
   let templateIndex = 0;
-  while (steps.length < 10 && templateIndex < EXECUTION_TEMPLATES.length) {
-    const template = EXECUTION_TEMPLATES[templateIndex];
+  while (steps.length < 10 && templateIndex < shuffledTemplates.length) {
+    const template = shuffledTemplates[templateIndex];
+    
+    // Add idea-specific variations to make steps more unique
+    const ideaVariations = {
+      "ai": "Leverage AI tools and APIs",
+      "platform": "Set up your platform infrastructure",
+      "marketplace": "Build your marketplace foundation",
+      "service": "Design your service delivery model",
+      "app": "Develop your app architecture",
+      "saas": "Build your SaaS infrastructure",
+    };
+    
+    let ideaSpecificPrefix = "";
+    for (const [keyword, prefix] of Object.entries(ideaVariations)) {
+      if (normalizedTitle.toLowerCase().includes(keyword)) {
+        ideaSpecificPrefix = prefix;
+        break;
+      }
+    }
+    
     const filled = template
       .replace(/{{idea}}/g, normalizedTitle)
       .replace(/{{goalType}}/g, goalType)
@@ -195,7 +225,14 @@ export function buildExecutionSteps(
       .replace(/{{skillStrength}}/g, skillStrength)
       .replace(/{{focus}}/g, focus)
       .replace(/{{categoryPlan}}/g, focusSpecificPlan(focus));
-    const cleaned = personalizeCopy(filled);
+    
+    // Add idea-specific context to make steps more unique
+    let enhancedStep = filled;
+    if (ideaSpecificPrefix && templateIndex < 3) {
+      enhancedStep = `${ideaSpecificPrefix} for ${normalizedTitle}. ${filled}`;
+    }
+    
+    const cleaned = personalizeCopy(enhancedStep);
     const fingerprint = cleaned.toLowerCase();
     if (!seen.has(fingerprint)) {
       seen.add(fingerprint);
@@ -203,8 +240,20 @@ export function buildExecutionSteps(
     }
     templateIndex += 1;
   }
+  
+  // Add more idea-specific fallbacks
   while (steps.length < 10) {
-    const fallback = `Add a custom execution step tailored to how you want to launch ${normalizedTitle}.`;
+    const ideaSpecificFallbacks = [
+      `Research competitors in the ${normalizedTitle} space and identify your unique positioning.`,
+      `Create a minimum viable version of ${normalizedTitle} that you can test with real users.`,
+      `Set up analytics and tracking to measure how ${normalizedTitle} performs.`,
+      `Build a waitlist or early access program for ${normalizedTitle}.`,
+      `Develop a go-to-market strategy specifically for ${normalizedTitle}.`,
+    ];
+    const fallbackIndex = (ideaHash + steps.length) % ideaSpecificFallbacks.length;
+    const fallback = ideaSpecificFallbacks[fallbackIndex]
+      .replace(/{{idea}}/g, normalizedTitle)
+      .replace(/{{goalType}}/g, goalType);
     const fingerprint = fallback.toLowerCase();
     if (!seen.has(fingerprint)) {
       seen.add(fingerprint);
@@ -216,56 +265,207 @@ export function buildExecutionSteps(
   return steps.slice(0, Math.max(10, steps.length));
 }
 
-export function buildFinancialSnapshots(sectionText = "", ideaTitle = "") {
-  const items = extractListFromText(sectionText);
-  const normalizedTitle = ideaTitle || "this idea";
+// Extract numeric value from text (e.g., "$25K" -> 25000, "$120,000" -> 120000)
+function extractCurrency(text) {
+  const match = text.match(/\$[\d,]+(?:\.\d+)?[KMB]?/i);
+  if (!match) return null;
+  let value = match[0].replace(/[$,]/g, "");
+  if (/K/i.test(value)) {
+    value = parseFloat(value) * 1000;
+  } else if (/M/i.test(value)) {
+    value = parseFloat(value) * 1000000;
+  } else if (/B/i.test(value)) {
+    value = parseFloat(value) * 1000000000;
+  }
+  return Math.round(parseFloat(value));
+}
 
+// Extract time period (e.g., "Year 1", "month 6", "within 12 months")
+function extractTimeframe(text) {
+  const yearMatch = text.match(/(?:within\s+)?(?:year|yr)\s*(\d+)/i);
+  if (yearMatch) return `Year ${yearMatch[1]}`;
+  const monthMatch = text.match(/(?:within\s+)?(?:month|mo)\s*(\d+)/i);
+  if (monthMatch) return `Month ${monthMatch[1]}`;
+  const monthsMatch = text.match(/(\d+)\s*(?:months?|mos?)/i);
+  if (monthsMatch) return `${monthsMatch[1]} months`;
+  return null;
+}
+
+// Parse budget range to get max budget value
+function parseBudgetRange(budgetRange = "") {
+  if (!budgetRange) return null;
+  
+  // Extract numbers from budget range strings like "Up to $5 K", "$20 K and Above", etc.
+  const match = budgetRange.match(/\$?\s*(\d+(?:,\d+)?)\s*K/i);
+  if (match) {
+    return parseInt(match[1].replace(/,/g, "")) * 1000;
+  }
+  
+  // Handle "Free" or "$0"
+  if (/free|sweat|0/i.test(budgetRange)) {
+    return 0;
+  }
+  
+  // Handle ranges like "$1 K" to "$5 K"
+  const rangeMatch = budgetRange.match(/\$?\s*(\d+(?:,\d+)?)\s*K\s*(?:to|-)\s*\$?\s*(\d+(?:,\d+)?)\s*K/i);
+  if (rangeMatch) {
+    return parseInt(rangeMatch[2].replace(/,/g, "")) * 1000;
+  }
+  
+  // Handle "$20 K and Above"
+  if (/and\s+above/i.test(budgetRange)) {
+    const aboveMatch = budgetRange.match(/\$?\s*(\d+(?:,\d+)?)\s*K/i);
+    if (aboveMatch) {
+      return parseInt(aboveMatch[1].replace(/,/g, "")) * 1000;
+    }
+  }
+  
+  return null;
+}
+
+export function buildFinancialSnapshots(sectionText = "", ideaTitle = "", budgetRange = "") {
+  const normalizedTitle = ideaTitle || "this idea";
   const entries = [];
   const seen = new Set();
 
-  items.forEach((item) => {
-    const cleaned = personalizeCopy(item);
-    const fingerprint = cleaned.toLowerCase();
-    if (!seen.has(fingerprint)) {
-      seen.add(fingerprint);
-      entries.push(cleaned);
-    }
-  });
-
-  let templateIndex = 0;
-  while (entries.length < 5 && templateIndex < FINANCIAL_TEMPLATES.length) {
-    const template = FINANCIAL_TEMPLATES[templateIndex];
-    const filledEstimate = template.estimate
-      .replace(/{{idea}}/g, normalizedTitle)
-      .replace(/{{breakevenMonths}}/g, `${fakerNumber(4, 9)}`)
-      .replace(/{{reinvestmentPercent}}/g, `${fakerNumber(25, 40)}%`)
-      .replace(/{{startupCost}}/g, formatCurrency(fakerNumber(1500, 6000)))
-      .replace(/{{cashBufferPercent}}/g, `${fakerNumber(30, 60)}%`)
-      .replace(/{{monthlyBurn}}/g, formatCurrency(fakerNumber(600, 1500)))
-      .replace(/{{upsideRevenue}}/g, formatCurrency(fakerNumber(3000, 8000)))
-      .replace(/{{fallbackReserve}}/g, formatCurrency(fakerNumber(5000, 12000)));
-    const cleanedEstimate = personalizeCopy(filledEstimate);
-    const fingerprint = `${template.focus}:${cleanedEstimate}`.toLowerCase();
-    if (!seen.has(fingerprint)) {
-      seen.add(fingerprint);
-      const metricFilled = template.metric
-        .replace(/{{breakevenMonths}}/g, `${fakerNumber(4, 9)}`)
-        .replace(/{{reinvestmentPercent}}/g, `${fakerNumber(20, 40)}%`)
-        .replace(/{{startupCost}}/g, formatCurrency(fakerNumber(1500, 6000)))
-        .replace(/{{cashBufferPercent}}/g, `${fakerNumber(30, 60)}%`)
-        .replace(/{{monthlyBurn}}/g, formatCurrency(fakerNumber(600, 1500)))
-        .replace(/{{upsideRevenue}}/g, formatCurrency(fakerNumber(3000, 8000)))
-        .replace(/{{fallbackReserve}}/g, formatCurrency(fakerNumber(5000, 12000)));
+  // Parse actual financial data from agent output
+  const text = sectionText.toLowerCase();
+  
+  // Extract startup costs
+  const startupCostMatch = sectionText.match(/startup\s+costs?[:\-]?\s*(.+?)(?:\n|$)/i);
+  if (startupCostMatch) {
+    const costText = startupCostMatch[1];
+    const costValue = extractCurrency(costText);
+    if (costValue) {
       entries.push({
-        focus: template.focus,
-        estimate: cleanedEstimate,
-        metric: personalizeCopy(metricFilled),
+        focus: "Startup costs",
+        estimate: personalizeCopy(startupCostMatch[1].trim()),
+        metric: formatCurrency(costValue),
       });
+      seen.add("startup costs");
     }
-    templateIndex += 1;
   }
 
-  return entries;
+  // Extract revenue projections
+  const revenueMatch = sectionText.match(/revenue\s+projections?[:\-]?\s*(.+?)(?:\n|$)/i);
+  if (revenueMatch) {
+    const revenueText = revenueMatch[1];
+    const revenueValue = extractCurrency(revenueText);
+    const timeframe = extractTimeframe(revenueText);
+    if (revenueValue) {
+      entries.push({
+        focus: "Revenue potential",
+        estimate: personalizeCopy(revenueMatch[1].trim()),
+        metric: timeframe ? `${formatCurrency(revenueValue)} (${timeframe})` : formatCurrency(revenueValue),
+      });
+      seen.add("revenue");
+    }
+  }
+
+  // Extract breakeven
+  const breakevenMatch = sectionText.match(/breakeven[:\-]?\s*(.+?)(?:\n|$)/i);
+  if (breakevenMatch) {
+    const breakevenText = breakevenMatch[1];
+    const timeframe = extractTimeframe(breakevenText);
+    entries.push({
+      focus: "Breakeven timeline",
+      estimate: personalizeCopy(breakevenMatch[1].trim()),
+      metric: timeframe || "TBD",
+    });
+    seen.add("breakeven");
+  }
+
+  // Extract monthly burn/operating costs
+  const burnMatch = sectionText.match(/(?:monthly\s+)?(?:burn|operating\s+costs?|monthly\s+costs?)[:\-]?\s*(.+?)(?:\n|$)/i);
+  if (burnMatch) {
+    const burnValue = extractCurrency(burnMatch[1]);
+    if (burnValue) {
+      entries.push({
+        focus: "Monthly operating costs",
+        estimate: personalizeCopy(burnMatch[1].trim()),
+        metric: formatCurrency(burnValue) + "/month",
+      });
+      seen.add("burn");
+    }
+  }
+
+  // Extract profit margins or unit economics if mentioned
+  const marginMatch = sectionText.match(/(?:profit\s+)?margin[:\-]?\s*(.+?)(?:\n|$)/i);
+  if (marginMatch && !seen.has("margin")) {
+    entries.push({
+      focus: "Profit margin",
+      estimate: personalizeCopy(marginMatch[1].trim()),
+      metric: marginMatch[1].match(/\d+%/) ? marginMatch[1].match(/\d+%/)[0] : "TBD",
+    });
+    seen.add("margin");
+  }
+
+  // If we have real data, return it. Otherwise, use minimal fallbacks only
+  if (entries.length >= 3) {
+    return entries;
+  }
+
+  // Only add fallbacks if agent didn't provide enough data
+  // Use realistic estimates based on user's actual budget, not arbitrary caps
+  const ideaType = normalizedTitle.toLowerCase();
+  const userMaxBudget = parseBudgetRange(budgetRange);
+  
+  // Only add fallbacks if we have less than 3 entries (agent didn't provide enough)
+  // And make them realistic based on the user's actual budget range
+  if (entries.length < 3) {
+    // Determine realistic estimates based on budget range, not idea type
+    let estimatedStartupCost = null;
+    let estimatedMonthlyRevenue = null;
+    
+    if (userMaxBudget !== null) {
+      // Use realistic percentages of the budget based on typical startup cost breakdowns
+      if (userMaxBudget <= 1000) {
+        // Very lean budget - focus on minimal viable setup
+        estimatedStartupCost = Math.floor(userMaxBudget * 0.8); // Use 80% for tools/setup
+        estimatedMonthlyRevenue = 500; // Conservative for lean startups
+      } else if (userMaxBudget <= 5000) {
+        // Small budget - can cover basic tools, some marketing
+        estimatedStartupCost = Math.floor(userMaxBudget * 0.7); // 70% for setup, 30% buffer
+        estimatedMonthlyRevenue = 1000; // Realistic for small budget ideas
+      } else if (userMaxBudget <= 10000) {
+        // Medium budget - more room for tools, development, marketing
+        estimatedStartupCost = Math.floor(userMaxBudget * 0.6); // 60% for setup
+        estimatedMonthlyRevenue = 2000;
+      } else if (userMaxBudget <= 20000) {
+        // Larger budget - can support more development
+        estimatedStartupCost = Math.floor(userMaxBudget * 0.5); // 50% for initial setup
+        estimatedMonthlyRevenue = 3000;
+      } else {
+        // Large budget - significant investment possible
+        estimatedStartupCost = Math.floor(userMaxBudget * 0.4); // 40% for setup, rest for runway
+        estimatedMonthlyRevenue = 5000;
+      }
+    } else {
+      // No budget specified - use conservative defaults
+      estimatedStartupCost = 3000;
+      estimatedMonthlyRevenue = 1000;
+    }
+
+    // Add startup cost estimate only if agent didn't provide it
+    if (!seen.has("startup costs") && estimatedStartupCost !== null) {
+      entries.push({
+        focus: "Estimated startup investment",
+        estimate: `Based on your ${budgetRange || "budget"}, initial setup costs for ${normalizedTitle}`,
+        metric: formatCurrency(estimatedStartupCost),
+      });
+    }
+    
+    // Add revenue estimate only if agent didn't provide it
+    if (!seen.has("revenue") && estimatedMonthlyRevenue !== null) {
+      entries.push({
+        focus: "Revenue potential",
+        estimate: `Conservative monthly revenue projection for ${normalizedTitle} based on typical early-stage performance`,
+        metric: formatCurrency(estimatedMonthlyRevenue) + "/month",
+      });
+    }
+  }
+
+  return entries.slice(0, 5);
 }
 
 function fakerNumber(min, max) {
