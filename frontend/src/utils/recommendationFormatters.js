@@ -920,6 +920,126 @@ export function cleanNarrativeMarkdown(markdown = "") {
     .trim();
 }
 
+/**
+ * Generates a final conclusion with decision and rationale based on top ideas and matrix data
+ */
+export function buildFinalConclusion(topIdeas = [], matrixRows = [], inputs = {}) {
+  if (!topIdeas || topIdeas.length === 0) {
+    return null;
+  }
+
+  // Score each idea based on matrix data
+  const ideaScores = topIdeas.map((idea, index) => {
+    const matrixRow = matrixRows.find((row) => row.order === index + 1 || row.idea.toLowerCase().includes(idea.title.toLowerCase().substring(0, 20)));
+    if (!matrixRow) return { idea, score: 0, reasons: [] };
+
+    let score = 0;
+    const reasons = [];
+
+    // Goal alignment (weight: 3)
+    const goalLower = (matrixRow.goal || "").toLowerCase();
+    if (goalLower.includes("high") || goalLower.includes("strong")) {
+      score += 3;
+      reasons.push("strong goal alignment");
+    } else if (goalLower.includes("medium") || goalLower.includes("moderate")) {
+      score += 1.5;
+      reasons.push("moderate goal alignment");
+    }
+
+    // Skill fit (weight: 2)
+    const skillLower = (matrixRow.skill || "").toLowerCase();
+    if (skillLower.includes("high") || skillLower.includes("strong")) {
+      score += 2;
+      reasons.push("excellent skill match");
+    } else if (skillLower.includes("medium")) {
+      score += 1;
+      reasons.push("good skill match");
+    }
+
+    // Work style (weight: 1.5)
+    const workStyleLower = (matrixRow.workStyle || "").toLowerCase();
+    if (workStyleLower.includes("strongly") || workStyleLower.includes("perfect")) {
+      score += 1.5;
+      reasons.push("ideal work style fit");
+    } else if (workStyleLower.includes("aligned") || workStyleLower.includes("matches")) {
+      score += 0.75;
+      reasons.push("compatible work style");
+    }
+
+    // Budget fit (weight: 1)
+    const budgetLower = (matrixRow.budget || "").toLowerCase();
+    if (budgetLower.includes("within") || budgetLower.includes("fits")) {
+      score += 1;
+      reasons.push("budget-friendly");
+    }
+
+    // Time fit (weight: 1)
+    const timeLower = (matrixRow.time || "").toLowerCase();
+    if (timeLower.includes("aligned") || timeLower.includes("fits")) {
+      score += 1;
+      reasons.push("time-appropriate");
+    }
+
+    return { idea, score, reasons, matrixRow };
+  });
+
+  // Sort by score
+  ideaScores.sort((a, b) => b.score - a.score);
+  const topRecommendation = ideaScores[0];
+  const secondChoice = ideaScores[1];
+  const thirdChoice = ideaScores[2];
+
+  // Build conclusion text
+  const goalType = inputs.goal_type || "your goals";
+  const timeCommitment = inputs.time_commitment || "your available time";
+  const budgetRange = inputs.budget_range || "your budget";
+
+  let conclusion = `## Final Recommendation & Decision Rationale\n\n`;
+  
+  conclusion += `Based on your profile (${goalType}, ${timeCommitment}, ${budgetRange}), here's our recommendation:\n\n`;
+  
+  conclusion += `### **Recommended: ${topRecommendation.idea.title}**\n\n`;
+  
+  conclusion += `**Why this idea:**\n`;
+  conclusion += `- ${topRecommendation.reasons.join("\n- ")}\n\n`;
+  
+  if (topRecommendation.score > secondChoice.score + 1) {
+    conclusion += `This idea stands out clearly from the alternatives. It aligns strongly with your ${goalType} goal and leverages your strengths effectively.\n\n`;
+  } else {
+    conclusion += `This idea is the top choice, though it's close to the second option. Both are viable, so consider your personal interest and risk tolerance.\n\n`;
+  }
+
+  if (secondChoice && secondChoice.score > 0) {
+    conclusion += `### Alternative: ${secondChoice.idea.title}\n\n`;
+    conclusion += `**Consider this if:**\n`;
+    conclusion += `- ${secondChoice.reasons.join("\n- ")}\n\n`;
+    conclusion += `This is a solid backup option that may better fit if your priorities shift or if you want to explore a different angle.\n\n`;
+  }
+
+  conclusion += `### Decision Framework\n\n`;
+  conclusion += `**Choose ${topRecommendation.idea.title} if:**\n`;
+  conclusion += `- You want the highest alignment with your stated goals\n`;
+  conclusion += `- You're ready to commit to ${timeCommitment}\n`;
+  conclusion += `- Your ${budgetRange} budget supports this path\n`;
+  conclusion += `- You're comfortable with the risk level\n\n`;
+
+  conclusion += `**Consider ${secondChoice?.idea.title || "the second option"} if:**\n`;
+  conclusion += `- You have stronger personal interest in that domain\n`;
+  conclusion += `- Market conditions favor that space\n`;
+  conclusion += `- You want to diversify or hedge your bets\n\n`;
+
+  conclusion += `### Next Steps\n\n`;
+  conclusion += `1. **Validate the top recommendation** using the validation questions provided\n`;
+  conclusion += `2. **Review the financial outlook** to ensure it fits your ${budgetRange} budget\n`;
+  conclusion += `3. **Check the risk radar** and prepare mitigation strategies\n`;
+  conclusion += `4. **Follow the 30/60/90 day roadmap** to start execution\n`;
+  conclusion += `5. **Revisit this decision** after 30 days of validation work\n\n`;
+
+  conclusion += `Remember: The best idea is the one you'll actually execute. If you're more excited about ${secondChoice?.idea.title || "another option"}, that enthusiasm can be worth more than perfect alignment scores.`;
+
+  return personalizeCopy(conclusion);
+}
+
 export function dedupeStrings(items = []) {
   const seen = new Set();
   return items

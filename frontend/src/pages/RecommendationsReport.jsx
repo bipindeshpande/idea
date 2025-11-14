@@ -5,14 +5,15 @@ import jsPDF from "jspdf";
 import Seo from "../components/Seo.jsx";
 import { useReports } from "../context/ReportsContext.jsx";
 import { trimFromHeading, parseTopIdeas } from "../utils/markdown.js";
-import { personalizeCopy } from "../utils/recommendationFormatters.js";
+import { personalizeCopy, buildFinalConclusion, parseRecommendationMatrix, splitFullReportSections } from "../utils/recommendationFormatters.js";
+import ReactMarkdown from "react-markdown";
 
 function useQuery() {
   return new URLSearchParams(useLocation().search);
 }
 
 export default function RecommendationsReport() {
-  const { reports, loadRunById, currentRunId } = useReports();
+  const { reports, loadRunById, currentRunId, inputs } = useReports();
   const query = useQuery();
   const runId = query.get("id");
   const reportRef = useRef(null);
@@ -32,6 +33,11 @@ export default function RecommendationsReport() {
   const allIdeas = useMemo(() => parseTopIdeas(markdown, 10), [markdown]);
   const topIdeas = allIdeas.slice(0, 3);
   const secondaryIdeas = allIdeas.slice(3);
+
+  // Extract matrix data for conclusion
+  const sections = useMemo(() => splitFullReportSections(markdown), [markdown]);
+  const matrixRows = useMemo(() => parseRecommendationMatrix(sections["recommendation matrix"]), [sections]);
+  const finalConclusion = useMemo(() => buildFinalConclusion(topIdeas, matrixRows, inputs || {}), [topIdeas, matrixRows, inputs]);
 
   const handleDownloadPDF = async () => {
     if (!reportRef.current || downloading) return;
@@ -133,18 +139,52 @@ export default function RecommendationsReport() {
           </div>
         )}
         {topIdeas.length > 0 && (
-          <div className="flex flex-wrap gap-3">
-            <Link
-              to={
-                runId || currentRunId
-                  ? `/results/recommendations/full?id=${runId || currentRunId}`
-                  : "/results/recommendations/full"
-              }
-              className="inline-flex items-center gap-2 rounded-xl border border-brand-300 bg-white px-4 py-2 text-sm font-semibold text-brand-700 shadow-sm transition hover:border-brand-400 hover:text-brand-800"
-            >
-              View full recommendation report
-            </Link>
-          </div>
+          <>
+            {/* Final Conclusion */}
+            {finalConclusion && (
+              <div className="rounded-3xl border-2 border-brand-300 bg-gradient-to-br from-brand-50 to-white p-8 shadow-soft">
+                <div className="prose prose-slate max-w-none">
+                  <ReactMarkdown
+                    components={{
+                      h2: ({ node, ...props }) => (
+                        <h2 className="text-2xl font-bold text-slate-900 mb-4" {...props} />
+                      ),
+                      h3: ({ node, ...props }) => (
+                        <h3 className="text-xl font-semibold text-slate-800 mb-3 mt-4" {...props} />
+                      ),
+                      p: ({ node, ...props }) => (
+                        <p className="text-slate-700 leading-relaxed mb-3" {...props} />
+                      ),
+                      ul: ({ node, ...props }) => (
+                        <ul className="list-disc list-outside space-y-2 text-slate-700 mb-4 ml-6" {...props} />
+                      ),
+                      li: ({ node, ...props }) => (
+                        <li className="leading-relaxed" {...props} />
+                      ),
+                      strong: ({ node, ...props }) => (
+                        <strong className="font-semibold text-slate-900" {...props} />
+                      ),
+                    }}
+                  >
+                    {finalConclusion}
+                  </ReactMarkdown>
+                </div>
+              </div>
+            )}
+
+            <div className="flex flex-wrap gap-3">
+              <Link
+                to={
+                  runId || currentRunId
+                    ? `/results/recommendations/full?id=${runId || currentRunId}`
+                    : "/results/recommendations/full"
+                }
+                className="inline-flex items-center gap-2 rounded-xl border border-brand-300 bg-white px-4 py-2 text-sm font-semibold text-brand-700 shadow-sm transition hover:border-brand-400 hover:text-brand-800"
+              >
+                View full recommendation report
+              </Link>
+            </div>
+          </>
         )}
       </div>
     </section>

@@ -18,6 +18,7 @@ import {
   extractTimelineSlice,
   cleanNarrativeMarkdown,
   dedupeStrings,
+  buildFinalConclusion,
 } from "../utils/recommendationFormatters.js";
 
 function useQuery() {
@@ -191,7 +192,7 @@ const SAMPLE_INPUTS = {
 };
 
 export default function RecommendationFullReport() {
-  const { reports, loadRunById, currentRunId, inputs } = useReports();
+  const { reports, loadRunById, currentRunId, inputs, loading } = useReports();
   const query = useQuery();
   const runId = query.get("id");
   const isSample = query.get("sample") === "true";
@@ -201,8 +202,11 @@ export default function RecommendationFullReport() {
   useEffect(() => {
     if (runId && !isSample) {
       loadRunById(runId);
+    } else if (!runId && !isSample && currentRunId) {
+      // If no runId in URL but we have a currentRunId, load it
+      loadRunById(currentRunId);
     }
-  }, [runId, loadRunById, isSample]);
+  }, [runId, loadRunById, isSample, currentRunId]);
 
   // Use sample data if in sample mode
   const effectiveReports = isSample
@@ -235,13 +239,85 @@ export default function RecommendationFullReport() {
   const remainderMarkdown = useMemo(() => {
     if (isSample) return sampleRemainderMarkdown;
     if (!markdown) return "";
+    
+    // Strategy 1: Find section headings (Recommendation Matrix, Financial Outlook, etc.)
+    const sectionPatterns = [
+      /(?:^|\n)(?:####?\s*)?(?:Recommendation Matrix|Recommendation\s+Matrix)/i,
+      /(?:^|\n)(?:####?\s*)?(?:Financial Outlook|Financial\s+Outlook)/i,
+      /(?:^|\n)(?:####?\s*)?(?:Risk Radar|Risk\s+Radar)/i,
+      /(?:^|\n)(?:####?\s*)?(?:Customer Persona|Customer\s+Persona)/i,
+      /(?:^|\n)(?:####?\s*)?(?:Validation Questions|Validation\s+Questions)/i,
+      /(?:^|\n)(?:####?\s*)?(?:30\/60\/90 Day Roadmap|30\/60\/90\s+Day\s+Roadmap)/i,
+      /(?:^|\n)(?:####?\s*)?(?:Decision Checklist|Decision\s+Checklist)/i,
+    ];
+    
+    for (const pattern of sectionPatterns) {
+      const match = markdown.match(pattern);
+      if (match && match.index !== undefined) {
+        // Extract everything from this section onwards
+        const remainder = markdown.slice(match.index).trim();
+        const cleaned = stripReportHeading(remainder);
+        if (cleaned.length > 50) {
+          return cleaned;
+        }
+      }
+    }
+    
+    // Strategy 2: Remove ideas more carefully, preserving everything else
     let remainder = markdown;
-    ideas.forEach((idea) => {
+    
+    // Sort ideas by index in reverse order to avoid index shifting issues
+    const sortedIdeas = [...ideas].sort((a, b) => {
+      const aIndex = markdown.indexOf(a.fullText || '');
+      const bIndex = markdown.indexOf(b.fullText || '');
+      return bIndex - aIndex; // Remove from end to start
+    });
+    
+    sortedIdeas.forEach((idea) => {
       if (idea.fullText) {
-        remainder = remainder.replace(idea.fullText, "");
+        const fullTextIndex = remainder.indexOf(idea.fullText);
+        if (fullTextIndex >= 0) {
+          // Remove only this specific occurrence
+          remainder = remainder.slice(0, fullTextIndex) + remainder.slice(fullTextIndex + idea.fullText.length);
+        }
       }
     });
-    return stripReportHeading(remainder);
+    
+    const cleaned = stripReportHeading(remainder).trim();
+    
+    // Only return if there's substantial content left
+    if (cleaned.length > 50) {
+      return cleaned;
+    }
+    
+    // Strategy 3: Use splitFullReportSections to extract sections
+    try {
+      const sections = splitFullReportSections(markdown);
+      const sectionKeys = ["recommendation matrix", "financial outlook", "risk radar", "customer persona", "validation questions", "30/60/90 day roadmap", "decision checklist"];
+      
+      for (const key of sectionKeys) {
+        if (sections[key] && sections[key].trim().length > 50) {
+          // Reconstruct from this section onwards
+          const sectionIndex = sectionKeys.indexOf(key);
+          const remainingSections = sectionKeys.slice(sectionIndex).map(k => {
+            if (sections[k]) {
+              const heading = k.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+              return `#### ${heading}\n\n${sections[k]}`;
+            }
+            return '';
+          }).filter(Boolean).join('\n\n');
+          
+          if (remainingSections.length > 50) {
+            return remainingSections;
+          }
+        }
+      }
+    } catch (e) {
+      // If splitFullReportSections fails, continue
+      console.warn("Failed to parse sections:", e);
+    }
+    
+    return "";
   }, [markdown, ideas, isSample, sampleRemainderMarkdown]);
 
   const runQuery = runId || currentRunId;
@@ -317,11 +393,32 @@ export default function RecommendationFullReport() {
         </button>
       </div>
 
-      {!remainderMarkdown && (
+      {/* Loading state */}
+      {loading && !isSample && (
+        <div className="rounded-3xl border border-brand-200 bg-brand-50/80 p-6 text-brand-800 shadow-soft">
+          <h2 className="text-lg font-semibold">Loading full report...</h2>
+          <p className="mt-2 text-sm">
+            Please wait while we load your complete recommendation report.
+          </p>
+        </div>
+      )}
+
+      {/* Error state - no reports and not loading */}
+      {!loading && !isSample && !reports?.personalized_recommendations && (
+        <div className="rounded-3xl border border-amber-200 bg-amber-50/80 p-6 text-amber-800 shadow-soft">
+          <h2 className="text-lg font-semibold">Report not found</h2>
+          <p className="mt-2 text-sm">
+            Unable to load the recommendation report. Please try accessing it from the recommendations page.
+          </p>
+        </div>
+      )}
+
+      {/* No remainder markdown state */}
+      {!loading && !isSample && reports?.personalized_recommendations && !remainderMarkdown && (
         <div className="rounded-3xl border border-amber-200 bg-amber-50/80 p-6 text-amber-800 shadow-soft">
           <h2 className="text-lg font-semibold">Full report not available</h2>
           <p className="mt-2 text-sm">
-            We couldn't find additional sections beyond the top ideas. Try rerunning the crew with more context.
+            We couldn't find additional sections beyond the top ideas. The report may only contain the top recommendations. Try viewing the individual idea details for more information.
           </p>
         </div>
       )}
@@ -342,7 +439,7 @@ export default function RecommendationFullReport() {
 
       {/* Visible content */}
       {remainderMarkdown ? (
-        <FullReportContent remainderMarkdown={remainderMarkdown} inputs={effectiveInputs} />
+        <FullReportContent remainderMarkdown={remainderMarkdown} inputs={effectiveInputs} topIdeas={topIdeas} />
       ) : (
         <div className="rounded-3xl border border-amber-200 bg-amber-50/80 p-6 text-amber-800 shadow-soft">
           <h2 className="text-lg font-semibold">Full report not available</h2>
@@ -1080,6 +1177,46 @@ function FullReportContent({ remainderMarkdown, inputs }) {
           </ul>
         </article>
       )}
+
+      {/* Final Conclusion */}
+      {(() => {
+        const conclusion = buildFinalConclusion(
+          topIdeas,
+          matrixRows,
+          inputs
+        );
+        if (!conclusion) return null;
+        return (
+          <article className="rounded-3xl border-2 border-brand-300 bg-gradient-to-br from-brand-50 to-white p-8 shadow-soft">
+            <div className="prose prose-slate max-w-none">
+              <ReactMarkdown
+                components={{
+                  h2: ({ node, ...props }) => (
+                    <h2 className="text-2xl font-bold text-slate-900 mb-4 mt-6" {...props} />
+                  ),
+                  h3: ({ node, ...props }) => (
+                    <h3 className="text-xl font-semibold text-slate-800 mb-3 mt-4" {...props} />
+                  ),
+                  p: ({ node, ...props }) => (
+                    <p className="text-slate-700 leading-relaxed mb-3" {...props} />
+                  ),
+                  ul: ({ node, ...props }) => (
+                    <ul className="list-disc list-outside space-y-2 text-slate-700 mb-4 ml-6" {...props} />
+                  ),
+                  li: ({ node, ...props }) => (
+                    <li className="leading-relaxed" {...props} />
+                  ),
+                  strong: ({ node, ...props }) => (
+                    <strong className="font-semibold text-slate-900" {...props} />
+                  ),
+                }}
+              >
+                {conclusion}
+              </ReactMarkdown>
+            </div>
+          </article>
+        );
+      })()}
 
       {otherSections.map((section) => (
         <article key={section.heading} className="rounded-3xl border border-slate-200 bg-white/95 p-8 shadow-soft">

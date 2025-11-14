@@ -3,7 +3,10 @@ import { Link, NavLink, Navigate, Route, Routes } from "react-router-dom";
 import { useReports } from "./context/ReportsContext.jsx";
 import LoadingIndicator from "./components/LoadingIndicator.jsx";
 import Seo from "./components/Seo.jsx";
+import LandingPage from "./pages/Landing.jsx";
 import HomePage from "./pages/Home.jsx";
+import IdeaValidator from "./pages/IdeaValidator.jsx";
+import ValidationResult from "./pages/ValidationResult.jsx";
 import ProfileReport from "./pages/ProfileReport.jsx";
 import RecommendationsReport from "./pages/RecommendationsReport.jsx";
 import RecommendationDetail from "./pages/RecommendationDetail.jsx";
@@ -18,6 +21,7 @@ import DashboardPage from "./pages/Dashboard.jsx";
 import BlogPage from "./pages/Blog.jsx";
 import PrivacyPage from "./pages/Privacy.jsx";
 import TermsPage from "./pages/Terms.jsx";
+import AdminPage from "./pages/Admin.jsx";
 
 const primaryNavLinks = [
   { label: "Product", to: "/product" },
@@ -202,7 +206,7 @@ function Navigation() {
               My Sessions
             </NavLink>
             <Link
-              to="/"
+              to="/advisor"
               onClick={closeAllMenus}
               className="rounded-full bg-gradient-to-r from-brand-500 to-brand-600 px-5 py-2 text-sm font-semibold text-white shadow-md transition hover:from-brand-600 hover:to-brand-700 whitespace-nowrap"
             >
@@ -260,7 +264,7 @@ function Navigation() {
                 My Sessions
               </NavLink>
               <Link
-                to="/"
+                to="/advisor"
                 onClick={closeAllMenus}
                 className="block rounded-xl bg-gradient-to-r from-brand-500 to-brand-600 px-4 py-2 text-center text-sm font-semibold text-white shadow-md transition hover:from-brand-600 hover:to-brand-700 whitespace-nowrap"
               >
@@ -287,7 +291,10 @@ export default function App() {
         {loading && <LoadingIndicator />}
         {!loading && (
           <Routes>
-            <Route path="/" element={<HomePage />} />
+            <Route path="/" element={<LandingPage />} />
+            <Route path="/advisor" element={<HomePage />} />
+            <Route path="/validate-idea" element={<IdeaValidator />} />
+            <Route path="/validate-result" element={<ValidationResult />} />
             <Route path="/product" element={<ProductPage />} />
             <Route path="/pricing" element={<PricingPage />} />
             <Route path="/resources" element={<ResourcesPage />} />
@@ -296,6 +303,7 @@ export default function App() {
             <Route path="/about" element={<AboutPage />} />
             <Route path="/contact" element={<ContactPage />} />
             <Route path="/dashboard" element={<DashboardPage />} />
+            <Route path="/admin" element={<AdminPage />} />
             <Route path="/privacy" element={<PrivacyPage />} />
             <Route path="/terms" element={<TermsPage />} />
             <Route path="/results/profile" element={<ProfileReport />} />

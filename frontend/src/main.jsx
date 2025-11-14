@@ -4,6 +4,7 @@ import { BrowserRouter } from "react-router-dom";
 import { HelmetProvider } from "react-helmet-async";
 import App from "./App.jsx";
 import { ReportsProvider } from "./context/ReportsContext.jsx";
+import { ValidationProvider } from "./context/ValidationContext.jsx";
 import "./styles.css";
 
 const GA_ID = import.meta.env.VITE_GA_ID;
@@ -28,9 +29,11 @@ function Root() {
     <React.StrictMode>
       <HelmetProvider>
         <ReportsProvider>
-          <BrowserRouter>
-            <App />
-          </BrowserRouter>
+          <ValidationProvider>
+            <BrowserRouter>
+              <App />
+            </BrowserRouter>
+          </ValidationProvider>
         </ReportsProvider>
       </HelmetProvider>
     </React.StrictMode>

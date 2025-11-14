@@ -118,7 +118,7 @@ export default function BlogPage() {
               ← Back to blog
             </Link>
             <Link
-              to="/"
+              to="/advisor"
               className="font-semibold text-brand-600 hover:text-brand-700"
             >
               Run a new idea →
