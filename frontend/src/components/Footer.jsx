@@ -15,6 +15,7 @@ const footerLinks = {
   Resources: [
     { label: "How it Works Guide", to: "/resources" },
     { label: "Founder Playbooks", to: "/blog" },
+    { label: "Frameworks & Templates", to: "/frameworks" },
     { label: "Support & Contact", to: "/contact" },
   ],
   Company: [

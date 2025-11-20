@@ -20,6 +20,7 @@ import ContactPage from "./pages/Contact.jsx";
 import Footer from "./components/Footer.jsx";
 import DashboardPage from "./pages/Dashboard.jsx";
 import BlogPage from "./pages/Blog.jsx";
+import FrameworksPage from "./pages/Frameworks.jsx";
 import PrivacyPage from "./pages/Privacy.jsx";
 import TermsPage from "./pages/Terms.jsx";
 import AdminPage from "./pages/Admin.jsx";
@@ -36,6 +37,7 @@ const primaryNavLinks = [
 const learnNavLinks = [
   { label: "Resources", to: "/resources" },
   { label: "Blog", to: "/blog" },
+  { label: "Frameworks", to: "/frameworks" },
   { label: "About", to: "/about" },
   { label: "Contact", to: "/contact" },
 ];
@@ -405,6 +407,7 @@ export default function App() {
             <Route path="/resources" element={<ResourcesPage />} />
             <Route path="/blog" element={<BlogPage />} />
             <Route path="/blog/:slug" element={<BlogPage />} />
+            <Route path="/frameworks" element={<FrameworksPage />} />
             <Route path="/about" element={<AboutPage />} />
             <Route path="/contact" element={<ContactPage />} />
             <Route

@@ -16,6 +16,14 @@ from sqlalchemy import func
 
 from startup_idea_crew.crew import StartupIdeaCrew
 from database import db, User, UserSession, UserRun, UserValidation, Payment
+from email_service import email_service
+from email_templates import (
+    validation_ready_email,
+    trial_ending_email,
+    subscription_expiring_email,
+    welcome_email,
+    subscription_activated_email,
+)
 
 app = Flask(__name__)
 CORS(app)
@@ -513,6 +521,23 @@ REMEMBER:
       )
       db.session.add(user_validation)
       db.session.commit()
+      
+      # Send validation ready email
+      try:
+        overall_score = validation_data.get("overall_score", None)
+        html_content, text_content = validation_ready_email(
+          user_name=user.email,
+          validation_id=validation_id,
+          validation_score=overall_score,
+        )
+        email_service.send_email(
+          to_email=user.email,
+          subject="Your Idea Validation is Ready! 📊",
+          html_content=html_content,
+          text_content=text_content,
+        )
+      except Exception as e:
+        app.logger.warning(f"Failed to send validation ready email: {e}")
     
     return jsonify({
       "success": True,
@@ -789,6 +814,18 @@ def register() -> Any:
         # Create session
         session = create_user_session(user.id, request.remote_addr, request.headers.get("User-Agent"))
         
+        # Send welcome email
+        try:
+            html_content, text_content = welcome_email(user.email)
+            email_service.send_email(
+                to_email=user.email,
+                subject="Welcome to Startup Idea Advisor! 🚀",
+                html_content=html_content,
+                text_content=text_content,
+            )
+        except Exception as e:
+            app.logger.warning(f"Failed to send welcome email: {e}")
+        
         return jsonify({
             "success": True,
             "user": user.to_dict(),
@@ -958,6 +995,55 @@ def get_subscription_status() -> Any:
     })
 
 
+@app.get("/api/user/activity")
+def get_user_activity() -> Any:
+    """Get current user's activity (runs, validations)."""
+    session = get_current_session()
+    if not session:
+        return jsonify({"success": False, "error": "Not authenticated"}), 401
+    
+    user = session.user
+    
+    try:
+        # Get recent runs
+        runs = UserRun.query.filter_by(user_id=user.id).order_by(UserRun.created_at.desc()).limit(10).all()
+        runs_data = [{
+            "id": r.id,
+            "run_id": r.run_id,
+            "created_at": r.created_at.isoformat() if r.created_at else None,
+        } for r in runs]
+        
+        # Get recent validations
+        validations = UserValidation.query.filter_by(user_id=user.id).order_by(UserValidation.created_at.desc()).limit(10).all()
+        validations_data = []
+        for v in validations:
+            validation_result = {}
+            try:
+                validation_result = json.loads(v.validation_result) if v.validation_result else {}
+            except:
+                pass
+            
+            validations_data.append({
+                "id": v.id,
+                "validation_id": v.validation_id,
+                "overall_score": validation_result.get("overall_score"),
+                "created_at": v.created_at.isoformat() if v.created_at else None,
+            })
+        
+        return jsonify({
+            "success": True,
+            "activity": {
+                "runs": runs_data,
+                "validations": validations_data,
+                "total_runs": len(runs_data),
+                "total_validations": len(validations_data),
+            },
+        })
+    except Exception as exc:
+        app.logger.exception("Failed to get user activity: %s", exc)
+        return jsonify({"success": False, "error": str(exc)}), 500
+
+
 @app.post("/api/payment/create-intent")
 def create_payment_intent() -> Any:
     """Create Stripe payment intent."""
@@ -1063,6 +1149,21 @@ def confirm_payment() -> Any:
         db.session.add(payment)
         db.session.commit()
         
+        # Send subscription activated email
+        try:
+            html_content, text_content = subscription_activated_email(
+                user_name=user.email,
+                subscription_type=subscription_type,
+            )
+            email_service.send_email(
+                to_email=user.email,
+                subject="🎉 Your Subscription is Active!",
+                html_content=html_content,
+                text_content=text_content,
+            )
+        except Exception as e:
+            app.logger.warning(f"Failed to send subscription activated email: {e}")
+        
         return jsonify({
             "success": True,
             "user": user.to_dict(),
@@ -1076,6 +1177,74 @@ def confirm_payment() -> Any:
         return jsonify({"success": False, "error": "Payment confirmation failed"}), 500
 
 
+# Email notification endpoints
+@app.post("/api/emails/check-expiring")
+def check_expiring_subscriptions() -> Any:
+    """Check and send emails for expiring trials/subscriptions (can be called by cron job)."""
+    try:
+        now = datetime.utcnow()
+        emails_sent = 0
+        
+        # Check trial users expiring in 1 day
+        trial_expiring = User.query.filter(
+            User.subscription_type == "free_trial",
+            User.subscription_expires_at <= now + timedelta(days=1),
+            User.subscription_expires_at > now,
+        ).all()
+        
+        for user in trial_expiring:
+            days_remaining = (user.subscription_expires_at - now).days
+            if days_remaining <= 1:
+                try:
+                    html_content, text_content = trial_ending_email(
+                        user_name=user.email,
+                        days_remaining=days_remaining,
+                    )
+                    email_service.send_email(
+                        to_email=user.email,
+                        subject=f"Your Free Trial Ends in {days_remaining} Day{'s' if days_remaining != 1 else ''}",
+                        html_content=html_content,
+                        text_content=text_content,
+                    )
+                    emails_sent += 1
+                except Exception as e:
+                    app.logger.warning(f"Failed to send trial ending email to {user.email}: {e}")
+        
+        # Check paid subscriptions expiring in 3 days
+        paid_expiring = User.query.filter(
+            User.subscription_type.in_(["weekly", "monthly"]),
+            User.payment_status == "active",
+            User.subscription_expires_at <= now + timedelta(days=3),
+            User.subscription_expires_at > now,
+        ).all()
+        
+        for user in paid_expiring:
+            days_remaining = (user.subscription_expires_at - now).days
+            if days_remaining <= 3:
+                try:
+                    html_content, text_content = subscription_expiring_email(
+                        user_name=user.email,
+                        subscription_type=user.subscription_type,
+                        days_remaining=days_remaining,
+                    )
+                    email_service.send_email(
+                        to_email=user.email,
+                        subject=f"Your Subscription Expires in {days_remaining} Day{'s' if days_remaining != 1 else ''}",
+                        html_content=html_content,
+                        text_content=text_content,
+                    )
+                    emails_sent += 1
+                except Exception as e:
+                    app.logger.warning(f"Failed to send subscription expiring email to {user.email}: {e}")
+        
+        return jsonify({
+            "success": True,
+            "emails_sent": emails_sent,
+            "message": f"Checked expiring subscriptions, sent {emails_sent} emails",
+        })
+    except Exception as exc:
+        app.logger.exception("Failed to check expiring subscriptions: %s", exc)
+        return jsonify({"success": False, "error": str(exc)}), 500
 
 
 if __name__ == "__main__":
