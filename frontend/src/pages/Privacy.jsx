@@ -19,7 +19,7 @@ export default function PrivacyPage() {
         <ul>
           <li>
             <strong>Profile inputs:</strong> Goals, time commitment, professional background, skills, and other fields
-            you voluntarily provide when running the crew. These inputs are processed transiently to generate reports and
+            you voluntarily provide when using the platform. These inputs are processed transiently to generate reports and
             are not stored after the run completes.
           </li>
           <li>
@@ -43,7 +43,7 @@ export default function PrivacyPage() {
         </ul>
         <h2>How we protect your data</h2>
         <ul>
-          <li>We do not persist your crew inputs or outputs on our servers; reports live in your browser unless you export them.</li>
+          <li>We do not persist your inputs or outputs on our servers; reports live in your browser unless you export them.</li>
           <li>All API requests are encrypted via HTTPS.</li>
           <li>We use enterprise-grade LLM providers (e.g., OpenAI via LiteLLM) who commit to not training on submitted data.</li>
         </ul>

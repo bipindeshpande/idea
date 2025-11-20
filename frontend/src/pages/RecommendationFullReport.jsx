@@ -444,7 +444,7 @@ export default function RecommendationFullReport() {
         <div className="rounded-3xl border border-amber-200 bg-amber-50/80 p-6 text-amber-800 shadow-soft">
           <h2 className="text-lg font-semibold">Full report not available</h2>
           <p className="mt-2 text-sm">
-            We couldn't find additional sections beyond the top ideas. Try rerunning the crew with more context.
+            We couldn't find additional sections beyond the top ideas. Try generating new recommendations with more context.
           </p>
         </div>
       )}

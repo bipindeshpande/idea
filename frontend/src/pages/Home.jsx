@@ -335,7 +335,7 @@ export default function HomePage() {
     <div className="grid gap-12">
       <Seo
         title="AI Startup Idea Generator | Startup Idea Advisor"
-        description="Provide your goals, availability, and expertise—our AI crew researches markets and delivers personalized startup recommendations."
+        description="Provide your goals, availability, and expertise—our AI advisor researches markets and delivers personalized startup recommendations."
         path="/"
         keywords="ai startup idea generator, business idea advisor, personalized startup recommendations"
       >
@@ -369,7 +369,7 @@ export default function HomePage() {
               Turn your profile into vetted startup ideas
             </h1>
             <p className="text-lg text-slate-600">
-              Share your goals, time, and strengths. Our multi-agent crew researches markets, evaluates risks, and hands you advisor-grade recommendations within minutes.
+              Share your goals, time, and strengths. Our AI advisor researches markets, evaluates risks, and hands you advisor-grade recommendations within minutes.
             </p>
             <div className="flex flex-wrap gap-3">
               <a
@@ -464,7 +464,7 @@ export default function HomePage() {
               disabled={loading}
               className="rounded-xl bg-gradient-to-r from-brand-500 to-brand-600 px-6 py-3 text-white shadow-md transition hover:from-brand-600 hover:to-brand-700 disabled:cursor-not-allowed disabled:from-brand-300 disabled:to-brand-300 whitespace-nowrap"
             >
-              {loading ? "Running crew..." : "Generate recommendations"}
+              {loading ? "Generating recommendations..." : "Generate recommendations"}
             </button>
           )}
           {error && <p className="text-sm text-red-600">{error}</p>}
@@ -484,7 +484,7 @@ export default function HomePage() {
               title: "VP Strategy, FinTech",
             },
             {
-              quote: "The crew nailed ideas that fit my budget and network—without me spending weeks researching.",
+              quote: "The platform nailed ideas that fit my budget and network—without me spending weeks researching.",
               name: "Daniel M.",
               title: "Product Lead, HealthTech",
             },

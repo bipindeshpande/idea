@@ -461,7 +461,7 @@ Product leaders already translate customer needs into shipped features. With AI,
 - Prototype a GPT-based workflow in Retool or Bubble.
 
 ### When to move to MVP
-Once you see 10+ waitlist sign-ups or a consulting client ready to pay, channel that into a lightweight MVP and run the crew again for risk planning.`,
+Once you see 10+ waitlist sign-ups or a consulting client ready to pay, channel that into a lightweight MVP and generate new recommendations for risk planning.`,
   },
   {
     slug: "validate-a-startup-idea-in-60-minutes",
@@ -480,7 +480,7 @@ Once you see 10+ waitlist sign-ups or a consulting client ready to pay, channel 
 - Interview acceptance rate
 - Signals of willingness to pay
 
-Keep the loop tight. Rerun the crew after each learning cycle for updated risks and roadmap.`,
+Keep the loop tight. Generate new recommendations after each learning cycle for updated risks and roadmap.`,
   },
 ];
 
@@ -584,7 +584,7 @@ export default function BlogPage() {
           Ideas & Playbooks
         </h1>
         <p className="mx-auto mt-4 max-w-2xl text-lg text-slate-600">
-          Weekly insights and curated ideas from the Startup Idea Advisor crew. Subscribe to stay ahead of the curve.
+          Weekly insights and curated ideas from Startup Idea Advisor. Subscribe to stay ahead of the curve.
         </p>
       </header>
 

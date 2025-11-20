@@ -98,7 +98,7 @@ export default function DashboardPage() {
           <div>
             <h2 className="text-2xl font-semibold text-slate-900">Saved Sessions</h2>
             <p className="mt-1 text-sm text-slate-600">
-              Revisit previous AI crew runs, compare recommendations, or rerun with updated context.
+              Revisit previous idea discovery runs, compare recommendations, or generate new recommendations with updated context.
             </p>
           </div>
         </div>

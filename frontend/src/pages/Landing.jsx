@@ -63,7 +63,7 @@ export default function LandingPage() {
           <div className="mb-6 text-4xl">💡</div>
           <h2 className="mb-3 text-2xl font-semibold text-slate-900">Discover New Ideas</h2>
           <p className="mb-6 text-slate-600">
-            Don't have an idea yet? Let our AI crew analyze your profile and discover personalized startup opportunities that match your goals, skills, and constraints.
+            Don't have an idea yet? Let our AI advisor analyze your profile and discover personalized startup opportunities that match your goals, skills, and constraints.
           </p>
           <ul className="mb-6 space-y-2 text-sm text-slate-600">
             <li className="flex items-start gap-2">

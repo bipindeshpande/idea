@@ -81,7 +81,7 @@ export default function RecommendationsReport() {
           <div className="rounded-3xl border border-amber-200 bg-amber-50/80 p-6 text-amber-800 shadow-soft">
             <h2 className="text-lg font-semibold">Reports not generated yet</h2>
             <p className="mt-2 text-sm">
-              The last run produced only a brief summary. Please rerun the crew with richer inputs (professional background, skills, budget, etc.) so the advisor can craft detailed recommendations.
+              The last run produced only a brief summary. Please generate new recommendations with richer inputs (professional background, skills, budget, etc.) so the advisor can craft detailed recommendations.
             </p>
           </div>
         )}

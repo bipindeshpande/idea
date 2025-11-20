@@ -99,7 +99,26 @@ function CheckoutForm({ subscriptionType, onSuccess, onCancel }) {
       );
 
       if (stripeError) {
-        throw new Error(stripeError.message);
+        // Map Stripe error codes to user-friendly messages
+        let errorMessage = stripeError.message;
+        
+        if (stripeError.code === "card_declined") {
+          errorMessage = "Your card was declined. Please check your card details or try a different payment method.";
+        } else if (stripeError.code === "insufficient_funds") {
+          errorMessage = "Insufficient funds. Please use a different payment method.";
+        } else if (stripeError.code === "expired_card") {
+          errorMessage = "Your card has expired. Please use a different payment method.";
+        } else if (stripeError.code === "incorrect_cvc") {
+          errorMessage = "Your card's security code is incorrect. Please check and try again.";
+        } else if (stripeError.code === "incorrect_number") {
+          errorMessage = "Your card number is incorrect. Please check and try again.";
+        } else if (stripeError.code === "processing_error") {
+          errorMessage = "An error occurred while processing your card. Please try again.";
+        } else if (stripeError.code === "generic_decline") {
+          errorMessage = "Your card was declined. Please contact your bank or try a different payment method.";
+        }
+        
+        throw new Error(errorMessage);
       }
 
       if (paymentIntent.status === "succeeded") {
@@ -151,8 +170,22 @@ function CheckoutForm({ subscriptionType, onSuccess, onCancel }) {
         />
       </div>
       {error && (
-        <div className="rounded-xl border border-coral-200 bg-coral-50 p-3 text-sm text-coral-800">
-          {error}
+        <div className="rounded-xl border border-coral-200 bg-coral-50 p-4">
+          <div className="flex items-start gap-3">
+            <svg className="h-5 w-5 flex-shrink-0 text-coral-600 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <div className="flex-1">
+              <p className="text-sm font-semibold text-coral-800">Payment Error</p>
+              <p className="mt-1 text-sm text-coral-700">{error}</p>
+              <p className="mt-2 text-xs text-coral-600">
+                Need help? Contact us at{" "}
+                <a href="mailto:hello@startupideaadvisor.com" className="underline hover:text-coral-800">
+                  hello@startupideaadvisor.com
+                </a>
+              </p>
+            </div>
+          </div>
         </div>
       )}
       <div className="flex gap-3">

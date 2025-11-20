@@ -1,7 +1,9 @@
 import { Link } from "react-router-dom";
 import Seo from "../components/Seo.jsx";
+import { frameworks } from "../templates/frameworksConfig.js";
 
-const frameworks = [
+// Note: Frameworks are now imported from templates/frameworksConfig.js
+// Templates are stored in separate .md files in frontend/src/templates/
   {
     id: 1,
     title: "Problem Validation Checklist",
@@ -421,7 +423,7 @@ export default function ResourcesPage() {
           Resources to go from insight to traction
         </h1>
         <p className="mx-auto mt-4 max-w-2xl text-lg text-slate-600">
-          Use these playbooks and templates alongside your reports to keep momentum—run experiments, gather signal, and rerun the crew when you need fresh direction.
+          Use these playbooks and templates alongside your reports to keep momentum—run experiments, gather signal, and generate new recommendations when you need fresh direction.
         </p>
       </header>
 

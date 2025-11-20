@@ -39,6 +39,26 @@ db.init_app(app)
 
 OUTPUT_DIR = Path("output")
 
+# Health check endpoint for monitoring
+@app.get("/api/health")
+def health_check():
+    """Health check endpoint for monitoring services."""
+    try:
+        # Check database connection
+        db.session.execute(db.text("SELECT 1"))
+        return jsonify({
+            "status": "healthy",
+            "database": "connected",
+            "timestamp": datetime.now().isoformat()
+        }), 200
+    except Exception as e:
+        return jsonify({
+            "status": "unhealthy",
+            "database": "disconnected",
+            "error": str(e),
+            "timestamp": datetime.now().isoformat()
+        }), 503
+
 PROFILE_FIELDS = [
   "goal_type",
   "time_commitment",
@@ -983,6 +1003,15 @@ def get_subscription_status() -> Any:
     is_active = user.is_subscription_active()
     days_remaining = user.days_remaining()
     
+    # Get payment history
+    payments = Payment.query.filter_by(user_id=user.id, status="completed").order_by(Payment.created_at.desc()).limit(10).all()
+    payment_history = [{
+        "id": p.id,
+        "amount": p.amount,
+        "subscription_type": p.subscription_type,
+        "created_at": p.created_at.isoformat() if p.created_at else None,
+    } for p in payments]
+    
     return jsonify({
         "success": True,
         "subscription": {
@@ -991,8 +1020,136 @@ def get_subscription_status() -> Any:
             "is_active": is_active,
             "days_remaining": days_remaining,
             "expires_at": user.subscription_expires_at.isoformat() if user.subscription_expires_at else None,
+            "started_at": user.subscription_started_at.isoformat() if user.subscription_started_at else None,
         },
+        "payment_history": payment_history,
     })
+
+
+@app.post("/api/subscription/cancel")
+def cancel_subscription() -> Any:
+    """Cancel user subscription (keeps access until expiration)."""
+    session = get_current_session()
+    if not session:
+        return jsonify({"success": False, "error": "Not authenticated"}), 401
+    
+    user = session.user
+    
+    # Only allow cancellation of paid subscriptions
+    if user.subscription_type == "free_trial":
+        return jsonify({"success": False, "error": "Cannot cancel free trial"}), 400
+    
+    if user.payment_status != "active":
+        return jsonify({"success": False, "error": "Subscription is not active"}), 400
+    
+    try:
+        # Mark as cancelled but keep access until expiration
+        user.payment_status = "cancelled"
+        db.session.commit()
+        
+        # Send cancellation confirmation email
+        try:
+            from email_templates import get_base_template
+            name = user.email.split("@")[0] if "@" in user.email else user.email
+            days_remaining = user.days_remaining()
+            
+            content = f"""
+            <h2 style="color: #333; margin-top: 0;">Hi {name},</h2>
+            <p>Your subscription has been cancelled successfully.</p>
+            <p><strong>Important:</strong> You'll continue to have access to all features until {user.subscription_expires_at.strftime('%B %d, %Y') if user.subscription_expires_at else 'your subscription expires'} ({days_remaining} days remaining).</p>
+            <p>After that date, you'll need to resubscribe to continue using the platform.</p>
+            <div style="text-align: center; margin: 30px 0;">
+                <a href="https://startupideaadvisor.com/pricing" 
+                   style="background: #667eea; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold;">
+                    Resubscribe Anytime
+                </a>
+            </div>
+            <p style="color: #666; font-size: 14px;">We're sorry to see you go. If you have feedback, please reply to this email.</p>
+            """
+            
+            text_content = f"""
+Hi {name},
+
+Your subscription has been cancelled successfully.
+
+You'll continue to have access until {user.subscription_expires_at.strftime('%B %d, %Y') if user.subscription_expires_at else 'your subscription expires'} ({days_remaining} days remaining).
+
+After that date, you'll need to resubscribe to continue.
+
+Resubscribe: https://startupideaadvisor.com/pricing
+"""
+            
+            html_content = get_base_template(content)
+            email_service.send_email(
+                to_email=user.email,
+                subject="Subscription Cancelled",
+                html_content=html_content,
+                text_content=text_content,
+            )
+        except Exception as e:
+            app.logger.warning(f"Failed to send cancellation email: {e}")
+        
+        return jsonify({
+            "success": True,
+            "message": "Subscription cancelled. You'll have access until expiration.",
+            "user": user.to_dict(),
+        })
+    except Exception as exc:
+        db.session.rollback()
+        app.logger.exception("Subscription cancellation failed: %s", exc)
+        return jsonify({"success": False, "error": "Failed to cancel subscription"}), 500
+
+
+@app.post("/api/subscription/change-plan")
+def change_subscription_plan() -> Any:
+    """Change subscription plan (upgrade or downgrade)."""
+    session = get_current_session()
+    if not session:
+        return jsonify({"success": False, "error": "Not authenticated"}), 401
+    
+    data: Dict[str, Any] = request.get_json(force=True, silent=True) or {}
+    new_subscription_type = data.get("subscription_type", "").strip()
+    
+    if new_subscription_type not in ["weekly", "monthly"]:
+        return jsonify({"success": False, "error": "Invalid subscription type"}), 400
+    
+    user = session.user
+    
+    # Can't change if on free trial
+    if user.subscription_type == "free_trial":
+        return jsonify({"success": False, "error": "Please subscribe first before changing plans"}), 400
+    
+    # Can't change to same plan
+    if user.subscription_type == new_subscription_type:
+        return jsonify({"success": False, "error": "You're already on this plan"}), 400
+    
+    try:
+        # Calculate prorated amount or immediate switch
+        # For simplicity, we'll extend current subscription with new duration
+        duration_days = {"weekly": 7, "monthly": 30}[new_subscription_type]
+        
+        # If user has time remaining, extend from current expiration
+        # Otherwise, start from now
+        if user.subscription_expires_at and user.subscription_expires_at > datetime.utcnow():
+            # Extend from current expiration
+            user.subscription_expires_at = user.subscription_expires_at + timedelta(days=duration_days)
+        else:
+            # Start new period from now
+            user.subscription_expires_at = datetime.utcnow() + timedelta(days=duration_days)
+        
+        user.subscription_type = new_subscription_type
+        user.payment_status = "active"
+        db.session.commit()
+        
+        return jsonify({
+            "success": True,
+            "message": f"Subscription changed to {new_subscription_type} plan",
+            "user": user.to_dict(),
+        })
+    except Exception as exc:
+        db.session.rollback()
+        app.logger.exception("Subscription change failed: %s", exc)
+        return jsonify({"success": False, "error": "Failed to change subscription"}), 500
 
 
 @app.get("/api/user/activity")

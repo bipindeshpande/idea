@@ -103,7 +103,7 @@ export function ReportsProvider({ children }) {
 
       if (!response.ok) {
         const err = await response.json().catch(() => ({}));
-        throw new Error(err.error || "Crew run failed");
+        throw new Error(err.error || "Analysis failed");
       }
 
       const result = await response.json();

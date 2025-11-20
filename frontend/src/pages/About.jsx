@@ -5,7 +5,7 @@ export default function AboutPage() {
     <section className="grid gap-6 rounded-3xl border border-slate-200 bg-white/90 p-8 shadow-soft">
       <Seo
         title="About | Startup Idea Advisor"
-        description="Learn why we built Startup Idea Advisor and how our AI crew empowers founders to validate ideas faster."
+        description="Learn why we built Startup Idea Advisor and how our AI advisor empowers founders to validate ideas faster."
         path="/about"
       />
       <h1 className="text-3xl font-semibold text-slate-900">About</h1>

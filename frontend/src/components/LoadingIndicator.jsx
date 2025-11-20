@@ -22,7 +22,7 @@ export default function LoadingIndicator() {
       <div className="flex items-center gap-3 text-brand-700">
         <span className="h-3 w-3 animate-ping rounded-full bg-brand-500"></span>
         <p className="text-sm font-semibold uppercase tracking-wide">
-          Running AI crew (takes ~60 seconds)
+          Generating recommendations (takes ~60 seconds)
         </p>
       </div>
       <div className="mt-4 h-2 w-full overflow-hidden rounded-full bg-brand-100">

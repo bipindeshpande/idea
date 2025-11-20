@@ -28,6 +28,7 @@ import RegisterPage from "./pages/Register.jsx";
 import LoginPage from "./pages/Login.jsx";
 import ForgotPasswordPage from "./pages/ForgotPassword.jsx";
 import ResetPasswordPage from "./pages/ResetPassword.jsx";
+import ManageSubscriptionPage from "./pages/ManageSubscription.jsx";
 
 const primaryNavLinks = [
   { label: "Product", to: "/product" },
@@ -235,6 +236,15 @@ function Navigation() {
                 </Link>
                 <div className="flex items-center gap-2 border-l border-slate-300 pl-3">
                   <span className="text-xs text-slate-600 max-w-[150px] truncate">{user?.email}</span>
+                  {subscription && subscription.is_active && (
+                    <Link
+                      to="/manage-subscription"
+                      className="rounded-full border border-brand-300 px-4 py-2 text-sm font-semibold text-brand-700 transition hover:bg-brand-50 whitespace-nowrap"
+                      onClick={closeAllMenus}
+                    >
+                      Manage
+                    </Link>
+                  )}
                   <button
                     onClick={handleLogout}
                     className="rounded-full border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 whitespace-nowrap"
@@ -321,6 +331,11 @@ function Navigation() {
                 <NavLink to="/dashboard" className={mobileLinkClass} onClick={closeAllMenus}>
                   My Sessions
                 </NavLink>
+                {subscription && subscription.is_active && (
+                  <NavLink to="/manage-subscription" className={mobileLinkClass} onClick={closeAllMenus}>
+                    Manage Subscription
+                  </NavLink>
+                )}
                 <Link
                   to="/advisor"
                   onClick={closeAllMenus}
@@ -404,6 +419,7 @@ export default function App() {
             />
             <Route path="/product" element={<ProductPage />} />
             <Route path="/pricing" element={<PricingPage />} />
+            <Route path="/manage-subscription" element={<ManageSubscriptionPage />} />
             <Route path="/resources" element={<ResourcesPage />} />
             <Route path="/blog" element={<BlogPage />} />
             <Route path="/blog/:slug" element={<BlogPage />} />

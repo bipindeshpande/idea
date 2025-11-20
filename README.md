@@ -276,7 +276,7 @@ With both the Flask API (`python api.py`) and the React dev server running, open
 - **Discover Related Ideas** - After validation, seamlessly transition to idea discovery with pre-filled data
 
 #### 3. Admin Panel
-See [ADMIN_README.md](ADMIN_README.md) for detailed admin panel documentation.
+See [docs/ADMIN_README.md](docs/ADMIN_README.md) for detailed admin panel documentation.
 
 ## 📈 Analytics & SEO
 

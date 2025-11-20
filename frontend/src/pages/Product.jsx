@@ -48,8 +48,8 @@ const howItWorks = [
   },
   {
     step: "2",
-    title: "AI crew analyzes",
-    detail: "Multiple specialized agents research, analyze financials, assess risks, and validate ideas based on your profile.",
+    title: "AI analyzes your profile",
+    detail: "Our AI system researches markets, analyzes financials, assesses risks, and validates ideas based on your profile.",
   },
   {
     step: "3",
@@ -91,7 +91,7 @@ export default function ProductPage() {
           Get AI-validated startup ideas tailored to your profile
         </h1>
         <p className="mx-auto mt-4 max-w-2xl text-lg text-slate-600">
-          Our AI crew analyzes your goals, constraints, and strengths to deliver ranked recommendations with financial outlook, risk assessment, and execution roadmaps.
+          Our AI advisor analyzes your goals, constraints, and strengths to deliver ranked recommendations with financial outlook, risk assessment, and execution roadmaps.
         </p>
         <div className="mt-8 flex flex-col items-center justify-center gap-4 sm:flex-row">
           <Link
