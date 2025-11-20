@@ -45,8 +45,8 @@ To edit a template:
 ## Usage
 
 Templates are used in:
-- `frontend/src/pages/Frameworks.jsx` - Dedicated frameworks page
-- `frontend/src/pages/Resources.jsx` - Resources page (displays frameworks inline)
+- `frontend/src/pages/resources/Frameworks.jsx` - Dedicated frameworks page
+- `frontend/src/pages/resources/Resources.jsx` - Resources page (displays frameworks inline)
 
 Both pages import from `frameworksConfig.js`.
 

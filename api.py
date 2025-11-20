@@ -15,9 +15,9 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from sqlalchemy import func
 
 from startup_idea_crew.crew import StartupIdeaCrew
-from database import db, User, UserSession, UserRun, UserValidation, Payment
-from email_service import email_service
-from email_templates import (
+from app.models.database import db, User, UserSession, UserRun, UserValidation, Payment
+from app.services.email_service import email_service
+from app.services.email_templates import (
     validation_ready_email,
     trial_ending_email,
     subscription_expiring_email,
@@ -37,7 +37,16 @@ app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", secrets.token_hex(32))
 
 db.init_app(app)
 
-OUTPUT_DIR = Path("output")
+# Import utilities
+from app.utils import (
+    OUTPUT_DIR,
+    PROFILE_FIELDS,
+    read_output_file as _read_output_file,
+    create_user_session,
+    get_current_session,
+    require_auth,
+    check_admin_auth,
+)
 
 # Health check endpoint for monitoring
 @app.get("/api/health")
@@ -58,31 +67,6 @@ def health_check():
             "error": str(e),
             "timestamp": datetime.now().isoformat()
         }), 503
-
-PROFILE_FIELDS = [
-  "goal_type",
-  "time_commitment",
-  "budget_range",
-  "interest_area",
-  "sub_interest_area",
-  "work_style",
-  "skill_strength",
-  "experience_summary",
-]
-
-
-def _read_output_file(filename: str) -> str | None:
-  filepath = OUTPUT_DIR / filename
-  if filepath.exists():
-    try:
-      content = filepath.read_text(encoding="utf-8")
-      # Post-processing disabled - let frontend parser handle the format
-      # if filename == "profile_analysis.md":
-      #   content = _fix_profile_analysis_format(content)
-      return content
-    except OSError:
-      return None
-  return None
 
 
 def _fix_profile_analysis_format(content: str) -> str:
@@ -208,61 +192,7 @@ def _fix_profile_analysis_format(content: str) -> str:
   return '\n'.join(fixed_lines)
 
 
-# Helper functions (must be defined before routes that use them)
-def create_user_session(user_id: int, ip_address: Optional[str] = None, user_agent: Optional[str] = None) -> UserSession:
-    """Create a new user session."""
-    session_token = secrets.token_urlsafe(32)
-    expires_at = datetime.utcnow() + timedelta(days=7)  # 7 days
-    
-    session = UserSession(
-        user_id=user_id,
-        session_token=session_token,
-        expires_at=expires_at,
-        ip_address=ip_address,
-        user_agent=user_agent,
-    )
-    db.session.add(session)
-    db.session.commit()
-    return session
-
-
-def get_current_session() -> Optional[UserSession]:
-    """Get current user session from token."""
-    auth_header = request.headers.get("Authorization", "")
-    if not auth_header.startswith("Bearer "):
-        return None
-    
-    token = auth_header.replace("Bearer ", "").strip()
-    session = UserSession.query.filter_by(session_token=token).first()
-    
-    if not session or not session.is_valid():
-        return None
-    
-    session.refresh()
-    db.session.commit()
-    return session
-
-
-def require_auth(f):
-    """Decorator to require authentication."""
-    from functools import wraps
-    
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        session = get_current_session()
-        if not session:
-            return jsonify({"success": False, "error": "Authentication required"}), 401
-        
-        if not session.user.is_subscription_active():
-            return jsonify({
-                "success": False,
-                "error": "Subscription expired",
-                "subscription": session.user.to_dict(),
-            }), 403
-        
-        return f(*args, **kwargs)
-    
-    return decorated_function
+# Helper functions imported from app.utils
 
 
 @app.get("/health")
@@ -573,17 +503,7 @@ REMEMBER:
     }), 500
 
 
-# Admin endpoints
-ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "admin2024")
-
-
-def check_admin_auth():
-  """Check if request has valid admin authentication."""
-  auth_header = request.headers.get("Authorization", "")
-  if auth_header.startswith("Bearer "):
-    token = auth_header.replace("Bearer ", "")
-    return token == ADMIN_PASSWORD
-  return False
+# Admin authentication imported from app.utils
 
 
 @app.post("/admin/save-validation-questions")
@@ -1049,7 +969,7 @@ def cancel_subscription() -> Any:
         
         # Send cancellation confirmation email
         try:
-            from email_templates import get_base_template
+            from app.services.email_templates import get_base_template
             name = user.email.split("@")[0] if "@" in user.email else user.email
             days_remaining = user.days_remaining()
             

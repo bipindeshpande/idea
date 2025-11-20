@@ -2,33 +2,48 @@ import { useEffect, useRef, useState } from "react";
 import { Link, NavLink, Navigate, Route, Routes } from "react-router-dom";
 import { useReports } from "./context/ReportsContext.jsx";
 import { useAuth } from "./context/AuthContext.jsx";
-import LoadingIndicator from "./components/LoadingIndicator.jsx";
-import Seo from "./components/Seo.jsx";
-import LandingPage from "./pages/Landing.jsx";
-import HomePage from "./pages/Home.jsx";
-import IdeaValidator from "./pages/IdeaValidator.jsx";
-import ValidationResult from "./pages/ValidationResult.jsx";
-import ProfileReport from "./pages/ProfileReport.jsx";
-import RecommendationsReport from "./pages/RecommendationsReport.jsx";
-import RecommendationDetail from "./pages/RecommendationDetail.jsx";
-import RecommendationFullReport from "./pages/RecommendationFullReport.jsx";
-import ProductPage from "./pages/Product.jsx";
-import PricingPage from "./pages/Pricing.jsx";
-import ResourcesPage from "./pages/Resources.jsx";
-import AboutPage from "./pages/About.jsx";
-import ContactPage from "./pages/Contact.jsx";
-import Footer from "./components/Footer.jsx";
-import DashboardPage from "./pages/Dashboard.jsx";
-import BlogPage from "./pages/Blog.jsx";
-import FrameworksPage from "./pages/Frameworks.jsx";
-import PrivacyPage from "./pages/Privacy.jsx";
-import TermsPage from "./pages/Terms.jsx";
-import AdminPage from "./pages/Admin.jsx";
-import RegisterPage from "./pages/Register.jsx";
-import LoginPage from "./pages/Login.jsx";
-import ForgotPasswordPage from "./pages/ForgotPassword.jsx";
-import ResetPasswordPage from "./pages/ResetPassword.jsx";
-import ManageSubscriptionPage from "./pages/ManageSubscription.jsx";
+import LoadingIndicator from "./components/common/LoadingIndicator.jsx";
+import Seo from "./components/common/Seo.jsx";
+// Public pages
+import LandingPage from "./pages/public/Landing.jsx";
+import AboutPage from "./pages/public/About.jsx";
+import ContactPage from "./pages/public/Contact.jsx";
+import PricingPage from "./pages/public/Pricing.jsx";
+import ProductPage from "./pages/public/Product.jsx";
+import PrivacyPage from "./pages/public/Privacy.jsx";
+import TermsPage from "./pages/public/Terms.jsx";
+
+// Discovery pages
+import HomePage from "./pages/discovery/Home.jsx";
+import ProfileReport from "./pages/discovery/ProfileReport.jsx";
+import RecommendationsReport from "./pages/discovery/RecommendationsReport.jsx";
+import RecommendationDetail from "./pages/discovery/RecommendationDetail.jsx";
+import RecommendationFullReport from "./pages/discovery/RecommendationFullReport.jsx";
+
+// Validation pages
+import IdeaValidator from "./pages/validation/IdeaValidator.jsx";
+import ValidationResult from "./pages/validation/ValidationResult.jsx";
+
+// Resources pages
+import ResourcesPage from "./pages/resources/Resources.jsx";
+import BlogPage from "./pages/resources/Blog.jsx";
+import FrameworksPage from "./pages/resources/Frameworks.jsx";
+
+// Dashboard pages
+import DashboardPage from "./pages/dashboard/Dashboard.jsx";
+import ManageSubscriptionPage from "./pages/dashboard/ManageSubscription.jsx";
+
+// Auth pages
+import RegisterPage from "./pages/auth/Register.jsx";
+import LoginPage from "./pages/auth/Login.jsx";
+import ForgotPasswordPage from "./pages/auth/ForgotPassword.jsx";
+import ResetPasswordPage from "./pages/auth/ResetPassword.jsx";
+
+// Admin pages
+import AdminPage from "./pages/admin/Admin.jsx";
+
+// Components
+import Footer from "./components/common/Footer.jsx";
 
 const primaryNavLinks = [
   { label: "Product", to: "/product" },
