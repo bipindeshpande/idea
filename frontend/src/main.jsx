@@ -6,6 +6,7 @@ import App from "./App.jsx";
 import { ReportsProvider } from "./context/ReportsContext.jsx";
 import { ValidationProvider } from "./context/ValidationContext.jsx";
 import { AuthProvider } from "./context/AuthContext.jsx";
+import { ThemeProvider } from "./context/ThemeContext.jsx";
 import "./styles.css";
 
 const GA_ID = import.meta.env.VITE_GA_ID;
@@ -29,15 +30,17 @@ function Root() {
   return (
     <React.StrictMode>
       <HelmetProvider>
-        <AuthProvider>
-          <ReportsProvider>
-            <ValidationProvider>
-              <BrowserRouter>
-                <App />
-              </BrowserRouter>
-            </ValidationProvider>
-          </ReportsProvider>
-        </AuthProvider>
+        <ThemeProvider>
+          <AuthProvider>
+            <ReportsProvider>
+              <ValidationProvider>
+                <BrowserRouter>
+                  <App />
+                </BrowserRouter>
+              </ValidationProvider>
+            </ReportsProvider>
+          </AuthProvider>
+        </ThemeProvider>
       </HelmetProvider>
     </React.StrictMode>
   );

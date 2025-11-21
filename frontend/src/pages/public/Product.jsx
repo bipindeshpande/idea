@@ -84,13 +84,13 @@ export default function ProductPage() {
 
       {/* Hero Section */}
       <header className="mb-16 text-center">
-        <span className="inline-flex items-center gap-2 rounded-full bg-brand-50 px-4 py-1.5 text-xs font-semibold uppercase tracking-wide text-brand-700">
+        <span className="inline-flex items-center gap-2 rounded-full bg-brand-50 dark:bg-brand-900/30 px-4 py-1.5 text-xs font-semibold uppercase tracking-wide text-brand-700 dark:text-brand-400">
           Product Overview
         </span>
-        <h1 className="mt-6 text-4xl font-bold text-slate-900 md:text-5xl">
+        <h1 className="mt-6 text-4xl font-bold text-slate-900 dark:text-slate-100 md:text-5xl">
           Get AI-validated startup ideas tailored to your profile
         </h1>
-        <p className="mx-auto mt-4 max-w-2xl text-lg text-slate-600">
+        <p className="mx-auto mt-4 max-w-2xl text-lg text-slate-600 dark:text-slate-300">
           Our AI advisor analyzes your goals, constraints, and strengths to deliver ranked recommendations with financial outlook, risk assessment, and execution roadmaps.
         </p>
         <div className="mt-8 flex flex-col items-center justify-center gap-4 sm:flex-row">
@@ -111,14 +111,14 @@ export default function ProductPage() {
 
       {/* Value Panels */}
       <section className="mb-16">
-        <h2 className="mb-8 text-center text-2xl font-semibold text-slate-900">What You Get</h2>
+        <h2 className="mb-8 text-center text-2xl font-semibold text-slate-900 dark:text-slate-100">What You Get</h2>
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {valuePanels.map((panel) => {
             const colorClasses = {
-              brand: "border-brand-200 bg-brand-50",
-              aqua: "border-aqua-200 bg-aqua-50",
-              coral: "border-coral-200 bg-coral-50",
-              sand: "border-sand-200 bg-sand-50",
+              brand: "border-brand-200 dark:border-brand-700 bg-brand-50 dark:bg-brand-900/20",
+              aqua: "border-aqua-200 dark:border-aqua-700 bg-aqua-50 dark:bg-aqua-900/20",
+              coral: "border-coral-200 dark:border-coral-700 bg-coral-50 dark:bg-coral-900/20",
+              sand: "border-sand-200 dark:border-sand-700 bg-sand-50 dark:bg-sand-900/20",
             };
             return (
               <article
@@ -126,8 +126,8 @@ export default function ProductPage() {
                 className={`rounded-2xl border ${colorClasses[panel.color]} p-6 shadow-sm`}
               >
                 <div className="mb-4 text-3xl">{panel.icon}</div>
-                <h3 className="mb-2 text-lg font-semibold text-slate-900">{panel.title}</h3>
-                <p className="text-sm text-slate-600">{panel.summary}</p>
+                <h3 className="mb-2 text-lg font-semibold text-slate-900 dark:text-slate-100">{panel.title}</h3>
+                <p className="text-sm text-slate-600 dark:text-slate-300">{panel.summary}</p>
               </article>
             );
           })}
@@ -135,10 +135,10 @@ export default function ProductPage() {
       </section>
 
       {/* How It Works */}
-      <section id="how-it-works" className="mb-16 rounded-3xl border border-slate-200 bg-white/95 p-8 shadow-soft">
+      <section id="how-it-works" className="mb-16 rounded-3xl border border-slate-200 dark:border-slate-700 bg-white/95 dark:bg-slate-800/95 p-8 shadow-soft">
         <div className="mb-8 text-center">
-          <h2 className="text-2xl font-semibold text-slate-900">How It Works</h2>
-          <p className="mt-2 text-slate-600">
+          <h2 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">How It Works</h2>
+          <p className="mt-2 text-slate-600 dark:text-slate-300">
             Three simple steps from profile to actionable recommendations
           </p>
         </div>
@@ -148,8 +148,8 @@ export default function ProductPage() {
               <div className="mb-4 inline-flex h-10 w-10 items-center justify-center rounded-full bg-brand-500 text-sm font-bold text-white">
                 {item.step}
               </div>
-              <h3 className="mb-2 text-lg font-semibold text-slate-900">{item.title}</h3>
-              <p className="text-sm text-slate-600">{item.detail}</p>
+              <h3 className="mb-2 text-lg font-semibold text-slate-900 dark:text-slate-100">{item.title}</h3>
+              <p className="text-sm text-slate-600 dark:text-slate-300">{item.detail}</p>
             </article>
           ))}
         </div>
@@ -157,12 +157,12 @@ export default function ProductPage() {
 
       {/* Deliverables */}
       <section className="mb-16 rounded-3xl border border-sand-200 bg-sand-50/80 p-8 shadow-soft">
-        <h2 className="mb-8 text-center text-2xl font-semibold text-slate-900">Your Deliverables</h2>
+        <h2 className="mb-8 text-center text-2xl font-semibold text-slate-900 dark:text-slate-100">Your Deliverables</h2>
         <div className="grid gap-6 md:grid-cols-3">
           {deliverables.map((item) => (
             <article key={item.title} className="rounded-2xl border border-sand-200 bg-white/95 p-6">
-              <h3 className="mb-2 text-lg font-semibold text-slate-900">{item.title}</h3>
-              <p className="text-sm text-slate-600">{item.description}</p>
+              <h3 className="mb-2 text-lg font-semibold text-slate-900 dark:text-slate-100">{item.title}</h3>
+              <p className="text-sm text-slate-600 dark:text-slate-300">{item.description}</p>
             </article>
           ))}
         </div>
@@ -171,8 +171,8 @@ export default function ProductPage() {
       {/* CTA Section */}
       <div className="rounded-3xl border border-coral-200 bg-gradient-to-br from-coral-50 to-aqua-50 p-8 shadow-soft">
         <div className="mx-auto max-w-3xl text-center">
-          <h2 className="text-2xl font-semibold text-slate-900">Ready to get started?</h2>
-          <p className="mt-2 text-slate-600">
+          <h2 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Ready to get started?</h2>
+          <p className="mt-2 text-slate-600 dark:text-slate-300">
             Generate your personalized startup idea recommendations in minutes. No credit card required.
           </p>
           <div className="mt-6 flex flex-col items-center justify-center gap-4 sm:flex-row">
@@ -184,7 +184,7 @@ export default function ProductPage() {
             </Link>
             <Link
               to="/pricing"
-              className="inline-flex items-center justify-center whitespace-nowrap rounded-xl border border-slate-300 bg-white px-6 py-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+              className="inline-flex items-center justify-center whitespace-nowrap rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-6 py-3 text-sm font-semibold text-slate-700 dark:text-slate-300 shadow-sm transition hover:bg-slate-50 dark:hover:bg-slate-700"
             >
               View Pricing
             </Link>

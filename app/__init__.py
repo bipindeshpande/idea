@@ -25,17 +25,13 @@ def create_app():
     # Initialize database
     db.init_app(app)
     
-    # Register blueprints
-    from app.routes import auth, subscription, payment, admin, discovery, validation, user, health
-    
-    app.register_blueprint(health.bp)
-    app.register_blueprint(auth.bp)
-    app.register_blueprint(subscription.bp)
-    app.register_blueprint(payment.bp)
-    app.register_blueprint(admin.bp)
-    app.register_blueprint(discovery.bp)
-    app.register_blueprint(validation.bp)
-    app.register_blueprint(user.bp)
+    # Register blueprints (only health exists, rest are in api.py)
+    try:
+        from app.routes.health import bp as health_bp
+        app.register_blueprint(health_bp)
+    except ImportError:
+        # Health blueprint doesn't exist, skip it
+        pass
     
     # Initialize database tables
     with app.app_context():

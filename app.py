@@ -1,7 +1,6 @@
 """Main entry point for Flask application."""
 import os
 import sys
-from app import create_app
 
 # Fix Unicode encoding issues on Windows
 if sys.platform == "win32":
@@ -13,7 +12,12 @@ if sys.platform == "win32":
     # Set environment variable for subprocesses
     os.environ["PYTHONIOENCODING"] = "utf-8"
 
-app = create_app()
+# Import api.py which has all the routes and creates the Flask app
+# This is the main entry point until routes are fully split into blueprints
+import api
+
+# Use the app from api.py
+app = api.app
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8000))

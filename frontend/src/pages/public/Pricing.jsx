@@ -1,18 +1,12 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, lazy, Suspense } from "react";
 import { Link, useNavigate } from "react-router-dom";
-// Lazy load Stripe - only load when payment modal is opened
-// import { loadStripe } from "@stripe/stripe-js";
-import {
-  Elements,
-  CardElement,
-  useStripe,
-  useElements,
-} from "@stripe/react-stripe-js";
 import Seo from "../../components/common/Seo.jsx";
 import { useAuth } from "../../context/AuthContext.jsx";
 
-// Stripe will be loaded lazily when PaymentModal opens
-let stripePromise = null;
+// Lazy load the entire payment modal to avoid loading Stripe until needed
+const PaymentModal = lazy(() => {
+  return import("./PaymentModal.jsx");
+});
 
 const tiers = [
   {
@@ -52,267 +46,6 @@ const tiers = [
   },
 ];
 
-function CheckoutForm({ subscriptionType, onSuccess, onCancel }) {
-  const stripe = useStripe();
-  const elements = useElements();
-  const { sessionToken } = useAuth();
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError("");
-
-    if (!stripe || !elements) {
-      return;
-    }
-
-    setLoading(true);
-
-    try {
-      // Create payment intent
-      const response = await fetch("/api/payment/create-intent", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(sessionToken ? { Authorization: `Bearer ${sessionToken}` } : {}),
-        },
-        body: JSON.stringify({ subscription_type: subscriptionType }),
-      });
-
-      const data = await response.json();
-      if (!data.success) {
-        throw new Error(data.error || "Failed to create payment intent");
-      }
-
-      // Confirm payment with Stripe
-      const cardElement = elements.getElement(CardElement);
-      const { error: stripeError, paymentIntent } = await stripe.confirmCardPayment(
-        data.client_secret,
-        {
-          payment_method: {
-            card: cardElement,
-          },
-        }
-      );
-
-      if (stripeError) {
-        // Map Stripe error codes to user-friendly messages
-        let errorMessage = stripeError.message;
-        
-        if (stripeError.code === "card_declined") {
-          errorMessage = "Your card was declined. Please check your card details or try a different payment method.";
-        } else if (stripeError.code === "insufficient_funds") {
-          errorMessage = "Insufficient funds. Please use a different payment method.";
-        } else if (stripeError.code === "expired_card") {
-          errorMessage = "Your card has expired. Please use a different payment method.";
-        } else if (stripeError.code === "incorrect_cvc") {
-          errorMessage = "Your card's security code is incorrect. Please check and try again.";
-        } else if (stripeError.code === "incorrect_number") {
-          errorMessage = "Your card number is incorrect. Please check and try again.";
-        } else if (stripeError.code === "processing_error") {
-          errorMessage = "An error occurred while processing your card. Please try again.";
-        } else if (stripeError.code === "generic_decline") {
-          errorMessage = "Your card was declined. Please contact your bank or try a different payment method.";
-        }
-        
-        throw new Error(errorMessage);
-      }
-
-      if (paymentIntent.status === "succeeded") {
-        // Confirm payment on backend
-        const confirmResponse = await fetch("/api/payment/confirm", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            ...(sessionToken ? { Authorization: `Bearer ${sessionToken}` } : {}),
-          },
-          body: JSON.stringify({
-            payment_intent_id: paymentIntent.id,
-            subscription_type: subscriptionType,
-          }),
-        });
-
-        const confirmData = await confirmResponse.json();
-        if (confirmData.success) {
-          onSuccess();
-        } else {
-          throw new Error(confirmData.error || "Payment confirmation failed");
-        }
-      }
-    } catch (err) {
-      setError(err.message || "Payment failed");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <div className="rounded-xl border border-slate-200 bg-white p-4">
-        <CardElement
-          options={{
-            style: {
-              base: {
-                fontSize: "16px",
-                color: "#424770",
-                "::placeholder": {
-                  color: "#aab7c4",
-                },
-              },
-              invalid: {
-                color: "#9e2146",
-              },
-            },
-          }}
-        />
-      </div>
-      {error && (
-        <div className="rounded-xl border border-coral-200 bg-coral-50 p-4">
-          <div className="flex items-start gap-3">
-            <svg className="h-5 w-5 flex-shrink-0 text-coral-600 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            <div className="flex-1">
-              <p className="text-sm font-semibold text-coral-800">Payment Error</p>
-              <p className="mt-1 text-sm text-coral-700">{error}</p>
-              <p className="mt-2 text-xs text-coral-600">
-                Need help? Contact us at{" "}
-                <a href="mailto:hello@startupideaadvisor.com" className="underline hover:text-coral-800">
-                  hello@startupideaadvisor.com
-                </a>
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
-      <div className="flex gap-3">
-        <button
-          type="button"
-          onClick={onCancel}
-          disabled={loading}
-          className="flex-1 rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
-        >
-          Cancel
-        </button>
-        <button
-          type="submit"
-          disabled={!stripe || loading}
-          className="flex-1 rounded-xl bg-gradient-to-r from-brand-500 to-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-md transition hover:from-brand-600 hover:to-brand-700 disabled:opacity-50"
-        >
-          {loading ? "Processing..." : "Subscribe"}
-        </button>
-      </div>
-    </form>
-  );
-}
-
-function PaymentModal({ tier, onClose, onSuccess }) {
-  const [stripeLoaded, setStripeLoaded] = useState(false);
-  const [stripeInstance, setStripeInstance] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-
-  useEffect(() => {
-    // Lazy load Stripe only when modal opens
-    const loadStripeLib = async () => {
-      try {
-        const stripeKey = import.meta.env.VITE_STRIPE_PUBLIC_KEY;
-        if (!stripeKey) {
-          setError("Stripe is not configured. Please set VITE_STRIPE_PUBLIC_KEY in your environment variables.");
-          setLoading(false);
-          return;
-        }
-
-        const { loadStripe } = await import("@stripe/stripe-js");
-        const stripe = await loadStripe(stripeKey);
-        setStripeInstance(stripe);
-        setStripeLoaded(true);
-      } catch (err) {
-        setError("Failed to load Stripe. Please try again.");
-        console.error("Stripe loading error:", err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadStripeLib();
-  }, []);
-
-  if (loading) {
-    return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 backdrop-blur-sm">
-        <div className="mx-4 w-full max-w-md rounded-3xl border border-slate-200 bg-white p-6 shadow-xl">
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-xl font-bold text-slate-900">Subscribe to {tier.name}</h2>
-            <button
-              onClick={onClose}
-              className="rounded-lg p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
-            >
-              ×
-            </button>
-          </div>
-          <div className="flex items-center justify-center py-8">
-            <div className="text-slate-600">Loading payment form...</div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (error || !stripeLoaded || !stripeInstance) {
-    return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 backdrop-blur-sm">
-        <div className="mx-4 w-full max-w-md rounded-3xl border border-slate-200 bg-white p-6 shadow-xl">
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-xl font-bold text-slate-900">Subscribe to {tier.name}</h2>
-            <button
-              onClick={onClose}
-              className="rounded-lg p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
-            >
-              ×
-            </button>
-          </div>
-          <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-center">
-            <p className="text-sm text-amber-800">
-              {error || "Stripe is not configured. Please set VITE_STRIPE_PUBLIC_KEY in your environment variables."}
-            </p>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 backdrop-blur-sm">
-      <div className="mx-4 w-full max-w-md rounded-3xl border border-slate-200 bg-white p-6 shadow-xl">
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-xl font-bold text-slate-900">Subscribe to {tier.name}</h2>
-          <button
-            onClick={onClose}
-            className="rounded-lg p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
-          >
-            ×
-          </button>
-        </div>
-        <div className="mb-4 rounded-xl border border-brand-200 bg-brand-50 p-4">
-          <div className="flex items-baseline gap-2">
-            <span className="text-3xl font-bold text-brand-700">{tier.price}</span>
-            <span className="text-sm text-brand-600">{tier.period}</span>
-          </div>
-          <p className="mt-2 text-sm text-brand-700">{tier.description}</p>
-        </div>
-        <Elements stripe={stripeInstance}>
-          <CheckoutForm
-            subscriptionType={tier.id}
-            onSuccess={onSuccess}
-            onCancel={onClose}
-          />
-        </Elements>
-      </div>
-    </div>
-  );
-}
 
 export default function PricingPage() {
   const navigate = useNavigate();
@@ -366,21 +99,21 @@ export default function PricingPage() {
 
       {/* Hero Section */}
       <header className="mb-16 text-center">
-        <span className="inline-flex items-center gap-2 rounded-full bg-brand-50 px-4 py-1.5 text-xs font-semibold uppercase tracking-wide text-brand-700">
+        <span className="inline-flex items-center gap-2 rounded-full bg-brand-50 dark:bg-brand-900/30 px-4 py-1.5 text-xs font-semibold uppercase tracking-wide text-brand-700 dark:text-brand-400">
           Pricing
         </span>
-        <h1 className="mt-6 text-4xl font-bold text-slate-900 md:text-5xl">
+        <h1 className="mt-6 text-4xl font-bold text-slate-900 dark:text-slate-100 md:text-5xl">
           Start free, then choose your plan
         </h1>
-        <p className="mx-auto mt-4 max-w-2xl text-lg text-slate-600">
+        <p className="mx-auto mt-4 max-w-2xl text-lg text-slate-600 dark:text-slate-300">
           Get 3 days free access to all features. No credit card required. Then choose the plan that fits your needs.
         </p>
       </header>
 
       {/* Free Trial Banner */}
-      <div className="mb-12 rounded-3xl border-2 border-emerald-300 bg-gradient-to-br from-emerald-50 to-white p-8 text-center shadow-soft">
-        <h2 className="mb-2 text-2xl font-bold text-emerald-900">✨ 3 Days Free Trial</h2>
-        <p className="text-emerald-700">
+      <div className="mb-12 rounded-3xl border-2 border-emerald-300 dark:border-emerald-700 bg-gradient-to-br from-emerald-50 dark:from-emerald-900/20 to-white dark:to-slate-800 p-8 text-center shadow-soft">
+        <h2 className="mb-2 text-2xl font-bold text-emerald-900 dark:text-emerald-300">✨ 3 Days Free Trial</h2>
+        <p className="text-emerald-700 dark:text-emerald-300">
           Try all features for free. No credit card required. Cancel anytime.
         </p>
         {!isAuthenticated && (
@@ -394,13 +127,13 @@ export default function PricingPage() {
         {isAuthenticated && subscription && (
           <div className="mt-4">
             {subscription.is_active ? (
-              <p className="text-sm font-semibold text-emerald-800">
+              <p className="text-sm font-semibold text-emerald-800 dark:text-emerald-300">
                 {subscription.days_remaining > 0
                   ? `You have ${subscription.days_remaining} days remaining in your ${subscription.type === "free_trial" ? "free trial" : "subscription"}`
                   : "Your subscription has expired"}
               </p>
             ) : (
-              <p className="text-sm font-semibold text-amber-800">
+              <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">
                 Your free trial has ended. Subscribe to continue.
               </p>
             )}
@@ -431,14 +164,14 @@ export default function PricingPage() {
                 </div>
               )}
               <div className="mb-4">
-                <p className="text-lg font-semibold text-slate-900">{tier.name}</p>
+                <p className="text-lg font-semibold text-slate-900 dark:text-slate-100">{tier.name}</p>
                 <div className="mt-3 flex items-baseline gap-2">
-                  <p className="text-5xl font-bold text-slate-900">{tier.price}</p>
-                  <p className="text-sm font-medium text-slate-500">{tier.period}</p>
+                  <p className="text-5xl font-bold text-slate-900 dark:text-slate-100">{tier.price}</p>
+                  <p className="text-sm font-medium text-slate-500 dark:text-slate-400">{tier.period}</p>
                 </div>
               </div>
-              <p className="mb-6 text-sm text-slate-600">{tier.description}</p>
-              <ul className="mb-6 space-y-3 text-sm text-slate-600">
+              <p className="mb-6 text-sm text-slate-600 dark:text-slate-300">{tier.description}</p>
+              <ul className="mb-6 space-y-3 text-sm text-slate-600 dark:text-slate-300">
                 {tier.features.map((feature) => (
                   <li key={feature} className="flex items-start gap-2">
                     <span className="mt-1 text-brand-500">✓</span>
@@ -447,9 +180,9 @@ export default function PricingPage() {
                 ))}
               </ul>
               {isCurrentPlan ? (
-                <div className="rounded-xl border border-emerald-300 bg-emerald-50 p-4 text-center">
-                  <p className="text-sm font-semibold text-emerald-700">Current Plan</p>
-                  <p className="mt-1 text-xs text-emerald-600">
+                <div className="rounded-xl border border-emerald-300 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-900/20 p-4 text-center">
+                  <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-300">Current Plan</p>
+                  <p className="mt-1 text-xs text-emerald-600 dark:text-emerald-400">
                     {subscription.days_remaining > 0 ? `${subscription.days_remaining} days remaining` : "Expired"}
                   </p>
                 </div>
@@ -466,51 +199,72 @@ export default function PricingPage() {
         })}
       </div>
 
-      {/* Payment Modal */}
+      {/* Payment Modal - Lazy loaded */}
       {selectedTier && (
-        <PaymentModal
-          tier={selectedTier}
-          onClose={() => setSelectedTier(null)}
-          onSuccess={handlePaymentSuccess}
-        />
+        <Suspense
+          fallback={
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 backdrop-blur-sm">
+              <div className="mx-4 w-full max-w-md rounded-3xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 shadow-xl">
+                <div className="mb-4 flex items-center justify-between">
+                  <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100">Subscribe to {selectedTier.name}</h2>
+                  <button
+                    onClick={() => setSelectedTier(null)}
+                    className="rounded-lg p-1 text-slate-400 dark:text-slate-500 transition hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-slate-600 dark:hover:text-slate-300"
+                  >
+                    ×
+                  </button>
+                </div>
+                <div className="flex items-center justify-center py-8">
+                  <div className="text-slate-600 dark:text-slate-300">Loading payment form...</div>
+                </div>
+              </div>
+            </div>
+          }
+        >
+          <PaymentModal
+            tier={selectedTier}
+            onClose={() => setSelectedTier(null)}
+            onSuccess={handlePaymentSuccess}
+          />
+        </Suspense>
       )}
 
       {/* Payment Success Message */}
       {paymentSuccess && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 backdrop-blur-sm">
-          <div className="mx-4 w-full max-w-md rounded-3xl border border-emerald-300 bg-white p-8 text-center shadow-xl">
+          <div className="mx-4 w-full max-w-md rounded-3xl border border-emerald-300 dark:border-emerald-700 bg-white dark:bg-slate-800 p-8 text-center shadow-xl">
             <div className="mb-4 text-5xl">✓</div>
-            <h2 className="mb-2 text-2xl font-bold text-emerald-900">Payment Successful!</h2>
-            <p className="text-emerald-700">Your subscription is now active. Redirecting...</p>
+            <h2 className="mb-2 text-2xl font-bold text-emerald-900 dark:text-emerald-300">Payment Successful!</h2>
+            <p className="text-emerald-700 dark:text-emerald-300">Your subscription is now active. Redirecting...</p>
           </div>
         </div>
       )}
 
       {/* FAQ Section */}
-      <section className="rounded-3xl border border-sand-200 bg-sand-50/80 p-8 shadow-soft">
-        <h2 className="mb-6 text-2xl font-semibold text-slate-900">Frequently Asked Questions</h2>
+      <section className="rounded-3xl border border-sand-200 dark:border-sand-800 bg-sand-50/80 dark:bg-sand-900/20 p-8 shadow-soft">
+        <h2 className="mb-6 text-2xl font-semibold text-slate-900 dark:text-slate-100">Frequently Asked Questions</h2>
         <div className="space-y-6">
           <div>
-            <h3 className="mb-2 font-semibold text-slate-900">What's included in the free trial?</h3>
-            <p className="text-sm text-slate-600">
+            <h3 className="mb-2 font-semibold text-slate-900 dark:text-slate-100">What's included in the free trial?</h3>
+            <p className="text-sm text-slate-600 dark:text-slate-300">
               The 3-day free trial includes full access to all features: unlimited idea discovery runs, idea validations, full reports, and PDF downloads.
             </p>
           </div>
           <div>
-            <h3 className="mb-2 font-semibold text-slate-900">Can I cancel anytime?</h3>
-            <p className="text-sm text-slate-600">
+            <h3 className="mb-2 font-semibold text-slate-900 dark:text-slate-100">Can I cancel anytime?</h3>
+            <p className="text-sm text-slate-600 dark:text-slate-300">
               Yes, you can cancel your subscription at any time. You'll continue to have access until the end of your current billing period.
             </p>
           </div>
           <div>
-            <h3 className="mb-2 font-semibold text-slate-900">What payment methods do you accept?</h3>
-            <p className="text-sm text-slate-600">
+            <h3 className="mb-2 font-semibold text-slate-900 dark:text-slate-100">What payment methods do you accept?</h3>
+            <p className="text-sm text-slate-600 dark:text-slate-300">
               We accept all major credit and debit cards through Stripe. Your payment information is securely processed and never stored on our servers.
             </p>
           </div>
           <div>
-            <h3 className="mb-2 font-semibold text-slate-900">What happens after my free trial ends?</h3>
-            <p className="text-sm text-slate-600">
+            <h3 className="mb-2 font-semibold text-slate-900 dark:text-slate-100">What happens after my free trial ends?</h3>
+            <p className="text-sm text-slate-600 dark:text-slate-300">
               After your 3-day free trial, you'll need to subscribe to continue accessing the platform. Choose between the weekly ($5) or monthly ($15) plan.
             </p>
           </div>

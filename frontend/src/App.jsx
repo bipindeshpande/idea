@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, lazy, Suspense } from "react";
 import { Link, NavLink, Navigate, Route, Routes } from "react-router-dom";
 import { useReports } from "./context/ReportsContext.jsx";
 import { useAuth } from "./context/AuthContext.jsx";
+import { useTheme } from "./context/ThemeContext.jsx";
 import LoadingIndicator from "./components/common/LoadingIndicator.jsx";
 import Seo from "./components/common/Seo.jsx";
 // Public pages
@@ -68,6 +69,7 @@ const reportNavLinks = [
 function Navigation() {
   const { reports, inputs } = useReports();
   const { user, isAuthenticated, subscription, logout } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const hasReports = Boolean(
     reports?.profile_analysis || reports?.personalized_recommendations
   );
@@ -85,19 +87,19 @@ function Navigation() {
 
   const desktopLinkClass = ({ isActive }) =>
     `rounded-full px-4 py-2 text-sm font-medium transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-300 ${
-      isActive ? "bg-brand-500/15 text-brand-700 shadow-sm" : "hover:bg-slate-100"
+      isActive ? "bg-brand-500/15 dark:bg-brand-500/20 text-brand-700 dark:text-brand-400 shadow-sm" : "hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300"
     }`;
 
   const sessionsLinkClass = ({ isActive }) =>
     `rounded-full border px-4 py-2 text-sm font-semibold transition whitespace-nowrap ${
       isActive
-        ? "border-brand-400 bg-brand-50 text-brand-700"
-        : "border-slate-300 text-slate-700 hover:border-brand-300 hover:text-brand-700"
+        ? "border-brand-400 dark:border-brand-500 bg-brand-50 dark:bg-brand-900/30 text-brand-700 dark:text-brand-400"
+        : "border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:border-brand-300 dark:hover:border-brand-500 hover:text-brand-700 dark:hover:text-brand-400"
     }`;
 
   const mobileLinkClass = ({ isActive }) =>
     `rounded-xl px-4 py-2 text-left text-sm font-medium whitespace-nowrap ${
-      isActive ? "bg-brand-50 text-brand-700" : "text-slate-700 hover:bg-slate-100"
+      isActive ? "bg-brand-50 dark:bg-brand-900/30 text-brand-700 dark:text-brand-400" : "text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
     }`;
 
   const closeAllMenus = () => {
@@ -139,16 +141,16 @@ function Navigation() {
   }, [learnMenuOpen, reportsMenuOpen]);
 
   return (
-    <header className="sticky top-0 z-40 border-b border-white/40 bg-white/80 backdrop-blur">
+    <header className="sticky top-0 z-40 border-b border-white/40 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur">
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-6 py-4">
         <div className="flex items-center gap-4">
-          <NavLink
-            to="/"
-            className="text-xl font-semibold tracking-tight text-brand-700 whitespace-nowrap"
+        <NavLink
+          to="/"
+            className="text-xl font-semibold tracking-tight text-brand-700 dark:text-brand-400 whitespace-nowrap"
             onClick={closeAllMenus}
-          >
-            Startup Idea Advisor
-          </NavLink>
+        >
+          Startup Idea Advisor
+        </NavLink>
         </div>
         <div className="flex items-center gap-3">
           <nav className="hidden lg:flex items-center gap-2 text-sm font-medium text-slate-600">
@@ -160,7 +162,7 @@ function Navigation() {
             <div className="relative" ref={learnMenuRef}>
               <button
                 type="button"
-                className="flex items-center gap-1 rounded-full px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-300"
+                className="flex items-center gap-1 rounded-full px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-300 transition hover:bg-slate-100 dark:hover:bg-slate-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-300"
                 onClick={() => {
                   setLearnMenuOpen((prev) => !prev);
                   setReportsMenuOpen(false);
@@ -171,33 +173,33 @@ function Navigation() {
                 <span className="text-xs">▾</span>
               </button>
               <div
-                className={`absolute right-0 z-40 mt-2 w-48 rounded-2xl border border-slate-200 bg-white/95 p-2 shadow-lg transition-opacity ${
+                className={`absolute right-0 z-40 mt-2 w-48 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white/95 dark:bg-slate-800/95 p-2 shadow-lg transition-opacity ${
                   learnMenuOpen ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"
                 }`}
               >
                 {learnNavLinks.map(({ label, to }) => (
-                  <NavLink
-                    key={to}
-                    to={to}
-                    className={({ isActive }) =>
+            <NavLink
+              key={to}
+              to={to}
+              className={({ isActive }) =>
                       `block rounded-xl px-3 py-2 text-sm transition ${
-                        isActive
-                          ? "bg-brand-50 font-semibold text-brand-700"
-                          : "text-slate-600 hover:bg-slate-100"
-                      }`
-                    }
+                  isActive
+                          ? "bg-brand-50 dark:bg-brand-900/30 font-semibold text-brand-700 dark:text-brand-400"
+                          : "text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
+                }`
+              }
                     onClick={closeAllMenus}
-                  >
-                    {label}
-                  </NavLink>
-                ))}
+            >
+              {label}
+            </NavLink>
+          ))}
               </div>
             </div>
             {hasReports && (
               <div className="relative" ref={reportsMenuRef}>
                 <button
                   type="button"
-                  className="flex items-center gap-1 rounded-full px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-300"
+                  className="flex items-center gap-1 rounded-full px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-300 transition hover:bg-slate-100 dark:hover:bg-slate-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-300"
                   onClick={() => {
                     setReportsMenuOpen((prev) => !prev);
                     setLearnMenuOpen(false);
@@ -208,17 +210,17 @@ function Navigation() {
                   <span className="text-xs">▾</span>
                 </button>
                 <div
-                  className={`absolute right-0 z-40 mt-2 w-56 rounded-2xl border border-slate-200 bg-white/95 p-2 shadow-lg transition-opacity ${
-                    reportsMenuOpen ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"
-                  }`}
+                className={`absolute right-0 z-40 mt-2 w-56 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white/95 dark:bg-slate-800/95 p-2 shadow-lg transition-opacity ${
+                  reportsMenuOpen ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"
+                }`}
                 >
                   {reportNavLinks.map(({ label, to }) => (
-                    <NavLink
+          <NavLink
                       key={to}
                       to={to}
-                      className={({ isActive }) =>
+            className={({ isActive }) =>
                         `block rounded-xl px-3 py-2 text-sm transition ${
-                          isActive
+                isActive
                             ? "bg-brand-50 font-semibold text-brand-700"
                             : "text-slate-600 hover:bg-slate-100"
                         }`
@@ -236,13 +238,13 @@ function Navigation() {
             {isAuthenticated ? (
               <>
                 {subscription && (
-                  <span className="text-xs text-slate-500 whitespace-nowrap">
+                  <span className="text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">
                     {subscription.days_remaining > 0 ? `${subscription.days_remaining} days left` : "Expired"}
                   </span>
                 )}
                 <NavLink to="/dashboard" className={sessionsLinkClass} onClick={closeAllMenus}>
                   My Sessions
-                </NavLink>
+          </NavLink>
                 <Link
                   to="/advisor"
                   onClick={closeAllMenus}
@@ -261,9 +263,25 @@ function Navigation() {
                   </Link>
                   <button
                     onClick={handleLogout}
-                    className="rounded-full border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 whitespace-nowrap"
+                    className="rounded-full border border-slate-300 dark:border-slate-600 px-4 py-2 text-sm font-semibold text-slate-700 dark:text-slate-300 transition hover:bg-slate-50 dark:hover:bg-slate-800 whitespace-nowrap"
                   >
                     Logout
+                  </button>
+                  <button
+                    onClick={toggleTheme}
+                    className="rounded-full border border-slate-300 dark:border-slate-600 px-2.5 py-2 text-sm transition hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center justify-center"
+                    aria-label={theme === "light" ? "Switch to dark mode" : "Switch to light mode"}
+                    title={theme === "light" ? "Switch to dark mode" : "Switch to light mode"}
+                  >
+                    {theme === "light" ? (
+                      <svg className="w-4 h-4 text-slate-600 dark:text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+                      </svg>
+                    ) : (
+                      <svg className="w-4 h-4 text-slate-600 dark:text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+                      </svg>
+                    )}
                   </button>
                 </div>
               </>
@@ -272,7 +290,7 @@ function Navigation() {
                 <Link
                   to="/login"
                   onClick={closeAllMenus}
-                  className="rounded-full border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 whitespace-nowrap"
+                  className="rounded-full border border-slate-300 dark:border-slate-600 px-4 py-2 text-sm font-semibold text-slate-700 dark:text-slate-300 transition hover:bg-slate-50 dark:hover:bg-slate-800 whitespace-nowrap"
                 >
                   Sign In
                 </Link>
@@ -283,6 +301,22 @@ function Navigation() {
                 >
                   Get Started
                 </Link>
+                <button
+                  onClick={toggleTheme}
+                  className="rounded-full border border-slate-300 dark:border-slate-600 px-2.5 py-2 text-sm transition hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center justify-center"
+                  aria-label={theme === "light" ? "Switch to dark mode" : "Switch to light mode"}
+                  title={theme === "light" ? "Switch to dark mode" : "Switch to light mode"}
+                >
+                  {theme === "light" ? (
+                    <svg className="w-4 h-4 text-slate-600 dark:text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+                    </svg>
+                  ) : (
+                    <svg className="w-4 h-4 text-slate-600 dark:text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+                    </svg>
+                  )}
+                </button>
               </>
             )}
           </div>
@@ -305,7 +339,7 @@ function Navigation() {
         </div>
       </div>
       {mobileMenuOpen && (
-        <div className="border-t border-slate-200 bg-white/95 shadow-inner lg:hidden">
+        <div className="border-t border-slate-200 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 shadow-inner lg:hidden">
           <nav className="grid gap-4 p-4 text-sm">
             <div className="space-y-2">
               {primaryNavLinks.map(({ label, to }) => (
@@ -314,8 +348,8 @@ function Navigation() {
                 </NavLink>
               ))}
             </div>
-            <div className="space-y-2">
-              <p className="text-xs uppercase tracking-wide text-slate-400">Learn</p>
+              <div className="space-y-2">
+                <p className="text-xs uppercase tracking-wide text-slate-400 dark:text-slate-500">Learn</p>
               {learnNavLinks.map(({ label, to }) => (
                 <NavLink key={to} to={to} className={mobileLinkClass} onClick={closeAllMenus}>
                   {label}
@@ -324,7 +358,7 @@ function Navigation() {
             </div>
             {hasReports && (
               <div className="space-y-2">
-                <p className="text-xs uppercase tracking-wide text-slate-400">Reports</p>
+                <p className="text-xs uppercase tracking-wide text-slate-400 dark:text-slate-500">Reports</p>
                 {reportNavLinks.map(({ label, to }) => (
                   <NavLink key={to} to={to} className={mobileLinkClass} onClick={closeAllMenus}>
                     {label}
@@ -335,7 +369,7 @@ function Navigation() {
             {isAuthenticated ? (
               <div className="space-y-2">
                 {subscription && (
-                  <div className="px-4 py-2 text-xs text-slate-500">
+                  <div className="px-4 py-2 text-xs text-slate-500 dark:text-slate-400">
                     {subscription.days_remaining > 0 ? `${subscription.days_remaining} days remaining` : "Subscription expired"}
                   </div>
                 )}
@@ -347,7 +381,7 @@ function Navigation() {
                 </NavLink>
                 <NavLink to="/account" className={mobileLinkClass} onClick={closeAllMenus}>
                   Account Settings
-                </NavLink>
+          </NavLink>
                 <Link
                   to="/advisor"
                   onClick={closeAllMenus}
@@ -357,9 +391,30 @@ function Navigation() {
                 </Link>
                 <button
                   onClick={handleLogout}
-                  className="block w-full rounded-xl border border-slate-300 px-4 py-2 text-center text-sm font-semibold text-slate-700 transition hover:bg-slate-50 whitespace-nowrap"
+                  className="block w-full rounded-xl border border-slate-300 dark:border-slate-600 px-4 py-2 text-center text-sm font-semibold text-slate-700 dark:text-slate-300 transition hover:bg-slate-50 dark:hover:bg-slate-800 whitespace-nowrap"
                 >
                   Logout
+                </button>
+                <button
+                  onClick={toggleTheme}
+                  className="flex w-full items-center justify-center gap-2 rounded-xl border border-slate-300 dark:border-slate-600 px-4 py-2 text-sm font-semibold text-slate-700 dark:text-slate-300 transition hover:bg-slate-50 dark:hover:bg-slate-800"
+                  aria-label={theme === "light" ? "Switch to dark mode" : "Switch to light mode"}
+                >
+                  {theme === "light" ? (
+                    <>
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+                      </svg>
+                      <span>Dark Mode</span>
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+                      </svg>
+                      <span>Light Mode</span>
+                    </>
+                  )}
                 </button>
               </div>
             ) : (
@@ -367,7 +422,7 @@ function Navigation() {
                 <Link
                   to="/login"
                   onClick={closeAllMenus}
-                  className="block rounded-xl border border-slate-300 px-4 py-2 text-center text-sm font-semibold text-slate-700 transition hover:bg-slate-50 whitespace-nowrap"
+                  className="block rounded-xl border border-slate-300 dark:border-slate-600 px-4 py-2 text-center text-sm font-semibold text-slate-700 dark:text-slate-300 transition hover:bg-slate-50 dark:hover:bg-slate-800 whitespace-nowrap"
                 >
                   Sign In
                 </Link>
@@ -378,10 +433,31 @@ function Navigation() {
                 >
                   Get Started
                 </Link>
+                <button
+                  onClick={toggleTheme}
+                  className="flex w-full items-center justify-center gap-2 rounded-xl border border-slate-300 dark:border-slate-600 px-4 py-2 text-sm font-semibold text-slate-700 dark:text-slate-300 transition hover:bg-slate-50 dark:hover:bg-slate-800"
+                  aria-label={theme === "light" ? "Switch to dark mode" : "Switch to light mode"}
+                >
+                  {theme === "light" ? (
+                    <>
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+                      </svg>
+                      <span>Dark Mode</span>
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+                      </svg>
+                      <span>Light Mode</span>
+                    </>
+                  )}
+                </button>
               </div>
             )}
-          </nav>
-        </div>
+        </nav>
+      </div>
       )}
     </header>
   );
@@ -394,12 +470,10 @@ export default function App() {
   );
 
   return (
-    <div className="min-h-screen bg-slate-100 text-slate-900">
+    <div className="min-h-screen bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-slate-100 transition-colors duration-300">
       <Navigation />
-      <main className="mx-auto max-w-6xl px-6 py-8">
-        {loading && <LoadingIndicator />}
-        {!loading && (
-          <Routes>
+      <main className="mx-auto max-w-6xl px-6 py-8 bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-slate-100">
+        <Routes>
             <Route path="/" element={<LandingPage />} />
             <Route path="/register" element={<RegisterPage />} />
             <Route path="/login" element={<LoginPage />} />
@@ -501,7 +575,7 @@ export default function App() {
             />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
-        )}
+        {loading && <LoadingIndicator />}
       </main>
       <Footer />
     </div>

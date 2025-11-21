@@ -6,7 +6,7 @@ import DiscoveryLoadingIndicator from "../../components/discovery/DiscoveryLoadi
 import { intakeScreen } from "../../config/intakeScreen.js";
 
 const fieldClasses =
-  "w-full rounded-xl border border-slate-200 bg-white/70 p-4 text-slate-800 shadow-sm transition focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-100";
+  "w-full rounded-xl border border-slate-200 dark:border-slate-600 bg-white/70 dark:bg-slate-800/70 p-4 text-slate-800 dark:text-slate-200 shadow-sm transition focus:border-brand-400 dark:focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100 dark:focus:ring-brand-900";
 
 const STEP_STRUCTURE = [
   ["goal_type", "time_commitment", "budget_range"],
@@ -179,7 +179,7 @@ export default function HomePage() {
     if (isCustomInput) {
       return (
         <div className="grid gap-2" key={subField.id}>
-          <label htmlFor={subField.id} className="text-sm font-semibold text-slate-700">
+          <label htmlFor={subField.id} className="text-sm font-semibold text-slate-700 dark:text-slate-300">
             {subField.label}
             {subField.required && <span className="text-brand-500"> *</span>}
           </label>
@@ -362,15 +362,15 @@ export default function HomePage() {
       </Seo>
 
       <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-brand-500/90 via-brand-600 to-brand-800 p-[1px] shadow-soft">
-        <div className="relative rounded-[calc(1.5rem-1px)] bg-white/95 px-6 py-12 sm:px-10">
+        <div className="relative rounded-[calc(1.5rem-1px)] bg-white/95 dark:bg-slate-800/95 px-6 py-12 sm:px-10">
           <div className="max-w-3xl space-y-5">
-            <span className="inline-flex items-center rounded-full bg-brand-100 px-4 py-1 text-sm font-medium text-brand-700">
+            <span className="inline-flex items-center rounded-full bg-brand-100 dark:bg-brand-900/30 px-4 py-1 text-sm font-medium text-brand-700 dark:text-brand-400">
               AI co-pilot for side hustles & founders
             </span>
-            <h1 className="text-4xl font-bold tracking-tight text-slate-900 sm:text-5xl">
+            <h1 className="text-4xl font-bold tracking-tight text-slate-900 dark:text-slate-100 sm:text-5xl">
               Turn your profile into vetted startup ideas
             </h1>
-            <p className="text-lg text-slate-600">
+            <p className="text-lg text-slate-600 dark:text-slate-300">
               Share your goals, time, and strengths. Our AI advisor researches markets, evaluates risks, and hands you advisor-grade recommendations within minutes.
             </p>
             <div className="flex flex-wrap gap-3">
@@ -382,7 +382,7 @@ export default function HomePage() {
               </a>
               <Link
                 to="/pricing"
-                className="rounded-xl border border-white/70 bg-white/70 px-5 py-3 text-sm font-semibold text-brand-700 shadow-sm transition hover:border-brand-300"
+                className="rounded-xl border border-white/70 dark:border-slate-600 bg-white/70 dark:bg-slate-700/70 px-5 py-3 text-sm font-semibold text-brand-700 dark:text-brand-400 shadow-sm transition hover:border-brand-300 dark:hover:border-brand-500"
               >
                 View pricing
               </Link>
@@ -391,8 +391,8 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section className="grid gap-4 rounded-3xl border border-slate-200 bg-white/90 p-8 shadow-soft">
-        <h2 className="text-xl font-semibold text-slate-900">Why founders use Startup Idea Advisor</h2>
+      <section className="grid gap-4 rounded-3xl border border-slate-200 dark:border-slate-700 bg-white/90 dark:bg-slate-800/90 p-8 shadow-soft">
+        <h2 className="text-xl font-semibold text-slate-900 dark:text-slate-100">Why founders use Startup Idea Advisor</h2>
         <div className="grid gap-4 md:grid-cols-3">
           {[
             {
@@ -408,9 +408,9 @@ export default function HomePage() {
               body: "Iterate quickly with saved runs, PDF exports, and 30/60/90 day roadmaps.",
             },
           ].map((item) => (
-            <div key={item.title} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-              <h3 className="text-base font-semibold text-slate-800">{item.title}</h3>
-              <p className="mt-2 text-sm text-slate-600">{item.body}</p>
+            <div key={item.title} className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-5 shadow-sm">
+              <h3 className="text-base font-semibold text-slate-800 dark:text-slate-100">{item.title}</h3>
+              <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">{item.body}</p>
             </div>
           ))}
         </div>
@@ -419,19 +419,19 @@ export default function HomePage() {
       <form
         id="intake-form"
         onSubmit={handleSubmit}
-        className="grid gap-8 rounded-3xl border border-slate-200 bg-white/90 p-8 shadow-soft backdrop-blur"
+        className="grid gap-8 rounded-3xl border border-slate-200 dark:border-slate-700 bg-white/90 dark:bg-slate-800/90 p-8 shadow-soft backdrop-blur"
       >
         <header className="space-y-2">
-          <h2 className="text-xl font-semibold text-slate-900">{intakeScreen.screen_title}</h2>
-          <p className="text-sm text-slate-600">{intakeScreen.description}</p>
+          <h2 className="text-xl font-semibold text-slate-900 dark:text-slate-100">{intakeScreen.screen_title}</h2>
+          <p className="text-sm text-slate-600 dark:text-slate-300">{intakeScreen.description}</p>
         </header>
 
         <div className="space-y-3">
-          <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wide text-slate-400">
+          <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
             <span>Step {step + 1} of {TOTAL_STEPS}</span>
             <span>{progressPercent}% complete</span>
           </div>
-          <div className="h-2 w-full overflow-hidden rounded-full bg-slate-200">
+          <div className="h-2 w-full overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700">
             <div
               className="h-full rounded-full bg-gradient-to-r from-brand-400 via-brand-500 to-brand-600 transition-all"
               style={{ width: `${progressPercent}%` }}
@@ -446,7 +446,7 @@ export default function HomePage() {
             <button
               type="button"
               onClick={handleBack}
-              className="rounded-xl border border-slate-300 px-5 py-2 text-sm font-medium text-slate-700 shadow-sm hover:border-brand-300 whitespace-nowrap"
+              className="rounded-xl border border-slate-300 dark:border-slate-600 px-5 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 shadow-sm hover:border-brand-300 dark:hover:border-brand-500 whitespace-nowrap"
             >
               Back
             </button>
@@ -498,20 +498,20 @@ export default function HomePage() {
           ].map((item) => (
             <blockquote
               key={item.name}
-              className="rounded-2xl border border-slate-200 bg-white p-5 text-sm text-slate-600 shadow-sm"
+              className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-5 text-sm text-slate-600 dark:text-slate-300 shadow-sm"
             >
-              <p className="italic">“{item.quote}”</p>
-              <p className="mt-3 font-semibold text-slate-800">{item.name}</p>
-              <p className="text-xs uppercase tracking-wide text-slate-400">{item.title}</p>
+              <p className="italic">"{item.quote}"</p>
+              <p className="mt-3 font-semibold text-slate-800 dark:text-slate-200">{item.name}</p>
+              <p className="text-xs uppercase tracking-wide text-slate-400 dark:text-slate-500">{item.title}</p>
             </blockquote>
           ))}
         </div>
       </section>
 
       {reports && (
-        <section className="rounded-3xl border border-brand-200 bg-brand-50/80 p-6 text-brand-900 shadow-inner">
+        <section className="rounded-3xl border border-brand-200 dark:border-brand-700 bg-brand-50/80 dark:bg-brand-900/30 p-6 text-brand-900 dark:text-brand-300 shadow-inner">
           <h2 className="text-lg font-semibold">Latest report saved</h2>
-          <p className="mt-1 text-sm text-brand-700">
+          <p className="mt-1 text-sm text-brand-700 dark:text-brand-400">
             Visit the dashboard or the tabs above to review your profile summary and recommendations anytime.
           </p>
         </section>

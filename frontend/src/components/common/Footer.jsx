@@ -25,21 +25,21 @@ const footerLinks = {
 
 export default function Footer() {
   return (
-    <footer className="mt-12 border-t border-slate-200 bg-white/90">
+    <footer className="mt-12 border-t border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/90">
       <div className="mx-auto grid max-w-6xl gap-8 px-6 py-10 sm:grid-cols-2 lg:grid-cols-5">
         <div className="space-y-2">
-          <p className="text-lg font-semibold text-brand-700 whitespace-nowrap">Startup Idea Advisor</p>
-          <p className="text-sm text-slate-500">
+          <p className="text-lg font-semibold text-brand-700 dark:text-brand-400 whitespace-nowrap">Startup Idea Advisor</p>
+          <p className="text-sm text-slate-500 dark:text-slate-400">
             An AI-powered companion that helps professionals surface, validate, and prioritize startup ideas matched to their strengths.
           </p>
         </div>
         {Object.entries(footerLinks).map(([group, links]) => (
           <div key={group} className="space-y-3">
-            <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">{group}</p>
-            <ul className="space-y-2 text-sm text-slate-600">
+            <p className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">{group}</p>
+            <ul className="space-y-2 text-sm text-slate-600 dark:text-slate-300">
               {links.map(({ label, to }) => (
                 <li key={label}>
-                  <NavLink className="hover:text-brand-600" to={to}>
+                  <NavLink className="hover:text-brand-600 dark:hover:text-brand-400" to={to}>
                     {label}
                   </NavLink>
                 </li>
@@ -48,21 +48,21 @@ export default function Footer() {
           </div>
         ))}
         <div className="space-y-3">
-          <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+          <p className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
             Stay in the loop
           </p>
-          <div className="flex gap-3 text-slate-500">
-            <a href="https://www.linkedin.com/company/startup-idea-advisor" target="_blank" rel="noreferrer">
+          <div className="flex gap-3 text-slate-500 dark:text-slate-400">
+            <a href="https://www.linkedin.com/company/startup-idea-advisor" target="_blank" rel="noreferrer" className="hover:text-brand-600 dark:hover:text-brand-400">
               LinkedIn
             </a>
-            <a href="https://twitter.com/startupideaAI" target="_blank" rel="noreferrer">
+            <a href="https://twitter.com/startupideaAI" target="_blank" rel="noreferrer" className="hover:text-brand-600 dark:hover:text-brand-400">
               X
             </a>
-            <a href="mailto:hello@startupideaadvisor.com">Email</a>
+            <a href="mailto:hello@startupideaadvisor.com" className="hover:text-brand-600 dark:hover:text-brand-400">Email</a>
           </div>
         </div>
       </div>
-      <div className="border-t border-slate-100 py-4 text-center text-xs text-slate-600">
+      <div className="border-t border-slate-100 dark:border-slate-800 py-4 text-center text-xs text-slate-600 dark:text-slate-400">
         © {new Date().getFullYear()} Startup Idea Advisor. All rights reserved.
       </div>
     </footer>
