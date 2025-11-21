@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import ReactMarkdown from "react-markdown";
-import html2canvas from "html2canvas";
-import jsPDF from "jspdf";
+// Lazy load PDF dependencies - only load when needed
+// import html2canvas from "html2canvas";
+// import jsPDF from "jspdf";
 import Seo from "../../components/common/Seo.jsx";
 import { useReports } from "../../context/ReportsContext.jsx";
 import { parseTopIdeas, trimFromHeading } from "../../utils/markdown/markdown.js";
@@ -327,6 +328,13 @@ export default function RecommendationFullReport() {
     if (!pdfRef.current || downloading) return;
     try {
       setDownloading(true);
+      
+      // Lazy load heavy PDF dependencies only when needed
+      const [{ default: html2canvas }, { default: jsPDF }] = await Promise.all([
+        import('html2canvas'),
+        import('jspdf')
+      ]);
+      
       const canvas = await html2canvas(pdfRef.current, { 
         scale: 1.5, 
         backgroundColor: "#ffffff",

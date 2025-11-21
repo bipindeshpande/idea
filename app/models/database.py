@@ -171,3 +171,18 @@ class Payment(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     completed_at = db.Column(db.DateTime, nullable=True)
 
+
+class SubscriptionCancellation(db.Model):
+    """Subscription cancellation records with reasons."""
+    __tablename__ = "subscription_cancellations"
+    
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    subscription_type = db.Column(db.String(50), nullable=False)  # weekly, monthly
+    cancellation_reason = db.Column(db.Text, nullable=True)  # User-provided reason
+    cancellation_category = db.Column(db.String(100), nullable=True)  # Optional: categorize reasons
+    cancelled_at = db.Column(db.DateTime, default=datetime.utcnow)
+    subscription_expires_at = db.Column(db.DateTime, nullable=True)  # When access actually expires
+    
+    # Relationship
+    user = db.relationship("User", backref="cancellations")

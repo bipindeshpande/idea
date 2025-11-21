@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useMemo, useState } from "react";
+import { useAuth } from "./AuthContext.jsx";
 
 const ValidationContext = createContext(null);
 const STORAGE_KEY = "sia_validations";
@@ -25,6 +26,7 @@ export function ValidationProvider({ children }) {
   const [ideaExplanation, setIdeaExplanationState] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const { getAuthHeaders } = useAuth();
 
   const setCategoryAnswers = useCallback((valueOrUpdater) => {
     if (typeof valueOrUpdater === "function") {
@@ -53,6 +55,7 @@ export function ValidationProvider({ children }) {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          ...getAuthHeaders(),
         },
         body: JSON.stringify({
           category_answers: answers,
@@ -66,6 +69,12 @@ export function ValidationProvider({ children }) {
       }
 
       const data = await response.json();
+      
+      // Only save if we have valid validation data
+      if (!data.validation || typeof data.validation !== 'object') {
+        throw new Error("No validation data received from server");
+      }
+
       const validation = {
         id: data.validation_id || Date.now().toString(),
         timestamp: Date.now(),
@@ -74,6 +83,7 @@ export function ValidationProvider({ children }) {
         validation: data.validation,
       };
 
+      // Only save successful validations with valid data
       saveValidation(validation);
       setCurrentValidation(validation);
       return { success: true, validation };
@@ -83,7 +93,7 @@ export function ValidationProvider({ children }) {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [getAuthHeaders]);
 
   const loadValidationById = useCallback((validationId) => {
     const validations = loadSavedValidations();

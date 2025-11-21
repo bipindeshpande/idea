@@ -3,11 +3,28 @@ from __future__ import annotations
 import json
 import os
 import re
+import sys
 import time
 import secrets
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict, Optional
+
+# Fix Unicode encoding issues on Windows
+if sys.platform == "win32":
+    # Set UTF-8 encoding for stdout/stderr
+    if sys.stdout.encoding != "utf-8":
+        try:
+            sys.stdout.reconfigure(encoding="utf-8")
+        except (AttributeError, ValueError):
+            pass  # Python < 3.7 or already configured
+    if sys.stderr.encoding != "utf-8":
+        try:
+            sys.stderr.reconfigure(encoding="utf-8")
+        except (AttributeError, ValueError):
+            pass  # Python < 3.7 or already configured
+    # Set environment variable for subprocesses
+    os.environ["PYTHONIOENCODING"] = "utf-8"
 
 from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
@@ -15,7 +32,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from sqlalchemy import func
 
 from startup_idea_crew.crew import StartupIdeaCrew
-from app.models.database import db, User, UserSession, UserRun, UserValidation, Payment
+from app.models.database import db, User, UserSession, UserRun, UserValidation, Payment, SubscriptionCancellation
 from app.services.email_service import email_service
 from app.services.email_templates import (
     validation_ready_email,
@@ -962,9 +979,28 @@ def cancel_subscription() -> Any:
     if user.payment_status != "active":
         return jsonify({"success": False, "error": "Subscription is not active"}), 400
     
+    # Get cancellation reason from request
+    data: Dict[str, Any] = request.get_json(force=True, silent=True) or {}
+    cancellation_reason = data.get("cancellation_reason", "").strip()
+    cancellation_category = data.get("cancellation_category", "").strip()
+    additional_comments = data.get("additional_comments", "").strip()
+    
+    if not cancellation_reason:
+        return jsonify({"success": False, "error": "Cancellation reason is required"}), 400
+    
     try:
         # Mark as cancelled but keep access until expiration
         user.payment_status = "cancelled"
+        
+        # Save cancellation reason to database
+        cancellation = SubscriptionCancellation(
+            user_id=user.id,
+            subscription_type=user.subscription_type,
+            cancellation_reason=cancellation_reason,
+            cancellation_category=cancellation_category if cancellation_category else None,
+            subscription_expires_at=user.subscription_expires_at,
+        )
+        db.session.add(cancellation)
         db.session.commit()
         
         # Send cancellation confirmation email
@@ -1118,6 +1154,33 @@ def get_user_activity() -> Any:
         })
     except Exception as exc:
         app.logger.exception("Failed to get user activity: %s", exc)
+        return jsonify({"success": False, "error": str(exc)}), 500
+
+
+@app.delete("/api/user/run/<run_id>")
+@require_auth
+def delete_user_run(run_id: str) -> Any:
+    """Delete a user's run from the database."""
+    session = get_current_session()
+    if not session:
+        return jsonify({"success": False, "error": "Not authenticated"}), 401
+    
+    user = session.user
+    
+    try:
+        # Find the run and verify it belongs to the user
+        user_run = UserRun.query.filter_by(user_id=user.id, run_id=run_id).first()
+        if not user_run:
+            return jsonify({"success": False, "error": "Run not found"}), 404
+        
+        # Delete the run
+        db.session.delete(user_run)
+        db.session.commit()
+        
+        return jsonify({"success": True, "message": "Run deleted successfully"})
+    except Exception as exc:
+        db.session.rollback()
+        app.logger.exception("Failed to delete user run: %s", exc)
         return jsonify({"success": False, "error": str(exc)}), 500
 
 

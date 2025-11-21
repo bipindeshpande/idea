@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext.jsx";
 
-export default function ActivitySummary() {
+export default function ActivitySummary({ showRuns = true }) {
   const { user, isAuthenticated, getAuthHeaders } = useAuth();
   const [activity, setActivity] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -48,7 +48,7 @@ export default function ActivitySummary() {
 
   if (loading) {
     return (
-      <div className="rounded-2xl border border-slate-200 bg-white p-6">
+      <div className="rounded-2xl border border-slate-200 bg-white p-6" style={{ minHeight: '200px' }}>
         <p className="text-sm text-slate-600">Loading activity...</p>
       </div>
     );
@@ -62,7 +62,7 @@ export default function ActivitySummary() {
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
       <div className="mb-4 flex items-center justify-between">
-        <h3 className="text-lg font-semibold text-slate-900">Your Activity</h3>
+        <h2 className="text-lg font-semibold text-slate-900">Your Activity</h2>
         <div className="flex gap-4 text-sm">
           <div className="text-center">
             <div className="font-semibold text-slate-900">{totalRuns}</div>
@@ -97,7 +97,7 @@ export default function ActivitySummary() {
         <div className="space-y-4">
           {recentValidations.length > 0 && (
             <div>
-              <h4 className="mb-2 text-sm font-semibold text-slate-700">Recent Validations</h4>
+              <h3 className="mb-2 text-sm font-semibold text-slate-700">Recent Validations</h3>
               <div className="space-y-2">
                 {recentValidations.map((validation) => (
                   <Link
@@ -130,9 +130,9 @@ export default function ActivitySummary() {
             </div>
           )}
 
-          {recentRuns.length > 0 && (
+          {showRuns && recentRuns.length > 0 && (
             <div>
-              <h4 className="mb-2 text-sm font-semibold text-slate-700">Recent Idea Discoveries</h4>
+              <h3 className="mb-2 text-sm font-semibold text-slate-700">Recent Idea Discoveries</h3>
               <div className="space-y-2">
                 {recentRuns.map((run) => (
                   <Link

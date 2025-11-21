@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useReports } from "../../context/ReportsContext.jsx";
 import Seo from "../../components/common/Seo.jsx";
+import DiscoveryLoadingIndicator from "../../components/discovery/DiscoveryLoadingIndicator.jsx";
 import { intakeScreen } from "../../config/intakeScreen.js";
 
 const fieldClasses =
@@ -333,6 +334,7 @@ export default function HomePage() {
 
   return (
     <div className="grid gap-12">
+      {loading && <DiscoveryLoadingIndicator />}
       <Seo
         title="AI Startup Idea Generator | Startup Idea Advisor"
         description="Provide your goals, availability, and expertise—our AI advisor researches markets and delivers personalized startup recommendations."

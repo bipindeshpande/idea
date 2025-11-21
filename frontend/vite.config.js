@@ -14,5 +14,22 @@ export default defineConfig({
       },
     },
   },
+  build: {
+    minify: 'terser',
+    terserOptions: {
+      compress: {
+        drop_console: true, // Remove console.log in production
+      },
+    },
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'react-vendor': ['react', 'react-dom', 'react-router-dom'],
+          'markdown': ['react-markdown'],
+          'pdf': ['jspdf', 'html2canvas'],
+        },
+      },
+    },
+  },
 });
 

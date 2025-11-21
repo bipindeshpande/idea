@@ -33,7 +33,7 @@ export default function WhatsNew() {
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
       <div className="mb-4 flex items-center justify-between">
-        <h3 className="text-lg font-semibold text-slate-900">What's New</h3>
+        <h2 className="text-lg font-semibold text-slate-900">What's New</h2>
         <span className="text-xs text-slate-500">Recent updates</span>
       </div>
       <div className="space-y-4">
@@ -51,7 +51,7 @@ export default function WhatsNew() {
               </span>
               <span className="text-xs text-slate-500">{update.date}</span>
             </div>
-            <h4 className="mb-1 text-sm font-semibold text-slate-900">{update.title}</h4>
+            <h3 className="mb-1 text-sm font-semibold text-slate-900">{update.title}</h3>
             <p className="text-sm text-slate-600">{update.description}</p>
             {update.link && (
               <Link

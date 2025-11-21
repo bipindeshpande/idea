@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { loadStripe } from "@stripe/stripe-js";
+// Lazy load Stripe - only load when payment modal is opened
+// import { loadStripe } from "@stripe/stripe-js";
 import {
   Elements,
   CardElement,
@@ -10,11 +11,8 @@ import {
 import Seo from "../../components/common/Seo.jsx";
 import { useAuth } from "../../context/AuthContext.jsx";
 
-// Load Stripe with public key from environment
-// For production, set VITE_STRIPE_PUBLIC_KEY in your .env file
-const stripePromise = import.meta.env.VITE_STRIPE_PUBLIC_KEY
-  ? loadStripe(import.meta.env.VITE_STRIPE_PUBLIC_KEY)
-  : null;
+// Stripe will be loaded lazily when PaymentModal opens
+let stripePromise = null;
 
 const tiers = [
   {
@@ -210,7 +208,59 @@ function CheckoutForm({ subscriptionType, onSuccess, onCancel }) {
 }
 
 function PaymentModal({ tier, onClose, onSuccess }) {
-  if (!stripePromise) {
+  const [stripeLoaded, setStripeLoaded] = useState(false);
+  const [stripeInstance, setStripeInstance] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    // Lazy load Stripe only when modal opens
+    const loadStripeLib = async () => {
+      try {
+        const stripeKey = import.meta.env.VITE_STRIPE_PUBLIC_KEY;
+        if (!stripeKey) {
+          setError("Stripe is not configured. Please set VITE_STRIPE_PUBLIC_KEY in your environment variables.");
+          setLoading(false);
+          return;
+        }
+
+        const { loadStripe } = await import("@stripe/stripe-js");
+        const stripe = await loadStripe(stripeKey);
+        setStripeInstance(stripe);
+        setStripeLoaded(true);
+      } catch (err) {
+        setError("Failed to load Stripe. Please try again.");
+        console.error("Stripe loading error:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadStripeLib();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 backdrop-blur-sm">
+        <div className="mx-4 w-full max-w-md rounded-3xl border border-slate-200 bg-white p-6 shadow-xl">
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-xl font-bold text-slate-900">Subscribe to {tier.name}</h2>
+            <button
+              onClick={onClose}
+              className="rounded-lg p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+            >
+              ×
+            </button>
+          </div>
+          <div className="flex items-center justify-center py-8">
+            <div className="text-slate-600">Loading payment form...</div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !stripeLoaded || !stripeInstance) {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 backdrop-blur-sm">
         <div className="mx-4 w-full max-w-md rounded-3xl border border-slate-200 bg-white p-6 shadow-xl">
@@ -225,7 +275,7 @@ function PaymentModal({ tier, onClose, onSuccess }) {
           </div>
           <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-center">
             <p className="text-sm text-amber-800">
-              Stripe is not configured. Please set VITE_STRIPE_PUBLIC_KEY in your environment variables.
+              {error || "Stripe is not configured. Please set VITE_STRIPE_PUBLIC_KEY in your environment variables."}
             </p>
           </div>
         </div>
@@ -252,7 +302,7 @@ function PaymentModal({ tier, onClose, onSuccess }) {
           </div>
           <p className="mt-2 text-sm text-brand-700">{tier.description}</p>
         </div>
-        <Elements stripe={stripePromise}>
+        <Elements stripe={stripeInstance}>
           <CheckoutForm
             subscriptionType={tier.id}
             onSuccess={onSuccess}

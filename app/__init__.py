@@ -1,6 +1,7 @@
 """Flask application factory."""
 from flask import Flask
 from flask_cors import CORS
+from flask_compress import Compress
 import os
 import secrets
 
@@ -11,6 +12,8 @@ def create_app():
     """Create and configure Flask application."""
     app = Flask(__name__)
     CORS(app)
+    # Enable compression for all responses
+    Compress(app)
     
     # Database configuration
     app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get(

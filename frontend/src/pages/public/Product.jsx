@@ -135,7 +135,7 @@ export default function ProductPage() {
       </section>
 
       {/* How It Works */}
-      <section className="mb-16 rounded-3xl border border-slate-200 bg-white/95 p-8 shadow-soft">
+      <section id="how-it-works" className="mb-16 rounded-3xl border border-slate-200 bg-white/95 p-8 shadow-soft">
         <div className="mb-8 text-center">
           <h2 className="text-2xl font-semibold text-slate-900">How It Works</h2>
           <p className="mt-2 text-slate-600">

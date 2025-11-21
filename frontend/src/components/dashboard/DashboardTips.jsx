@@ -51,12 +51,12 @@ export default function DashboardTips() {
   };
 
   return (
-    <div className="rounded-2xl border border-brand-200 bg-gradient-to-br from-brand-50 to-brand-100/50 p-6 shadow-sm">
+    <div className="rounded-2xl border border-brand-200 bg-gradient-to-br from-brand-50 to-brand-100/50 p-6 shadow-sm" style={{ minHeight: '200px' }}>
       <div className="mb-4 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <span className="text-2xl">{currentTip.icon}</span>
+          <span className="text-2xl" aria-hidden="true">{currentTip.icon}</span>
           <div>
-            <h3 className="text-sm font-semibold uppercase tracking-wide text-brand-700">Tip of the Day</h3>
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-brand-700">Tip of the Day</h2>
             <span className="text-xs text-brand-600">{currentTip.category}</span>
           </div>
         </div>
@@ -81,7 +81,7 @@ export default function DashboardTips() {
           </button>
         </div>
       </div>
-      <h4 className="mb-2 text-lg font-semibold text-slate-900">{currentTip.title}</h4>
+      <h3 className="mb-2 text-lg font-semibold text-slate-900">{currentTip.title}</h3>
       <p className="text-sm text-slate-700 leading-relaxed">{currentTip.content}</p>
       <div className="mt-4 flex gap-1">
         {tips.map((_, index) => (

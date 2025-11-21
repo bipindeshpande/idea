@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useMemo, useState } from "react";
 import { intakeScreen } from "../config/intakeScreen.js";
+import { useAuth } from "./AuthContext.jsx";
 
 const ReportsContext = createContext(null);
 const STORAGE_KEY = "sia_saved_runs";
@@ -75,6 +76,7 @@ export function ReportsProvider({ children }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [currentRunId, setCurrentRunId] = useState(null);
+  const { getAuthHeaders } = useAuth();
 
   const setInputs = useCallback((nextInputs) => {
     setInputsState(normalizeInputs(nextInputs));
@@ -97,7 +99,10 @@ export function ReportsProvider({ children }) {
     try {
       const response = await fetch("/api/run", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...getAuthHeaders(),
+        },
         body: JSON.stringify(payload),
       });
 
@@ -107,12 +112,20 @@ export function ReportsProvider({ children }) {
       }
 
       const result = await response.json();
+      
+      // Only save if we have valid outputs
+      if (!result.outputs || Object.keys(result.outputs).length === 0) {
+        throw new Error("No outputs received from server");
+      }
+
       const run = {
         id: Date.now().toString(),
         timestamp: Date.now(),
         inputs: payload,
-        outputs: result.outputs || {},
+        outputs: result.outputs,
       };
+      
+      // Only save successful runs with valid outputs
       saveRun(run);
       setCurrentRunId(run.id);
       setReports(run.outputs);
@@ -123,7 +136,7 @@ export function ReportsProvider({ children }) {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [getAuthHeaders]);
 
   const loadRunById = useCallback((runId) => {
     const runs = loadSavedRuns();

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, lazy, Suspense } from "react";
 import { Link, NavLink, Navigate, Route, Routes } from "react-router-dom";
 import { useReports } from "./context/ReportsContext.jsx";
 import { useAuth } from "./context/AuthContext.jsx";
@@ -18,7 +18,8 @@ import HomePage from "./pages/discovery/Home.jsx";
 import ProfileReport from "./pages/discovery/ProfileReport.jsx";
 import RecommendationsReport from "./pages/discovery/RecommendationsReport.jsx";
 import RecommendationDetail from "./pages/discovery/RecommendationDetail.jsx";
-import RecommendationFullReport from "./pages/discovery/RecommendationFullReport.jsx";
+// Lazy load heavy pages
+const RecommendationFullReport = lazy(() => import("./pages/discovery/RecommendationFullReport.jsx"));
 
 // Validation pages
 import IdeaValidator from "./pages/validation/IdeaValidator.jsx";
@@ -31,7 +32,8 @@ import FrameworksPage from "./pages/resources/Frameworks.jsx";
 
 // Dashboard pages
 import DashboardPage from "./pages/dashboard/Dashboard.jsx";
-import ManageSubscriptionPage from "./pages/dashboard/ManageSubscription.jsx";
+// Lazy load heavy pages
+const AccountPage = lazy(() => import("./pages/dashboard/Account.jsx"));
 
 // Auth pages
 import RegisterPage from "./pages/auth/Register.jsx";
@@ -39,8 +41,8 @@ import LoginPage from "./pages/auth/Login.jsx";
 import ForgotPasswordPage from "./pages/auth/ForgotPassword.jsx";
 import ResetPasswordPage from "./pages/auth/ResetPassword.jsx";
 
-// Admin pages
-import AdminPage from "./pages/admin/Admin.jsx";
+// Admin pages - lazy load
+const AdminPage = lazy(() => import("./pages/admin/Admin.jsx"));
 
 // Components
 import Footer from "./components/common/Footer.jsx";
@@ -53,7 +55,6 @@ const primaryNavLinks = [
 const learnNavLinks = [
   { label: "Resources", to: "/resources" },
   { label: "Blog", to: "/blog" },
-  { label: "Frameworks", to: "/frameworks" },
   { label: "About", to: "/about" },
   { label: "Contact", to: "/contact" },
 ];
@@ -143,7 +144,7 @@ function Navigation() {
         <div className="flex items-center gap-4">
           <NavLink
             to="/"
-            className="text-xl font-semibold tracking-tight text-brand-700"
+            className="text-xl font-semibold tracking-tight text-brand-700 whitespace-nowrap"
             onClick={closeAllMenus}
           >
             Startup Idea Advisor
@@ -251,15 +252,13 @@ function Navigation() {
                 </Link>
                 <div className="flex items-center gap-2 border-l border-slate-300 pl-3">
                   <span className="text-xs text-slate-600 max-w-[150px] truncate">{user?.email}</span>
-                  {subscription && subscription.is_active && (
-                    <Link
-                      to="/manage-subscription"
-                      className="rounded-full border border-brand-300 px-4 py-2 text-sm font-semibold text-brand-700 transition hover:bg-brand-50 whitespace-nowrap"
-                      onClick={closeAllMenus}
-                    >
-                      Manage
-                    </Link>
-                  )}
+                  <Link
+                    to="/account"
+                    className="rounded-full border border-brand-300 px-4 py-2 text-sm font-semibold text-brand-700 transition hover:bg-brand-50 whitespace-nowrap"
+                    onClick={closeAllMenus}
+                  >
+                    Account
+                  </Link>
                   <button
                     onClick={handleLogout}
                     className="rounded-full border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 whitespace-nowrap"
@@ -346,11 +345,9 @@ function Navigation() {
                 <NavLink to="/dashboard" className={mobileLinkClass} onClick={closeAllMenus}>
                   My Sessions
                 </NavLink>
-                {subscription && subscription.is_active && (
-                  <NavLink to="/manage-subscription" className={mobileLinkClass} onClick={closeAllMenus}>
-                    Manage Subscription
-                  </NavLink>
-                )}
+                <NavLink to="/account" className={mobileLinkClass} onClick={closeAllMenus}>
+                  Account Settings
+                </NavLink>
                 <Link
                   to="/advisor"
                   onClick={closeAllMenus}
@@ -434,7 +431,16 @@ export default function App() {
             />
             <Route path="/product" element={<ProductPage />} />
             <Route path="/pricing" element={<PricingPage />} />
-            <Route path="/manage-subscription" element={<ManageSubscriptionPage />} />
+            <Route
+              path="/account"
+              element={
+                <ProtectedRoute>
+                  <Suspense fallback={<LoadingIndicator simple={true} message="Loading account..." />}>
+                    <AccountPage />
+                  </Suspense>
+                </ProtectedRoute>
+              }
+            />
             <Route path="/resources" element={<ResourcesPage />} />
             <Route path="/blog" element={<BlogPage />} />
             <Route path="/blog/:slug" element={<BlogPage />} />
@@ -449,7 +455,14 @@ export default function App() {
                 </ProtectedRoute>
               }
             />
-            <Route path="/admin" element={<AdminPage />} />
+            <Route 
+              path="/admin" 
+              element={
+                <Suspense fallback={<LoadingIndicator simple={true} message="Loading admin panel..." />}>
+                  <AdminPage />
+                </Suspense>
+              } 
+            />
             <Route path="/privacy" element={<PrivacyPage />} />
             <Route path="/terms" element={<TermsPage />} />
             <Route
@@ -480,7 +493,9 @@ export default function App() {
               path="/results/recommendations/full"
               element={
                 <ProtectedRoute>
-                  <RecommendationFullReport />
+                  <Suspense fallback={<LoadingIndicator simple={true} message="Loading report..." />}>
+                    <RecommendationFullReport />
+                  </Suspense>
                 </ProtectedRoute>
               }
             />
@@ -506,7 +521,7 @@ function ProtectedRoute({ children }) {
   }, [loading, isAuthenticated, isSubscriptionActive]);
 
   if (loading) {
-    return <LoadingIndicator />;
+    return <LoadingIndicator simple={true} message="Checking authentication..." />;
   }
 
   if (!isAuthenticated) {
