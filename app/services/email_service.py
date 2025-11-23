@@ -15,7 +15,8 @@ class EmailService:
     
     def __init__(self):
         self.provider = os.environ.get("EMAIL_PROVIDER", "resend").lower()
-        self.from_email = os.environ.get("FROM_EMAIL", "noreply@startupideaadvisor.com")
+        # Default to custom domain email - requires domain verification in Resend
+        self.from_email = os.environ.get("FROM_EMAIL", "noreply@ideabunch.com")
         self.from_name = os.environ.get("FROM_NAME", "Startup Idea Advisor")
         self.enabled = os.environ.get("EMAIL_ENABLED", "true").lower() == "true"
         
@@ -146,6 +147,12 @@ class EmailService:
             }
             if text_content:
                 params["text"] = text_content
+            
+            # Add Reply-To header if configured
+            reply_to = os.environ.get("REPLY_TO_EMAIL")
+            if reply_to:
+                params["reply_to"] = reply_to
+                logger.debug(f"Using Reply-To: {reply_to}")
             
             email = self.client.Emails.send(params)
             logger.info(f"Email sent via Resend to {to_email}: {email.get('id', 'unknown')}")

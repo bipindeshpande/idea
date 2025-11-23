@@ -42,12 +42,72 @@ export const validationQuestions = {
       ],
     },
   ],
-  idea_explanation_prompts: [
-    "What problem does your idea solve?",
-    "How does your solution work?",
-    "What makes your idea unique or different?",
-    "Who would use your product or service?",
-    "How do you plan to make money?",
+  idea_explanation_questions: [
+    {
+      id: "problem",
+      question: "What problem does your idea solve?",
+      options: [
+        "Saves time or increases efficiency",
+        "Reduces costs or expenses",
+        "Improves convenience or accessibility",
+        "Solves a communication or connection gap",
+        "Addresses a health or wellness need",
+        "Fixes a quality or reliability issue",
+        "Other problem",
+      ],
+    },
+    {
+      id: "solution",
+      question: "How does your solution work?",
+      options: [
+        "Software / App / Platform",
+        "Physical product / Hardware",
+        "Service / Consulting",
+        "Marketplace connecting buyers and sellers",
+        "Content / Information / Education",
+        "Community / Network / Social platform",
+        "Other solution type",
+      ],
+    },
+    {
+      id: "uniqueness",
+      question: "What makes your idea unique or different?",
+      options: [
+        "Better technology or features",
+        "Lower price or better value",
+        "Better user experience or design",
+        "Serves an underserved market",
+        "Faster or more convenient",
+        "Better quality or reliability",
+        "Not sure yet / Still exploring",
+      ],
+    },
+    {
+      id: "users",
+      question: "Who would use your product or service?",
+      options: [
+        "General consumers / Everyone",
+        "Small business owners",
+        "Professionals / Freelancers",
+        "Students / Young adults",
+        "Parents / Families",
+        "Seniors / Retirees",
+        "Specific niche group",
+      ],
+    },
+    {
+      id: "revenue",
+      question: "How do you plan to make money?",
+      options: [
+        "Monthly / Annual subscription",
+        "One-time purchase",
+        "Transaction fees / Commission",
+        "Advertising revenue",
+        "Freemium (free + paid features)",
+        "Consulting / Services",
+        "Not sure yet",
+      ],
+    },
   ],
 };
 

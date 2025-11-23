@@ -158,7 +158,7 @@ export default function Admin() {
 
 function ValidationQuestionsEditor() {
   const [questions, setQuestions] = useState(validationQuestions.category_questions);
-  const [prompts, setPrompts] = useState(validationQuestions.idea_explanation_prompts);
+  const [ideaQuestions, setIdeaQuestions] = useState(validationQuestions.idea_explanation_questions || []);
   const [saved, setSaved] = useState(false);
 
   const handleSave = async () => {
@@ -173,7 +173,7 @@ function ValidationQuestionsEditor() {
         body: JSON.stringify({
           questions: {
             category_questions: questions,
-            idea_explanation_prompts: prompts,
+            idea_explanation_questions: ideaQuestions,
           },
         }),
       });
@@ -183,7 +183,7 @@ function ValidationQuestionsEditor() {
         setSaved(true);
         setTimeout(() => setSaved(false), 3000);
         // Also save to localStorage as backup
-        localStorage.setItem("sia_validation_questions", JSON.stringify({ category_questions: questions, idea_explanation_prompts: prompts }));
+        localStorage.setItem("sia_validation_questions", JSON.stringify({ category_questions: questions, idea_explanation_questions: ideaQuestions }));
       } else {
         alert(`Failed to save: ${data.error}`);
       }
@@ -324,28 +324,56 @@ function ValidationQuestionsEditor() {
         </div>
       </div>
 
-      {/* Idea Explanation Prompts */}
+      {/* Idea Explanation Questions */}
       <div>
-        <h3 className="mb-4 text-xl font-semibold text-slate-800">Idea Explanation Prompts</h3>
-        <div className="space-y-2">
-          {prompts.map((prompt, index) => (
-            <input
-              key={index}
-              type="text"
-              value={prompt}
-              onChange={(e) => {
-                const updated = [...prompts];
-                updated[index] = e.target.value;
-                setPrompts(updated);
-              }}
-              className="w-full rounded-lg border border-slate-200 bg-white p-2 text-sm"
-            />
+        <h3 className="mb-4 text-xl font-semibold text-slate-800">Idea Explanation Questions</h3>
+        <div className="space-y-6">
+          {ideaQuestions.map((q, index) => (
+            <div key={q.id || index} className="rounded-lg border border-slate-200 bg-white p-4">
+              <input
+                type="text"
+                value={q.question}
+                onChange={(e) => {
+                  const updated = [...ideaQuestions];
+                  updated[index] = { ...updated[index], question: e.target.value };
+                  setIdeaQuestions(updated);
+                }}
+                placeholder="Question text"
+                className="mb-3 w-full rounded-lg border border-slate-200 bg-white p-2 text-sm font-semibold"
+              />
+              <div className="space-y-2">
+                {q.options.map((opt, optIndex) => (
+                  <input
+                    key={optIndex}
+                    type="text"
+                    value={opt}
+                    onChange={(e) => {
+                      const updated = [...ideaQuestions];
+                      updated[index].options[optIndex] = e.target.value;
+                      setIdeaQuestions(updated);
+                    }}
+                    className="w-full rounded-lg border border-slate-200 bg-white p-2 text-sm"
+                    placeholder={`Option ${optIndex + 1}`}
+                  />
+                ))}
+                <button
+                  onClick={() => {
+                    const updated = [...ideaQuestions];
+                    updated[index].options.push("New Option");
+                    setIdeaQuestions(updated);
+                  }}
+                  className="mt-2 rounded-lg border border-brand-300 bg-brand-50 px-3 py-1 text-xs font-semibold text-brand-700 transition hover:bg-brand-100"
+                >
+                  + Add Option
+                </button>
+              </div>
+            </div>
           ))}
           <button
-            onClick={() => setPrompts([...prompts, "New Prompt"])}
+            onClick={() => setIdeaQuestions([...ideaQuestions, { id: `idea_${Date.now()}`, question: "New Question", options: ["Option 1", "Option 2"] }])}
             className="mt-2 rounded-lg border border-brand-300 bg-brand-50 px-4 py-2 text-sm font-semibold text-brand-700 transition hover:bg-brand-100"
           >
-            + Add Prompt
+            + Add Question
           </button>
         </div>
       </div>

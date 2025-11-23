@@ -75,7 +75,7 @@ const deliverables = [
 
 export default function ProductPage() {
   return (
-    <section className="mx-auto max-w-6xl px-6 py-12">
+    <section className="mx-auto max-w-6xl px-6 py-6">
       <Seo
         title="Product Overview | Startup Idea Advisor"
         description="Transform your profile into validated startup ideas with AI-powered analysis, financial outlook, and actionable roadmaps."
@@ -83,26 +83,29 @@ export default function ProductPage() {
       />
 
       {/* Hero Section */}
-      <header className="mb-16 text-center">
-        <span className="inline-flex items-center gap-2 rounded-full bg-brand-50 dark:bg-brand-900/30 px-4 py-1.5 text-xs font-semibold uppercase tracking-wide text-brand-700 dark:text-brand-400">
-          Product Overview
-        </span>
-        <h1 className="mt-6 text-4xl font-bold text-slate-900 dark:text-slate-100 md:text-5xl">
-          Get AI-validated startup ideas tailored to your profile
+      <header className="mb-8 text-center">
+        <h1 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-50 md:text-4xl">
+          Validate your idea or discover new opportunities
         </h1>
-        <p className="mx-auto mt-4 max-w-2xl text-lg text-slate-600 dark:text-slate-300">
-          Our AI advisor analyzes your goals, constraints, and strengths to deliver ranked recommendations with financial outlook, risk assessment, and execution roadmaps.
+        <p className="mx-auto mt-3 max-w-2xl text-base leading-relaxed text-slate-600 dark:text-slate-300">
+          Choose your path: validate an existing startup idea across 10 key parameters, or let our AI discover personalized opportunities tailored to your profile, goals, and constraints.
         </p>
-        <div className="mt-8 flex flex-col items-center justify-center gap-4 sm:flex-row">
+        <div className="mt-6 flex flex-col items-center justify-center gap-4 sm:flex-row">
+          <Link
+            to="/validate-idea"
+            className="inline-flex items-center justify-center whitespace-nowrap rounded-xl bg-gradient-to-r from-coral-500 to-coral-600 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-coral-500/25 transition-all duration-200 hover:from-coral-600 hover:to-coral-700 hover:shadow-xl hover:shadow-coral-500/30 hover:-translate-y-0.5"
+          >
+            Validate Idea
+          </Link>
           <Link
             to="/advisor"
-            className="inline-flex items-center justify-center whitespace-nowrap rounded-xl bg-gradient-to-r from-brand-500 to-brand-600 px-6 py-3 text-sm font-semibold text-white shadow-md transition hover:from-brand-600 hover:to-brand-700"
+            className="inline-flex items-center justify-center whitespace-nowrap rounded-xl bg-gradient-to-r from-brand-500 to-brand-600 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-brand-500/25 transition-all duration-200 hover:from-brand-600 hover:to-brand-700 hover:shadow-xl hover:shadow-brand-500/30 hover:-translate-y-0.5"
           >
-            Start Run
+            Discover Ideas
           </Link>
           <Link
             to="/results/recommendations/full?sample=true"
-            className="inline-flex items-center justify-center whitespace-nowrap rounded-xl border border-brand-300 bg-white px-6 py-3 text-sm font-semibold text-brand-700 shadow-sm transition hover:border-brand-400 hover:bg-brand-50"
+            className="inline-flex items-center justify-center whitespace-nowrap rounded-xl border border-brand-300/60 dark:border-brand-700/60 bg-white dark:bg-slate-800 px-6 py-3 text-sm font-semibold text-brand-700 dark:text-brand-300 shadow-sm transition-all duration-200 hover:border-brand-400 hover:bg-brand-50 dark:hover:bg-brand-900/20 hover:-translate-y-0.5"
           >
             View Sample Report
           </Link>
@@ -110,24 +113,28 @@ export default function ProductPage() {
       </header>
 
       {/* Value Panels */}
-      <section className="mb-16">
-        <h2 className="mb-8 text-center text-2xl font-semibold text-slate-900 dark:text-slate-100">What You Get</h2>
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+      <section className="mb-8">
+        <h2 className="mb-6 text-center text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-50 md:text-3xl">What You Get</h2>
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {valuePanels.map((panel) => {
             const colorClasses = {
-              brand: "border-brand-200 dark:border-brand-700 bg-brand-50 dark:bg-brand-900/20",
-              aqua: "border-aqua-200 dark:border-aqua-700 bg-aqua-50 dark:bg-aqua-900/20",
-              coral: "border-coral-200 dark:border-coral-700 bg-coral-50 dark:bg-coral-900/20",
-              sand: "border-sand-200 dark:border-sand-700 bg-sand-50 dark:bg-sand-900/20",
+              brand: "border-brand-200/60 dark:border-brand-700/60 bg-gradient-to-br from-brand-50/80 via-brand-50/40 to-white dark:from-brand-900/20 dark:via-brand-900/10 dark:to-slate-800/50",
+              aqua: "border-aqua-200/60 dark:border-aqua-700/60 bg-gradient-to-br from-aqua-50/80 via-aqua-50/40 to-white dark:from-aqua-900/20 dark:via-aqua-900/10 dark:to-slate-800/50",
+              coral: "border-coral-200/60 dark:border-coral-700/60 bg-gradient-to-br from-coral-50/80 via-coral-50/40 to-white dark:from-coral-900/20 dark:via-coral-900/10 dark:to-slate-800/50",
+              sand: "border-sand-200/60 dark:border-sand-700/60 bg-gradient-to-br from-sand-50/80 via-sand-50/40 to-white dark:from-sand-900/20 dark:via-sand-900/10 dark:to-slate-800/50",
             };
             return (
               <article
                 key={panel.title}
-                className={`rounded-2xl border ${colorClasses[panel.color]} p-6 shadow-sm`}
+                className={`group relative overflow-hidden rounded-2xl border ${colorClasses[panel.color]} p-5 shadow-md transition-all duration-300 hover:shadow-lg hover:-translate-y-1`}
               >
-                <div className="mb-4 text-3xl">{panel.icon}</div>
-                <h3 className="mb-2 text-lg font-semibold text-slate-900 dark:text-slate-100">{panel.title}</h3>
-                <p className="text-sm text-slate-600 dark:text-slate-300">{panel.summary}</p>
+                <div className="mb-3 flex items-center gap-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/60 dark:bg-slate-800/60 text-xl shadow-sm">
+                    {panel.icon}
+                  </div>
+                  <h3 className="text-base font-bold text-slate-900 dark:text-slate-50">{panel.title}</h3>
+                </div>
+                <p className="text-sm leading-relaxed text-slate-600 dark:text-slate-300">{panel.summary}</p>
               </article>
             );
           })}
@@ -135,56 +142,64 @@ export default function ProductPage() {
       </section>
 
       {/* How It Works */}
-      <section id="how-it-works" className="mb-16 rounded-3xl border border-slate-200 dark:border-slate-700 bg-white/95 dark:bg-slate-800/95 p-8 shadow-soft">
-        <div className="mb-8 text-center">
-          <h2 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">How It Works</h2>
-          <p className="mt-2 text-slate-600 dark:text-slate-300">
+      <section id="how-it-works" className="mb-8 rounded-2xl border border-slate-200/60 dark:border-slate-700/60 bg-white/95 dark:bg-slate-800/95 p-6 shadow-lg">
+        <div className="mb-6 text-center">
+          <h2 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-50 md:text-3xl">How It Works</h2>
+          <p className="mt-2 text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
             Three simple steps from profile to actionable recommendations
           </p>
         </div>
-        <div className="grid gap-6 md:grid-cols-3">
+        <div className="grid gap-4 md:grid-cols-3">
           {howItWorks.map((item) => (
-            <article key={item.step} className="rounded-2xl border border-brand-100 bg-brand-50/40 p-6">
-              <div className="mb-4 inline-flex h-10 w-10 items-center justify-center rounded-full bg-brand-500 text-sm font-bold text-white">
-                {item.step}
+            <article key={item.step} className="group relative overflow-hidden rounded-2xl border border-brand-200/60 dark:border-brand-700/60 bg-gradient-to-br from-brand-50/80 via-brand-50/40 to-white dark:from-brand-900/20 dark:via-brand-900/10 dark:to-slate-800/50 p-5 shadow-md transition-all duration-300 hover:shadow-lg hover:-translate-y-1">
+              <div className="mb-3 flex items-center gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-brand-500 to-brand-600 text-sm font-bold text-white shadow-lg shadow-brand-500/25">
+                  {item.step}
+                </div>
+                <h3 className="text-base font-bold text-slate-900 dark:text-slate-50">{item.title}</h3>
               </div>
-              <h3 className="mb-2 text-lg font-semibold text-slate-900 dark:text-slate-100">{item.title}</h3>
-              <p className="text-sm text-slate-600 dark:text-slate-300">{item.detail}</p>
+              <p className="text-sm leading-relaxed text-slate-600 dark:text-slate-300">{item.detail}</p>
             </article>
           ))}
         </div>
       </section>
 
       {/* Deliverables */}
-      <section className="mb-16 rounded-3xl border border-sand-200 bg-sand-50/80 p-8 shadow-soft">
-        <h2 className="mb-8 text-center text-2xl font-semibold text-slate-900 dark:text-slate-100">Your Deliverables</h2>
-        <div className="grid gap-6 md:grid-cols-3">
+      <section className="mb-8 rounded-2xl border border-sand-200/60 dark:border-sand-800/60 bg-gradient-to-br from-sand-50/80 via-sand-50/40 to-white dark:from-sand-900/20 dark:via-sand-900/10 dark:to-slate-800/50 p-6 shadow-md">
+        <h2 className="mb-6 text-center text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-50 md:text-3xl">Your Deliverables</h2>
+        <div className="grid gap-4 md:grid-cols-3">
           {deliverables.map((item) => (
-            <article key={item.title} className="rounded-2xl border border-sand-200 bg-white/95 p-6">
-              <h3 className="mb-2 text-lg font-semibold text-slate-900 dark:text-slate-100">{item.title}</h3>
-              <p className="text-sm text-slate-600 dark:text-slate-300">{item.description}</p>
+            <article key={item.title} className="group relative overflow-hidden rounded-2xl border border-sand-200/60 dark:border-sand-800/60 bg-white/95 dark:bg-slate-800/95 p-5 shadow-md transition-all duration-300 hover:shadow-lg hover:-translate-y-1">
+              <h3 className="mb-2 text-base font-bold text-slate-900 dark:text-slate-50">{item.title}</h3>
+              <p className="text-sm leading-relaxed text-slate-600 dark:text-slate-300">{item.description}</p>
             </article>
           ))}
         </div>
       </section>
 
       {/* CTA Section */}
-      <div className="rounded-3xl border border-coral-200 bg-gradient-to-br from-coral-50 to-aqua-50 p-8 shadow-soft">
+      <div className="rounded-2xl border border-coral-200/60 dark:border-coral-800/60 bg-gradient-to-br from-coral-50/80 via-aqua-50/40 to-white dark:from-coral-900/20 dark:via-aqua-900/10 dark:to-slate-800/50 p-6 shadow-lg">
         <div className="mx-auto max-w-3xl text-center">
-          <h2 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Ready to get started?</h2>
-          <p className="mt-2 text-slate-600 dark:text-slate-300">
-            Generate your personalized startup idea recommendations in minutes. No credit card required.
+          <h2 className="text-xl font-bold text-slate-900 dark:text-slate-50 md:text-2xl">Ready to get started?</h2>
+          <p className="mt-2 text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+            Validate your existing idea or discover new opportunities tailored to your profile. No credit card required.
           </p>
-          <div className="mt-6 flex flex-col items-center justify-center gap-4 sm:flex-row">
+          <div className="mt-4 flex flex-col items-center justify-center gap-4 sm:flex-row">
+            <Link
+              to="/validate-idea"
+              className="inline-flex items-center justify-center whitespace-nowrap rounded-xl bg-gradient-to-r from-coral-500 to-coral-600 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-coral-500/25 transition-all duration-200 hover:from-coral-600 hover:to-coral-700 hover:shadow-xl hover:shadow-coral-500/30 hover:-translate-y-0.5"
+            >
+              Validate Idea
+            </Link>
             <Link
               to="/advisor"
-              className="inline-flex items-center justify-center whitespace-nowrap rounded-xl bg-gradient-to-r from-coral-500 to-coral-600 px-6 py-3 text-sm font-semibold text-white shadow-md transition hover:from-coral-600 hover:to-coral-700"
+              className="inline-flex items-center justify-center whitespace-nowrap rounded-xl bg-gradient-to-r from-brand-500 to-brand-600 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-brand-500/25 transition-all duration-200 hover:from-brand-600 hover:to-brand-700 hover:shadow-xl hover:shadow-brand-500/30 hover:-translate-y-0.5"
             >
-              Start Free Run
+              Discover Ideas
             </Link>
             <Link
               to="/pricing"
-              className="inline-flex items-center justify-center whitespace-nowrap rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-6 py-3 text-sm font-semibold text-slate-700 dark:text-slate-300 shadow-sm transition hover:bg-slate-50 dark:hover:bg-slate-700"
+              className="inline-flex items-center justify-center whitespace-nowrap rounded-xl border border-slate-300/60 dark:border-slate-600/60 bg-white dark:bg-slate-800 px-6 py-3 text-sm font-semibold text-slate-700 dark:text-slate-300 shadow-sm transition-all duration-200 hover:bg-slate-50 dark:hover:bg-slate-700 hover:-translate-y-0.5"
             >
               View Pricing
             </Link>
@@ -194,4 +209,5 @@ export default function ProductPage() {
     </section>
   );
 }
+
 

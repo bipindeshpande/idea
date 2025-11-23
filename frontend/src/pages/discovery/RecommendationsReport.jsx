@@ -18,26 +18,88 @@ export default function RecommendationsReport() {
   const runId = query.get("id");
   const reportRef = useRef(null);
   const [downloading, setDownloading] = useState(false);
+  const [error, setError] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    setIsLoading(true);
     if (runId) {
-      loadRunById(runId);
+      const loadData = async () => {
+        try {
+          const result = await loadRunById(runId);
+          if (!result && runId.startsWith('run_')) {
+            // If it's an API run and not found, try to load from API
+            console.log("Run not found in localStorage, may need to load from API");
+          }
+        } catch (err) {
+          console.error("Failed to load run:", err);
+          setError("Failed to load report data. Please try again.");
+        } finally {
+          setIsLoading(false);
+        }
+      };
+      loadData();
+    } else {
+      setIsLoading(false);
     }
   }, [runId, loadRunById]);
 
-  const markdown = useMemo(
-    () => trimFromHeading(reports?.personalized_recommendations ?? "", "### Comprehensive Recommendation Report"),
-    [reports]
-  );
+  const markdown = useMemo(() => {
+    try {
+      return trimFromHeading(reports?.personalized_recommendations ?? "", "### Comprehensive Recommendation Report");
+    } catch (err) {
+      console.error("Error trimming markdown:", err);
+      return reports?.personalized_recommendations ?? "";
+    }
+  }, [reports]);
 
-  const allIdeas = useMemo(() => parseTopIdeas(markdown, 10), [markdown]);
+  const allIdeas = useMemo(() => {
+    try {
+      const parsed = parseTopIdeas(markdown, 10);
+      // Debug logging
+      if (parsed.length === 0 && markdown.length > 0) {
+        console.log("Failed to parse ideas from markdown:", {
+          markdownLength: markdown.length,
+          markdownPreview: markdown.substring(0, 500),
+          firstLines: markdown.split('\n').slice(0, 10),
+        });
+      }
+      return parsed;
+    } catch (err) {
+      console.error("Error parsing ideas:", err);
+      return [];
+    }
+  }, [markdown]);
   const topIdeas = allIdeas.slice(0, 3);
   const secondaryIdeas = allIdeas.slice(3);
 
   // Extract matrix data for conclusion
-  const sections = useMemo(() => splitFullReportSections(markdown), [markdown]);
-  const matrixRows = useMemo(() => parseRecommendationMatrix(sections["recommendation matrix"]), [sections]);
-  const finalConclusion = useMemo(() => buildFinalConclusion(topIdeas, matrixRows, inputs || {}), [topIdeas, matrixRows, inputs]);
+  const sections = useMemo(() => {
+    try {
+      return splitFullReportSections(markdown);
+    } catch (err) {
+      console.error("Error splitting sections:", err);
+      return {};
+    }
+  }, [markdown]);
+  
+  const matrixRows = useMemo(() => {
+    try {
+      return parseRecommendationMatrix(sections["recommendation matrix"] || "");
+    } catch (err) {
+      console.error("Error parsing matrix:", err);
+      return [];
+    }
+  }, [sections]);
+  
+  const finalConclusion = useMemo(() => {
+    try {
+      return buildFinalConclusion(topIdeas, matrixRows, inputs || {});
+    } catch (err) {
+      console.error("Error building conclusion:", err);
+      return null;
+    }
+  }, [topIdeas, matrixRows, inputs]);
 
   const handleDownloadPDF = async () => {
     if (!reportRef.current || downloading) return;
@@ -56,6 +118,104 @@ export default function RecommendationsReport() {
       setDownloading(false);
     }
   };
+
+  // Show error state
+  if (error) {
+    return (
+      <section className="mx-auto max-w-6xl px-6 py-6">
+        <Seo
+          title="Error | Startup Idea Advisor"
+          description="Error loading recommendation report"
+          path="/results/recommendations"
+        />
+        <div className="rounded-3xl border border-red-200 bg-red-50/80 p-6 text-red-800 shadow-soft">
+          <h2 className="text-lg font-semibold">Error Loading Report</h2>
+          <p className="mt-2 text-sm">{error}</p>
+          <div className="mt-4 flex gap-3">
+            <Link
+              to="/dashboard"
+              className="inline-block rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-red-700"
+            >
+              Back to Dashboard
+            </Link>
+            <Link
+              to="/advisor"
+              className="inline-block rounded-xl border border-red-300 bg-white px-4 py-2 text-sm font-semibold text-red-700 shadow-sm transition hover:bg-red-50"
+            >
+              Generate New Report
+            </Link>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  // Show loading state
+  if (isLoading) {
+    return (
+      <section className="mx-auto max-w-6xl px-6 py-6">
+        <Seo
+          title="Loading Recommendations | Startup Idea Advisor"
+          description="Loading recommendation report"
+          path="/results/recommendations"
+        />
+        <div className="rounded-3xl border border-slate-200 bg-slate-50/80 p-6 text-center">
+          <div className="mb-4 flex justify-center">
+            <div className="h-8 w-8 animate-spin rounded-full border-4 border-brand-200 border-t-brand-600"></div>
+          </div>
+          <h2 className="text-lg font-semibold text-slate-900">Loading Report...</h2>
+          <p className="mt-2 text-sm text-slate-600">Please wait while we load your recommendations.</p>
+        </div>
+      </section>
+    );
+  }
+
+  // Show message if no reports yet
+  if (!reports || !reports.personalized_recommendations) {
+    return (
+      <section className="mx-auto max-w-6xl px-6 py-6">
+        <Seo
+          title="No Recommendations | Startup Idea Advisor"
+          description="No recommendation report available"
+          path="/results/recommendations"
+        />
+        <div className="rounded-3xl border border-slate-200 bg-slate-50/80 p-6 text-center">
+          <h2 className="text-lg font-semibold text-slate-900">No Report Available</h2>
+          <p className="mt-2 text-sm text-slate-600">
+            {runId ? "Report not found. It may have been deleted or the ID is invalid." : "No report data available. Please generate recommendations first."}
+          </p>
+          <div className="mt-4 flex gap-3 justify-center">
+            <Link
+              to="/advisor"
+              className="inline-block rounded-xl bg-brand-500 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-600"
+            >
+              Generate Recommendations
+            </Link>
+            <Link
+              to="/dashboard"
+              className="inline-block rounded-xl border border-brand-300 bg-white px-4 py-2 text-sm font-semibold text-brand-700 shadow-sm transition hover:bg-brand-50"
+            >
+              Back to Dashboard
+            </Link>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  // Debug: Log current state
+  useEffect(() => {
+    console.log("RecommendationsReport rendered:", {
+      hasReports: !!reports,
+      hasPersonalizedRecommendations: !!reports?.personalized_recommendations,
+      markdownLength: markdown?.length || 0,
+      topIdeasCount: topIdeas.length,
+      isLoading,
+      error,
+      runId,
+      currentRunId,
+    });
+  }, [reports, markdown, topIdeas, isLoading, error, runId, currentRunId]);
 
   return (
     <section className="grid gap-6">
@@ -77,23 +237,174 @@ export default function RecommendationsReport() {
       </div>
 
       <div ref={reportRef} className="grid gap-6">
-        {topIdeas.length === 0 && (
+        {topIdeas.length === 0 && markdown && markdown.length > 0 && (
           <div className="rounded-3xl border border-amber-200 bg-amber-50/80 p-6 text-amber-800 shadow-soft">
-            <h2 className="text-lg font-semibold">Reports not generated yet</h2>
-            <p className="mt-2 text-sm">
-              The last run produced only a brief summary. Please generate new recommendations with richer inputs (professional background, skills, budget, etc.) so the advisor can craft detailed recommendations.
+            <h2 className="text-lg font-semibold">Unable to Parse Recommendations</h2>
+            <p className="mt-2 text-sm mb-4">
+              The recommendations couldn't be parsed into individual ideas. This might happen if the format is unexpected or the report is very brief.
             </p>
+            <div className="space-y-3">
+              <Link
+                to="/advisor"
+                className="inline-block rounded-xl bg-amber-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-amber-700"
+              >
+                Generate New Recommendations
+              </Link>
+              <div className="mt-4">
+                <p className="text-xs font-semibold mb-2">Raw Recommendations Content:</p>
+                <div className="prose prose-slate max-w-none bg-white p-4 rounded-lg border border-amber-300 text-xs max-h-96 overflow-y-auto">
+                  <ReactMarkdown
+                    components={{
+                      p: ({ node, ...props }) => (
+                        <p className="text-slate-700 leading-relaxed mb-2" {...props} />
+                      ),
+                      ul: ({ node, ...props }) => (
+                        <ul className="list-disc list-outside space-y-1 text-slate-700 mb-2 ml-4" {...props} />
+                      ),
+                      ol: ({ node, ...props }) => (
+                        <ol className="list-decimal list-outside space-y-1 text-slate-700 mb-2 ml-4" {...props} />
+                      ),
+                      li: ({ node, ...props }) => <li className="leading-relaxed" {...props} />,
+                      strong: ({ node, ...props }) => (
+                        <strong className="font-semibold text-slate-900" {...props} />
+                      ),
+                      h1: ({ node, ...props }) => (
+                        <h1 className="text-xl font-bold text-slate-900 mb-2 mt-3" {...props} />
+                      ),
+                      h2: ({ node, ...props }) => (
+                        <h2 className="text-lg font-bold text-slate-900 mb-2 mt-3" {...props} />
+                      ),
+                      h3: ({ node, ...props }) => (
+                        <h3 className="text-base font-semibold text-slate-800 mb-1 mt-2" {...props} />
+                      ),
+                      h4: ({ node, ...props }) => (
+                        <h4 className="text-sm font-semibold text-slate-800 mb-1 mt-2" {...props} />
+                      ),
+                    }}
+                  >
+                    {markdown}
+                  </ReactMarkdown>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {topIdeas.length === 0 && (!markdown || markdown.length === 0) && (
+          <div className="rounded-3xl border border-slate-200 bg-slate-50/80 p-6 text-center">
+            <h2 className="text-lg font-semibold text-slate-900">No Recommendations Available</h2>
+            <p className="mt-2 text-sm text-slate-600">
+              The recommendation report is empty or could not be loaded.
+            </p>
+            <div className="mt-4 flex gap-3 justify-center">
+              <Link
+                to="/advisor"
+                className="inline-block rounded-xl bg-brand-500 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-600"
+              >
+                Generate Recommendations
+              </Link>
+              <Link
+                to="/dashboard"
+                className="inline-block rounded-xl border border-brand-300 bg-white px-4 py-2 text-sm font-semibold text-brand-700 shadow-sm transition hover:bg-brand-50"
+              >
+                Back to Dashboard
+              </Link>
+            </div>
           </div>
         )}
 
         {topIdeas.length > 0 && (
-          <div className="rounded-3xl border border-slate-200 bg-white/95 p-6 shadow-soft">
-            <h2 className="text-xl font-semibold text-slate-900">
-              Top Startup Ideas
-            </h2>
-            <p className="mt-1 text-sm text-slate-500">
-              Review your three tailored ideas. Click any row to open the full playbook with financial outlook, risk radar, validation questions, and more.
-            </p>
+          <>
+            {/* Executive Summary */}
+            <div className="mb-4 rounded-3xl border-2 border-brand-200 bg-gradient-to-br from-brand-50 to-white p-6 shadow-soft">
+              <h2 className="mb-4 text-2xl font-bold text-slate-900">Executive Summary</h2>
+              <div className="grid gap-6 md:grid-cols-2">
+                <div>
+                  <h3 className="mb-3 text-lg font-semibold text-slate-900">Top Recommendations</h3>
+                  <ul className="space-y-2 text-sm text-slate-700">
+                    {topIdeas.slice(0, 3).map((idea, idx) => (
+                      <li key={idx} className="flex items-start gap-2">
+                        <span className="mt-1 text-brand-600 font-bold">#{idx + 1}</span>
+                        <span className="font-medium">{idea.title}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+                <div>
+                  <h3 className="mb-3 text-lg font-semibold text-slate-900">Quick Insights</h3>
+                  <ul className="space-y-2 text-sm text-slate-700">
+                    <li className="flex items-center gap-2">
+                      <span className="text-emerald-600">✓</span>
+                      <span>Ideas tailored to your profile and constraints</span>
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <span className="text-emerald-600">✓</span>
+                      <span>Financial outlook and risk assessment included</span>
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <span className="text-emerald-600">✓</span>
+                      <span>Actionable roadmaps for each idea</span>
+                    </li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+
+            {/* Next Steps */}
+            <div className="mb-4 rounded-3xl border-2 border-emerald-200 bg-gradient-to-br from-emerald-50 to-white p-6 shadow-soft">
+              <div className="mb-4 flex items-center gap-3">
+                <h2 className="text-2xl font-bold text-slate-900">🚀 Your Next Steps</h2>
+                <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">Start Here</span>
+              </div>
+              <p className="mb-6 text-slate-600">
+                Follow these specific steps to move forward with your startup ideas.
+              </p>
+              <ol className="ml-6 space-y-4 text-slate-700">
+                <li className="flex items-start gap-3">
+                  <span className="mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-500 text-xs font-bold text-white">1</span>
+                  <div>
+                    <strong className="font-semibold text-slate-900">Review all 3 recommendations</strong>
+                    <p className="mt-1 text-sm text-slate-600">Click "View details" on each idea to see the full analysis, financial outlook, and execution roadmap.</p>
+                  </div>
+                </li>
+                <li className="flex items-start gap-3">
+                  <span className="mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-500 text-xs font-bold text-white">2</span>
+                  <div>
+                    <strong className="font-semibold text-slate-900">Validate your top choice</strong>
+                    <p className="mt-1 text-sm text-slate-600">Use our validation tool to get detailed feedback on your selected idea across 10 key parameters.</p>
+                  </div>
+                </li>
+                <li className="flex items-start gap-3">
+                  <span className="mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-500 text-xs font-bold text-white">3</span>
+                  <div>
+                    <strong className="font-semibold text-slate-900">Talk to potential customers</strong>
+                    <p className="mt-1 text-sm text-slate-600">Reach out to 10 people in your target market this week. Use the customer validation questions from the detailed reports.</p>
+                  </div>
+                </li>
+                <li className="flex items-start gap-3">
+                  <span className="mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-500 text-xs font-bold text-white">4</span>
+                  <div>
+                    <strong className="font-semibold text-slate-900">Create a simple prototype or landing page</strong>
+                    <p className="mt-1 text-sm text-slate-600">Within 30 days, build a minimal version to test interest. Use tools like Carrd, Webflow, or no-code platforms.</p>
+                  </div>
+                </li>
+                <li className="flex items-start gap-3">
+                  <span className="mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-500 text-xs font-bold text-white">5</span>
+                  <div>
+                    <strong className="font-semibold text-slate-900">Download templates and resources</strong>
+                    <p className="mt-1 text-sm text-slate-600">Access our business plan template, pitch deck template, and email templates from the Resources section.</p>
+                  </div>
+                </li>
+              </ol>
+            </div>
+
+            <div className="rounded-3xl border border-slate-200 bg-white/95 p-6 shadow-soft">
+              <h2 className="text-xl font-semibold text-slate-900">
+                Top Startup Ideas
+              </h2>
+              <p className="mt-1 text-sm text-slate-500">
+                Review your three tailored ideas. Click any row to open the full playbook with financial outlook, risk radar, validation questions, and more.
+              </p>
             <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200 shadow-sm shadow-brand-100">
               <table className="min-w-full divide-y divide-slate-200 text-sm">
                 <thead className="bg-brand-500/10 text-left uppercase tracking-wide text-slate-500">
@@ -137,9 +448,7 @@ export default function RecommendationsReport() {
               </table>
             </div>
           </div>
-        )}
-        {topIdeas.length > 0 && (
-          <>
+
             {/* Final Conclusion */}
             {finalConclusion && (
               <div className="rounded-3xl border-2 border-brand-300 bg-gradient-to-br from-brand-50 to-white p-8 shadow-soft">

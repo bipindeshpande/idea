@@ -193,17 +193,65 @@ const SAMPLE_INPUTS = {
 };
 
 export default function RecommendationFullReport() {
-  const { reports, loadRunById, currentRunId, inputs, loading } = useReports();
   const query = useQuery();
   const runId = query.get("id");
   const isSample = query.get("sample") === "true";
+  
+  // SIMPLE VERSION: If sample mode, show sample report directly
+  if (isSample) {
+    const matrixIndex = SAMPLE_REPORT.indexOf("#### Recommendation Matrix");
+    const sampleRemainder = matrixIndex > 0 
+      ? SAMPLE_REPORT.slice(matrixIndex)
+      : SAMPLE_REPORT;
+    
+    const sampleIdeas = parseTopIdeas(SAMPLE_REPORT, 10).slice(0, 3);
+    
+    return (
+      <section className="grid gap-6">
+        <Seo
+          title="Sample Report | Startup Idea Advisor"
+          description="View a sample recommendation report to see what you'll receive."
+          path="/results/recommendations/full"
+        />
+        
+        <div className="rounded-2xl border border-brand-200 bg-brand-50 p-4 text-center">
+          <p className="text-sm font-semibold text-brand-700">
+            📋 Sample Report — This is a demonstration of what you'll receive
+          </p>
+        </div>
+        
+        <div className="flex items-center justify-between gap-3">
+          <Link 
+            to="/product" 
+            className="inline-flex items-center gap-2 text-sm text-brand-700 hover:text-brand-800"
+          >
+            <span aria-hidden="true">←</span> Back to product
+          </Link>
+        </div>
+        
+        <FullReportContent 
+          remainderMarkdown={sampleRemainder} 
+          inputs={SAMPLE_INPUTS} 
+          topIdeas={sampleIdeas} 
+        />
+      </section>
+    );
+  }
+  
   const pdfRef = useRef(null);
   const [downloading, setDownloading] = useState(false);
+  
+  // Get reports context - will always be available since ReportsProvider wraps the app
+  const reportsContext = useReports();
+  const { reports, loadRunById, currentRunId, inputs, loading } = reportsContext;
 
   useEffect(() => {
-    if (runId && !isSample) {
+    // Only try to load if not in sample mode
+    if (isSample) return;
+    
+    if (runId) {
       loadRunById(runId);
-    } else if (!runId && !isSample && currentRunId) {
+    } else if (currentRunId) {
       // If no runId in URL but we have a currentRunId, load it
       loadRunById(currentRunId);
     }
@@ -216,40 +264,45 @@ export default function RecommendationFullReport() {
   
   const effectiveInputs = isSample ? SAMPLE_INPUTS : inputs;
 
-  const markdown = useMemo(
-    () => trimFromHeading(effectiveReports?.personalized_recommendations ?? "", "### Comprehensive Recommendation Report"),
-    [effectiveReports]
-  );
+  // For sample mode, extract ideas and remainder directly from SAMPLE_REPORT
+  const sampleIdeas = useMemo(() => {
+    if (!isSample) return [];
+    return parseTopIdeas(SAMPLE_REPORT, 10).slice(0, 3);
+  }, [isSample]);
 
-  const ideas = useMemo(() => parseTopIdeas(markdown, 10), [markdown]);
-  const topIdeas = ideas.slice(0, 3);
-
-  // For sample mode, use the sample report directly without removing ideas
   const sampleRemainderMarkdown = useMemo(() => {
     if (!isSample) return "";
     // Extract everything after the ideas (from Recommendation Matrix onwards)
     const matrixIndex = SAMPLE_REPORT.indexOf("#### Recommendation Matrix");
     if (matrixIndex > 0) {
-      return SAMPLE_REPORT.slice(matrixIndex).replace(/^#### /, "#### ");
+      return SAMPLE_REPORT.slice(matrixIndex);
     }
-    return SAMPLE_REPORT.replace(/### Comprehensive Recommendation Report\n\n/, "")
-      .replace(/### \d+\. [^\n]+[\s\S]*?(?=#### |$)/g, "")
-      .trim();
+    // Fallback: return a basic structure
+    return "#### Recommendation Matrix\n\n| **Idea** | **Goal Alignment** | **Time Commitment** | **Budget** | **Skill Fit** | **Work Style** |\n|----------|-------------------|---------------------|------------|---------------|----------------|\n| **1. AI-Powered Personal Finance Assistant** | High | ≤ 5 hours/week | $3K Estimated | High (Technical + Design) | Strongly aligned |\n\n#### Financial Outlook\n\n- **Startup costs**: $3,000–$5,000 for initial setup\n- **Monthly operating costs**: $200–$500\n- **Revenue potential**: $1,000–$3,000/month within 6 months\n\n#### Risk Radar\n\n- **Market saturation** (Medium severity): Focus on a specific niche\n- **Technical complexity** (Low severity): Start with no-code tools\n\n#### Validation Questions\n\n1. What's the biggest pain point you face?\n2. How much time do you currently spend on this task per week?\n3. What tools or solutions have you tried before?\n\n#### 30/60/90 Day Roadmap\n\n**Days 0–30**: Validate core assumptions\n**Days 30–60**: Build MVP\n**Days 60–90**: Launch and iterate";
   }, [isSample]);
+
+  const markdown = useMemo(
+    () => isSample ? SAMPLE_REPORT : trimFromHeading(effectiveReports?.personalized_recommendations ?? "", "### Comprehensive Recommendation Report"),
+    [effectiveReports, isSample]
+  );
+
+  const ideas = useMemo(() => parseTopIdeas(markdown, 10), [markdown]);
+  const topIdeas = isSample ? sampleIdeas : ideas.slice(0, 3);
 
   const remainderMarkdown = useMemo(() => {
     if (isSample) return sampleRemainderMarkdown;
     if (!markdown) return "";
     
     // Strategy 1: Find section headings (Recommendation Matrix, Financial Outlook, etc.)
+    // Match both ### and #### headings
     const sectionPatterns = [
-      /(?:^|\n)(?:####?\s*)?(?:Recommendation Matrix|Recommendation\s+Matrix)/i,
-      /(?:^|\n)(?:####?\s*)?(?:Financial Outlook|Financial\s+Outlook)/i,
-      /(?:^|\n)(?:####?\s*)?(?:Risk Radar|Risk\s+Radar)/i,
-      /(?:^|\n)(?:####?\s*)?(?:Customer Persona|Customer\s+Persona)/i,
-      /(?:^|\n)(?:####?\s*)?(?:Validation Questions|Validation\s+Questions)/i,
-      /(?:^|\n)(?:####?\s*)?(?:30\/60\/90 Day Roadmap|30\/60\/90\s+Day\s+Roadmap)/i,
-      /(?:^|\n)(?:####?\s*)?(?:Decision Checklist|Decision\s+Checklist)/i,
+      /(?:^|\n)#{3,4}\s*(?:Recommendation Matrix|Recommendation\s+Matrix)/i,
+      /(?:^|\n)#{3,4}\s*(?:Financial Outlook|Financial\s+Outlook)/i,
+      /(?:^|\n)#{3,4}\s*(?:Risk Radar|Risk\s+Radar)/i,
+      /(?:^|\n)#{3,4}\s*(?:Customer Persona|Customer\s+Persona)/i,
+      /(?:^|\n)#{3,4}\s*(?:Validation Questions|Validation\s+Questions)/i,
+      /(?:^|\n)#{3,4}\s*(?:30\/60\/90 Day Roadmap|30\/60\/90\s+Day\s+Roadmap)/i,
+      /(?:^|\n)#{3,4}\s*(?:Decision Checklist|Decision\s+Checklist)/i,
     ];
     
     for (const pattern of sectionPatterns) {
@@ -383,6 +436,7 @@ export default function RecommendationFullReport() {
           </p>
         </div>
       )}
+      
 
       <div className="flex items-center justify-between gap-3">
         <Link 
@@ -418,6 +472,9 @@ export default function RecommendationFullReport() {
           <p className="mt-2 text-sm">
             Unable to load the recommendation report. Please try accessing it from the recommendations page.
           </p>
+          <p className="mt-2 text-xs text-amber-700">
+            If you just generated a report, try refreshing the page or navigating back to recommendations.
+          </p>
         </div>
       )}
 
@@ -428,6 +485,17 @@ export default function RecommendationFullReport() {
           <p className="mt-2 text-sm">
             We couldn't find additional sections beyond the top ideas. The report may only contain the top recommendations. Try viewing the individual idea details for more information.
           </p>
+          <details className="mt-4 text-xs">
+            <summary className="cursor-pointer text-amber-700 hover:text-amber-800">Debug information</summary>
+            <pre className="mt-2 overflow-auto rounded bg-amber-100 p-2 text-xs">
+              {JSON.stringify({
+                hasMarkdown: !!markdown,
+                markdownLength: markdown?.length || 0,
+                ideasCount: ideas?.length || 0,
+                reportPreview: reports?.personalized_recommendations?.substring(0, 200) || "No report data"
+              }, null, 2)}
+            </pre>
+          </details>
         </div>
       )}
 
@@ -445,8 +513,27 @@ export default function RecommendationFullReport() {
         />
       </div>
 
-      {/* Visible content */}
-      {remainderMarkdown ? (
+      {/* Visible content - Sample mode always renders */}
+      {isSample ? (
+        sampleRemainderMarkdown ? (
+          <FullReportContent 
+            remainderMarkdown={sampleRemainderMarkdown} 
+            inputs={effectiveInputs} 
+            topIdeas={topIdeas.length > 0 ? topIdeas : sampleIdeas.length > 0 ? sampleIdeas : []} 
+          />
+        ) : (
+          <div className="rounded-3xl border border-amber-200 bg-amber-50/80 p-6 text-amber-800 shadow-soft">
+            <h2 className="text-lg font-semibold">Loading sample report...</h2>
+            <p className="mt-2 text-sm">
+              Please wait while we load the sample report content.
+            </p>
+            <p className="mt-4 text-xs text-amber-700">
+              Debug info: SAMPLE_REPORT length = {SAMPLE_REPORT?.length || 0}, 
+              sampleRemainderMarkdown = {sampleRemainderMarkdown?.length || 0} chars
+            </p>
+          </div>
+        )
+      ) : remainderMarkdown ? (
         <FullReportContent remainderMarkdown={remainderMarkdown} inputs={effectiveInputs} topIdeas={topIdeas} />
       ) : (
         <div className="rounded-3xl border border-amber-200 bg-amber-50/80 p-6 text-amber-800 shadow-soft">

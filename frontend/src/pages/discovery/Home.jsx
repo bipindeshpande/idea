@@ -361,69 +361,27 @@ export default function HomePage() {
         </script>
       </Seo>
 
-      <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-brand-500/90 via-brand-600 to-brand-800 p-[1px] shadow-soft">
-        <div className="relative rounded-[calc(1.5rem-1px)] bg-white/95 dark:bg-slate-800/95 px-6 py-12 sm:px-10">
-          <div className="max-w-3xl space-y-5">
-            <span className="inline-flex items-center rounded-full bg-brand-100 dark:bg-brand-900/30 px-4 py-1 text-sm font-medium text-brand-700 dark:text-brand-400">
+      <section className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-brand-500/90 via-brand-600 to-brand-800 p-[1px] shadow-xl shadow-brand-500/25">
+        <div className="relative rounded-[calc(1rem-1px)] bg-white/95 dark:bg-slate-800/95 px-6 py-6 sm:px-8">
+          <div className="max-w-3xl space-y-6">
+            <span className="inline-flex items-center rounded-full bg-gradient-to-r from-brand-50 to-brand-100/50 dark:from-brand-900/40 dark:to-brand-800/30 px-4 py-1.5 text-xs font-semibold uppercase tracking-wider text-brand-700 dark:text-brand-300 shadow-sm border border-brand-200/50 dark:border-brand-700/30">
               AI co-pilot for side hustles & founders
             </span>
-            <h1 className="text-4xl font-bold tracking-tight text-slate-900 dark:text-slate-100 sm:text-5xl">
-              Turn your profile into vetted startup ideas
-            </h1>
-            <p className="text-lg text-slate-600 dark:text-slate-300">
+            <p className="text-lg leading-relaxed text-slate-600 dark:text-slate-300">
               Share your goals, time, and strengths. Our AI advisor researches markets, evaluates risks, and hands you advisor-grade recommendations within minutes.
             </p>
-            <div className="flex flex-wrap gap-3">
-              <a
-                href="#start"
-                className="rounded-xl bg-brand-500 px-5 py-3 text-sm font-semibold text-white shadow-md transition hover:bg-brand-600"
-              >
-                Start your free beta run
-              </a>
-              <Link
-                to="/pricing"
-                className="rounded-xl border border-white/70 dark:border-slate-600 bg-white/70 dark:bg-slate-700/70 px-5 py-3 text-sm font-semibold text-brand-700 dark:text-brand-400 shadow-sm transition hover:border-brand-300 dark:hover:border-brand-500"
-              >
-                View pricing
-              </Link>
-            </div>
           </div>
-        </div>
-      </section>
-
-      <section className="grid gap-4 rounded-3xl border border-slate-200 dark:border-slate-700 bg-white/90 dark:bg-slate-800/90 p-8 shadow-soft">
-        <h2 className="text-xl font-semibold text-slate-900 dark:text-slate-100">Why founders use Startup Idea Advisor</h2>
-        <div className="grid gap-4 md:grid-cols-3">
-          {[
-            {
-              title: "Personalized insight",
-              body: "Ideas are tailored to your skills, budget, time, and appetite for risk—no generic lists.",
-            },
-            {
-              title: "Advisor-grade analysis",
-              body: "Each report includes market research, financial outlook, and risk mitigation steps.",
-            },
-            {
-              title: "Faster validation",
-              body: "Iterate quickly with saved runs, PDF exports, and 30/60/90 day roadmaps.",
-            },
-          ].map((item) => (
-            <div key={item.title} className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-5 shadow-sm">
-              <h3 className="text-base font-semibold text-slate-800 dark:text-slate-100">{item.title}</h3>
-              <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">{item.body}</p>
-            </div>
-          ))}
         </div>
       </section>
 
       <form
         id="intake-form"
         onSubmit={handleSubmit}
-        className="grid gap-8 rounded-3xl border border-slate-200 dark:border-slate-700 bg-white/90 dark:bg-slate-800/90 p-8 shadow-soft backdrop-blur"
+        className="grid gap-4 rounded-2xl border border-slate-200/60 dark:border-slate-700/60 bg-white/95 dark:bg-slate-800/95 p-6 shadow-lg backdrop-blur"
       >
-        <header className="space-y-2">
-          <h2 className="text-xl font-semibold text-slate-900 dark:text-slate-100">{intakeScreen.screen_title}</h2>
-          <p className="text-sm text-slate-600 dark:text-slate-300">{intakeScreen.description}</p>
+        <header className="space-y-3">
+          <h2 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-50">{intakeScreen.screen_title}</h2>
+          <p className="text-base leading-relaxed text-slate-600 dark:text-slate-300">{intakeScreen.description}</p>
         </header>
 
         <div className="space-y-3">
@@ -476,7 +434,32 @@ export default function HomePage() {
         </p>
       </form>
 
-      <section className="grid gap-4 rounded-3xl border border-slate-200 bg-white/90 p-8 shadow-soft">
+      <section className="grid gap-4 rounded-2xl border border-slate-200/60 dark:border-slate-700/60 bg-white/95 dark:bg-slate-800/95 p-6 shadow-lg">
+        <h2 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-50">Why founders use Startup Idea Advisor</h2>
+        <div className="grid gap-4 md:grid-cols-3">
+          {[
+            {
+              title: "Personalized insight",
+              body: "Ideas are tailored to your skills, budget, time, and appetite for risk—no generic lists.",
+            },
+            {
+              title: "Advisor-grade analysis",
+              body: "Each report includes market research, financial outlook, and risk mitigation steps.",
+            },
+            {
+              title: "Faster validation",
+              body: "Iterate quickly with saved runs, PDF exports, and 30/60/90 day roadmaps.",
+            },
+          ].map((item) => (
+            <div key={item.title} className="group relative overflow-hidden rounded-xl border border-slate-200/60 dark:border-slate-700/60 bg-white dark:bg-slate-800/50 p-5 shadow-md transition-all duration-300 hover:shadow-lg hover:-translate-y-1">
+              <h3 className="text-base font-bold text-slate-900 dark:text-slate-50">{item.title}</h3>
+              <p className="mt-2 text-sm leading-relaxed text-slate-600 dark:text-slate-300">{item.body}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="grid gap-4 rounded-3xl border border-slate-200 bg-white/90 p-6 shadow-soft">
         <h2 className="text-xl font-semibold text-slate-900">Trusted by builders at</h2>
         <div className="grid gap-4 md:grid-cols-3">
           {[

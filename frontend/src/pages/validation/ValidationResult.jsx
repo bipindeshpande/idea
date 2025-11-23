@@ -52,14 +52,14 @@ export default function ValidationResult() {
 
   if (!validation) {
     return (
-      <section className="mx-auto max-w-6xl px-6 py-12">
+      <section className="mx-auto max-w-6xl px-6 py-6">
         <Seo
           title="Idea Validation Results | Startup Idea Advisor"
           description="Review your startup idea validation results with comprehensive analysis across 10 key parameters and actionable recommendations."
           keywords="startup validation results, idea validation score, startup idea analysis, business validation report"
           path="/validate-result"
         />
-        <div className="rounded-3xl border border-amber-200 bg-amber-50/80 p-8 text-amber-800 shadow-soft">
+        <div className="rounded-3xl border border-amber-200 bg-amber-50/80 p-6 text-amber-800 shadow-soft">
           <h2 className="text-lg font-semibold">Validation results not available</h2>
           <p className="mt-2 text-sm">
             Unable to load validation results. Please try validating your idea again.
@@ -78,6 +78,7 @@ export default function ValidationResult() {
   const scores = validation?.scores || {};
   const overallScore = validation?.overall_score || 0;
   const recommendations = validation?.recommendations || "";
+  const nextSteps = validation?.next_steps || "";
 
   // Generate final conclusion
   const finalConclusion = useMemo(() => 
@@ -121,21 +122,54 @@ export default function ValidationResult() {
         </Link>
       </div>
 
-      {/* Overall Score */}
-      <div className="mb-8 rounded-3xl border-2 border-brand-200 bg-gradient-to-br from-brand-50 to-white p-8 shadow-soft">
-        <div className="text-center">
-          <p className="text-sm font-semibold uppercase tracking-wide text-brand-700">Overall Score</p>
-          <div className="mt-4 inline-flex items-baseline gap-2">
-            <span className="text-6xl font-bold text-brand-700">{overallScore}</span>
-            <span className="text-2xl font-medium text-slate-500">/ 10</span>
+      {/* Executive Summary */}
+      <div className="mb-6 rounded-3xl border-2 border-brand-200 bg-gradient-to-br from-brand-50 to-white p-6 shadow-soft">
+        <h2 className="mb-4 text-2xl font-bold text-slate-900">Executive Summary</h2>
+        <div className="grid gap-6 md:grid-cols-2">
+          <div className="text-center">
+            <p className="text-sm font-semibold uppercase tracking-wide text-brand-700">Overall Score</p>
+            <div className="mt-4 inline-flex items-baseline gap-2">
+              <span className="text-6xl font-bold text-brand-700">{overallScore}</span>
+              <span className="text-2xl font-medium text-slate-500">/ 10</span>
+            </div>
+            <p className="mt-4 text-lg text-slate-700">
+              {overallScore >= 8
+                ? "Excellent! Your idea shows strong potential."
+                : overallScore >= 6
+                ? "Good potential with some areas to strengthen."
+                : "Consider refining key aspects before moving forward."}
+            </p>
           </div>
-          <p className="mt-4 text-lg text-slate-700">
-            {overallScore >= 8
-              ? "Excellent! Your idea shows strong potential."
-              : overallScore >= 6
-              ? "Good potential with some areas to strengthen."
-              : "Consider refining key aspects before moving forward."}
-          </p>
+          <div>
+            <h3 className="mb-3 text-lg font-semibold text-slate-900">Key Strengths</h3>
+            <ul className="space-y-2 text-sm text-slate-700">
+              {Object.entries(scores)
+                .filter(([_, score]) => score >= 7)
+                .slice(0, 3)
+                .map(([key, score]) => (
+                  <li key={key} className="flex items-center gap-2">
+                    <span className="text-emerald-600">✓</span>
+                    <span>{key.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())} ({score}/10)</span>
+                  </li>
+                ))}
+              {Object.entries(scores).filter(([_, score]) => score >= 7).length === 0 && (
+                <li className="text-slate-500">Focus on improving all areas</li>
+              )}
+            </ul>
+            <h3 className="mb-3 mt-4 text-lg font-semibold text-slate-900">Areas to Improve</h3>
+            <ul className="space-y-2 text-sm text-slate-700">
+              {Object.entries(scores)
+                .filter(([_, score]) => score < 6)
+                .sort(([_, a], [__, b]) => a - b)
+                .slice(0, 3)
+                .map(([key, score]) => (
+                  <li key={key} className="flex items-center gap-2">
+                    <span className="text-amber-600">⚠</span>
+                    <span>{key.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())} ({score}/10)</span>
+                  </li>
+                ))}
+            </ul>
+          </div>
         </div>
       </div>
 
@@ -178,7 +212,7 @@ export default function ValidationResult() {
 
       {/* Detailed Analysis */}
       {recommendations && (
-        <div className="mb-8 rounded-3xl border border-slate-200 bg-white/95 p-8 shadow-soft">
+        <div className="mb-6 rounded-3xl border border-slate-200 bg-white/95 p-6 shadow-soft">
           <h2 className="mb-4 text-2xl font-semibold text-slate-900">Detailed Analysis & Recommendations</h2>
           <div className="prose prose-slate max-w-none">
             <ReactMarkdown
@@ -212,7 +246,7 @@ export default function ValidationResult() {
 
       {/* Final Conclusion */}
       {finalConclusion && (
-        <div className="mb-8 rounded-3xl border-2 border-brand-300 bg-gradient-to-br from-brand-50 to-white p-8 shadow-soft">
+        <div className="mb-6 rounded-3xl border-2 border-brand-300 bg-gradient-to-br from-brand-50 to-white p-6 shadow-soft">
           <div className="prose prose-slate max-w-none">
             <ReactMarkdown
               components={{
@@ -243,7 +277,7 @@ export default function ValidationResult() {
       )}
 
       {/* Idea Summary */}
-      <div className="rounded-3xl border border-sand-200 bg-sand-50/80 p-8 shadow-soft">
+      <div className="rounded-3xl border border-sand-200 bg-sand-50/80 p-6 shadow-soft">
         <h2 className="mb-4 text-xl font-semibold text-slate-900">Your Idea Summary</h2>
         <div className="space-y-4 text-sm">
           {Object.entries(categoryAnswers).map(([key, value]) => (
@@ -261,9 +295,45 @@ export default function ValidationResult() {
         </div>
       </div>
 
-      {/* Next Steps */}
-      <div className="mt-8 rounded-3xl border border-brand-200 bg-brand-50/80 p-8 shadow-soft">
-        <h2 className="mb-4 text-xl font-semibold text-slate-900">Next Steps</h2>
+      {/* Next Steps - Actionable Items */}
+      {nextSteps && (
+        <div className="mb-6 rounded-3xl border-2 border-emerald-200 bg-gradient-to-br from-emerald-50 to-white p-6 shadow-soft">
+          <div className="mb-4 flex items-center gap-3">
+            <h2 className="text-2xl font-bold text-slate-900">🚀 Your Next Steps</h2>
+            <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">Start Here</span>
+          </div>
+          <p className="mb-6 text-slate-600">
+            Follow these specific, actionable steps to move your idea forward. Each step includes resources and timelines.
+          </p>
+          <div className="prose prose-slate max-w-none">
+            <ReactMarkdown
+              components={{
+                ol: ({ node, ...props }) => (
+                  <ol className="list-decimal list-outside space-y-4 text-slate-700 mb-4 ml-6" {...props} />
+                ),
+                li: ({ node, ...props }) => (
+                  <li className="leading-relaxed text-base" {...props} />
+                ),
+                strong: ({ node, ...props }) => (
+                  <strong className="font-semibold text-slate-900" {...props} />
+                ),
+                p: ({ node, ...props }) => (
+                  <p className="text-slate-700 leading-relaxed mb-2" {...props} />
+                ),
+                a: ({ node, ...props }) => (
+                  <a className="text-brand-600 hover:text-brand-700 underline" target="_blank" rel="noopener noreferrer" {...props} />
+                ),
+              }}
+            >
+              {nextSteps}
+            </ReactMarkdown>
+          </div>
+        </div>
+      )}
+
+      {/* Additional Actions */}
+      <div className="mb-6 rounded-3xl border border-brand-200 bg-brand-50/80 p-6 shadow-soft">
+        <h2 className="mb-4 text-xl font-semibold text-slate-900">Additional Actions</h2>
         <div className="grid gap-4 md:grid-cols-2">
           <button
             onClick={() => {

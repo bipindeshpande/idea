@@ -25,11 +25,11 @@ const footerLinks = {
 
 export default function Footer() {
   return (
-    <footer className="mt-12 border-t border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/90">
-      <div className="mx-auto grid max-w-6xl gap-8 px-6 py-10 sm:grid-cols-2 lg:grid-cols-5">
-        <div className="space-y-2">
-          <p className="text-lg font-semibold text-brand-700 dark:text-brand-400 whitespace-nowrap">Startup Idea Advisor</p>
-          <p className="text-sm text-slate-500 dark:text-slate-400">
+    <footer className="mt-16 border-t border-slate-200/60 dark:border-slate-800/80 bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm">
+      <div className="mx-auto grid max-w-6xl gap-8 px-6 py-12 sm:grid-cols-2 lg:grid-cols-5">
+        <div className="space-y-3">
+          <p className="text-lg font-bold bg-gradient-to-r from-brand-600 to-brand-700 dark:from-brand-400 dark:to-brand-500 bg-clip-text text-transparent whitespace-nowrap">Idea Bunch</p>
+          <p className="text-sm leading-relaxed text-slate-600 dark:text-slate-400">
             An AI-powered companion that helps professionals surface, validate, and prioritize startup ideas matched to their strengths.
           </p>
         </div>
@@ -58,12 +58,12 @@ export default function Footer() {
             <a href="https://twitter.com/startupideaAI" target="_blank" rel="noreferrer" className="hover:text-brand-600 dark:hover:text-brand-400">
               X
             </a>
-            <a href="mailto:hello@startupideaadvisor.com" className="hover:text-brand-600 dark:hover:text-brand-400">Email</a>
+            <a href="mailto:hello@ideabunch.com" className="hover:text-brand-600 dark:hover:text-brand-400">Email</a>
           </div>
         </div>
       </div>
-      <div className="border-t border-slate-100 dark:border-slate-800 py-4 text-center text-xs text-slate-600 dark:text-slate-400">
-        © {new Date().getFullYear()} Startup Idea Advisor. All rights reserved.
+      <div className="border-t border-slate-200/60 dark:border-slate-800/80 py-5 text-center text-xs text-slate-500 dark:text-slate-500">
+        © {new Date().getFullYear()} Idea Bunch. All rights reserved.
       </div>
     </footer>
   );

@@ -37,6 +37,35 @@ textarea {
   scroll-margin-top: 6rem;
 }
 
+.dark .prose h1,
+.dark .prose h2,
+.dark .prose h3,
+.dark .prose h4,
+.prose-invert h1,
+.prose-invert h2,
+.prose-invert h3,
+.prose-invert h4 {
+  color: #e2e8f0;
+}
+
+.prose p,
+.prose li,
+.prose strong,
+.prose em {
+  color: #374151;
+}
+
+.dark .prose p,
+.dark .prose li,
+.dark .prose strong,
+.dark .prose em,
+.prose-invert p,
+.prose-invert li,
+.prose-invert strong,
+.prose-invert em {
+  color: #cbd5e1;
+}
+
 .prose table {
   width: 100%;
   border-collapse: collapse;
@@ -57,8 +86,20 @@ textarea {
   border: 1px solid rgba(21, 50, 116, 0.08);
 }
 
+.dark .prose table th,
+.dark .prose table td,
+.prose-invert table th,
+.prose-invert table td {
+  border: 1px solid rgba(148, 163, 184, 0.2);
+}
+
 .prose ul > li::marker {
   color: #224faf;
+}
+
+.dark .prose ul > li::marker,
+.prose-invert ul > li::marker {
+  color: #60a5fa;
 }
 
 .tag-chip {

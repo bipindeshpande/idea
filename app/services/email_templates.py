@@ -20,14 +20,14 @@ def get_base_template(content: str, unsubscribe_url: Optional[str] = None) -> st
     </head>
     <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
         <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; text-align: center; border-radius: 8px 8px 0 0;">
-            <h1 style="color: white; margin: 0; font-size: 24px;">Startup Idea Advisor</h1>
+            <h1 style="color: white; margin: 0; font-size: 24px;">Idea Bunch</h1>
         </div>
         <div style="background: #ffffff; padding: 30px; border: 1px solid #e0e0e0; border-top: none; border-radius: 0 0 8px 8px;">
             {content}
             {footer}
         </div>
         <div style="text-align: center; margin-top: 20px; font-size: 12px; color: #999;">
-            <p>© {datetime.now().year} Startup Idea Advisor. All rights reserved.</p>
+            <p>© {datetime.now().year} Idea Bunch. All rights reserved.</p>
         </div>
     </body>
     </html>
@@ -53,7 +53,7 @@ def validation_ready_email(user_name: str, validation_id: str, validation_score:
         <li>Final conclusion with decision rationale</li>
     </ul>
     <div style="text-align: center; margin: 30px 0;">
-        <a href="https://startupideaadvisor.com/validate-result?id={validation_id}" 
+        <a href="https://ideabunch.com/validate-result?id={validation_id}" 
            style="background: #667eea; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold;">
             View Validation Results
         </a>
@@ -66,7 +66,7 @@ Hi {name},
 
 Your idea validation is complete and ready to review.
 
-View your results at: https://startupideaadvisor.com/validate-result?id={validation_id}
+View your results at: https://ideabunch.com/validate-result?id={validation_id}
 
 You'll see detailed analysis, recommendations, and a final conclusion to help guide your next steps.
 """
@@ -90,7 +90,7 @@ def trial_ending_email(user_name: str, days_remaining: int) -> tuple[str, str]:
         <li>Access to all platform features</li>
     </ul>
     <div style="text-align: center; margin: 30px 0;">
-        <a href="https://startupideaadvisor.com/pricing" 
+        <a href="https://ideabunch.com/pricing" 
            style="background: #667eea; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold;">
             Subscribe Now - Starting at $5/week
         </a>
@@ -104,7 +104,7 @@ Hi {name},
 Your 3-day free trial ends in {days_text}.
 
 Subscribe now to continue accessing all features:
-https://startupideaadvisor.com/pricing
+https://ideabunch.com/pricing
 
 Choose between $5/week or $15/month.
 """
@@ -128,7 +128,7 @@ def subscription_expiring_email(user_name: str, subscription_type: str, days_rem
         <li>All platform features</li>
     </ul>
     <div style="text-align: center; margin: 30px 0;">
-        <a href="https://startupideaadvisor.com/pricing" 
+        <a href="https://ideabunch.com/pricing" 
            style="background: #667eea; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold;">
             Renew Subscription
         </a>
@@ -141,7 +141,7 @@ Hi {name},
 
 Your {plan_name} subscription expires in {days_text}.
 
-Renew now: https://startupideaadvisor.com/pricing
+Renew now: https://ideabunch.com/pricing
 """
     
     return get_base_template(content), text_content
@@ -153,7 +153,7 @@ def welcome_email(user_name: str) -> tuple[str, str]:
     
     content = f"""
     <h2 style="color: #333; margin-top: 0;">Welcome, {name}!</h2>
-    <p>Thanks for joining Startup Idea Advisor. You're now ready to validate and discover your next startup idea.</p>
+    <p>Thanks for joining Idea Bunch. You're now ready to validate and discover your next startup idea.</p>
     <p><strong>Here's what you can do:</strong></p>
     <ol>
         <li><strong>Validate an existing idea</strong> - Get detailed feedback on your startup concept</li>
@@ -161,7 +161,7 @@ def welcome_email(user_name: str) -> tuple[str, str]:
         <li><strong>Review your results</strong> - Access detailed analysis and roadmaps</li>
     </ol>
     <div style="text-align: center; margin: 30px 0;">
-        <a href="https://startupideaadvisor.com" 
+        <a href="https://ideabunch.com" 
            style="background: #667eea; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold;">
             Get Started
         </a>
@@ -172,9 +172,9 @@ def welcome_email(user_name: str) -> tuple[str, str]:
     text_content = f"""
 Welcome, {name}!
 
-Thanks for joining Startup Idea Advisor. You're now ready to validate and discover your next startup idea.
+Thanks for joining Idea Bunch. You're now ready to validate and discover your next startup idea.
 
-Get started: https://startupideaadvisor.com
+Get started: https://ideabunch.com
 
 You have 3 days of free access to explore all features.
 """
@@ -199,7 +199,7 @@ def subscription_activated_email(user_name: str, subscription_type: str) -> tupl
         <li>All premium features</li>
     </ul>
     <div style="text-align: center; margin: 30px 0;">
-        <a href="https://startupideaadvisor.com" 
+        <a href="https://ideabunch.com" 
            style="background: #667eea; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold;">
             Start Validating Ideas
         </a>
@@ -214,10 +214,127 @@ Your subscription to the {plan_name} has been activated!
 
 You now have unlimited access to all features.
 
-Get started: https://startupideaadvisor.com
+Get started: https://ideabunch.com
 
 Thank you for your support!
 """
     
     return get_base_template(content), text_content
 
+
+def password_reset_email(user_name: str, reset_link: str) -> tuple[str, str]:
+    """Email template for password reset."""
+    name = user_name.split("@")[0] if "@" in user_name else user_name
+    
+    content = f"""
+    <h2 style="color: #333; margin-top: 0;">Hi {name},</h2>
+    <p>We received a request to reset your password for your Startup Idea Advisor account.</p>
+    <p>Click the button below to reset your password:</p>
+    <div style="text-align: center; margin: 30px 0;">
+        <a href="{reset_link}" 
+           style="background: #667eea; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold;">
+            Reset Password
+        </a>
+    </div>
+    <p style="color: #666; font-size: 14px;">This link will expire in 1 hour for security reasons.</p>
+    <p style="color: #666; font-size: 14px;">If you didn't request a password reset, you can safely ignore this email. Your password will remain unchanged.</p>
+    <p style="color: #999; font-size: 12px; margin-top: 20px;">Or copy and paste this link into your browser:<br>{reset_link}</p>
+    """
+    
+    text_content = f"""
+Hi {name},
+
+We received a request to reset your password for your Startup Idea Advisor account.
+
+Reset your password: {reset_link}
+
+This link will expire in 1 hour for security reasons.
+
+If you didn't request a password reset, you can safely ignore this email. Your password will remain unchanged.
+"""
+    
+    return get_base_template(content), text_content
+
+
+def password_changed_email(user_name: str) -> tuple[str, str]:
+    """Email template for password change confirmation."""
+    name = user_name.split("@")[0] if "@" in user_name else user_name
+    
+    content = f"""
+    <h2 style="color: #333; margin-top: 0;">Hi {name},</h2>
+    <p>Your password has been successfully changed.</p>
+    <p>If you made this change, you can safely ignore this email.</p>
+    <p style="color: #d32f2f; font-weight: bold;">If you did NOT make this change, please contact us immediately to secure your account.</p>
+    <div style="text-align: center; margin: 30px 0;">
+        <a href="https://ideabunch.com" 
+           style="background: #667eea; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold;">
+            Go to Dashboard
+        </a>
+    </div>
+    <p style="color: #666; font-size: 14px;">For security, we recommend using a strong, unique password.</p>
+    """
+    
+    text_content = f"""
+Hi {name},
+
+Your password has been successfully changed.
+
+If you made this change, you can safely ignore this email.
+
+If you did NOT make this change, please contact us immediately to secure your account.
+
+Go to dashboard: https://startupideaadvisor.com
+"""
+    
+    return get_base_template(content), text_content
+
+
+def payment_failed_email(user_name: str, subscription_type: str, error_message: str = None) -> tuple[str, str]:
+    """Email template for payment failure notification."""
+    name = user_name.split("@")[0] if "@" in user_name else user_name
+    plan_name = "Weekly Plan" if subscription_type == "weekly" else "Monthly Plan"
+    price = "$5/week" if subscription_type == "weekly" else "$15/month"
+    
+    error_text = ""
+    if error_message:
+        error_text = f'<p style="color: #d32f2f; font-size: 14px;"><strong>Error:</strong> {error_message}</p>'
+    
+    content = f"""
+    <h2 style="color: #333; margin-top: 0;">Hi {name},</h2>
+    <p>We were unable to process your payment for the <strong>{plan_name}</strong> ({price}).</p>
+    {error_text}
+    <p>To continue using Startup Idea Advisor, please update your payment method:</p>
+    <div style="text-align: center; margin: 30px 0;">
+        <a href="https://ideabunch.com/pricing" 
+           style="background: #667eea; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold;">
+            Update Payment Method
+        </a>
+    </div>
+    <p style="color: #666; font-size: 14px;">Common reasons for payment failure:</p>
+    <ul style="color: #666; font-size: 14px;">
+        <li>Insufficient funds</li>
+        <li>Expired card</li>
+        <li>Card declined by bank</li>
+        <li>Incorrect card details</li>
+    </ul>
+    <p style="color: #666; font-size: 14px;">If you continue to experience issues, please contact support.</p>
+    """
+    
+    text_content = f"""
+Hi {name},
+
+We were unable to process your payment for the {plan_name} ({price}).
+
+To continue using Idea Bunch, please update your payment method:
+https://ideabunch.com/pricing
+
+Common reasons for payment failure:
+- Insufficient funds
+- Expired card
+- Card declined by bank
+- Incorrect card details
+
+If you continue to experience issues, please contact support.
+"""
+    
+    return get_base_template(content), text_content

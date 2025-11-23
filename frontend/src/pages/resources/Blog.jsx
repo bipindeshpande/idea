@@ -493,12 +493,12 @@ function ShareLinks({ title, slug }) {
   const text = encodeURIComponent(`${title} - Startup Idea Advisor`);
   return (
     <div className="flex flex-wrap items-center gap-2 text-sm">
-      <span className="text-slate-500">Share:</span>
+      <span className="text-slate-500 dark:text-slate-400">Share:</span>
       <a
         href={`https://www.linkedin.com/shareArticle?mini=true&url=${encodeURIComponent(url)}&title=${text}`}
         target="_blank"
         rel="noreferrer"
-        className="whitespace-nowrap rounded-full border border-brand-300 bg-white px-3 py-1 text-xs font-semibold text-brand-700 shadow-sm transition hover:border-brand-400 hover:bg-brand-50"
+        className="whitespace-nowrap rounded-full border border-brand-300 dark:border-brand-700 bg-white dark:bg-slate-800 px-3 py-1 text-xs font-semibold text-brand-700 dark:text-brand-400 shadow-sm transition hover:border-brand-400 dark:hover:border-brand-600 hover:bg-brand-50 dark:hover:bg-brand-900/30"
       >
         LinkedIn
       </a>
@@ -506,7 +506,7 @@ function ShareLinks({ title, slug }) {
         href={`https://twitter.com/intent/tweet?url=${encodeURIComponent(url)}&text=${text}`}
         target="_blank"
         rel="noreferrer"
-        className="whitespace-nowrap rounded-full border border-brand-300 bg-white px-3 py-1 text-xs font-semibold text-brand-700 shadow-sm transition hover:border-brand-400 hover:bg-brand-50"
+        className="whitespace-nowrap rounded-full border border-brand-300 dark:border-brand-700 bg-white dark:bg-slate-800 px-3 py-1 text-xs font-semibold text-brand-700 dark:text-brand-400 shadow-sm transition hover:border-brand-400 dark:hover:border-brand-600 hover:bg-brand-50 dark:hover:bg-brand-900/30"
       >
         X
       </a>
@@ -521,7 +521,7 @@ export default function BlogPage() {
   if (post) {
     return (
       <section className="mx-auto max-w-4xl px-6 py-12">
-        <article className="rounded-3xl border border-slate-200 bg-white/95 p-8 shadow-soft">
+        <article className="rounded-3xl border border-slate-200 dark:border-slate-700 bg-white/95 dark:bg-slate-800/95 p-8 shadow-soft">
           <Seo
             title={`${post.title} | Startup Idea Advisor`}
             description={post.description}
@@ -529,15 +529,15 @@ export default function BlogPage() {
             keywords={`startup ideas, ${post.tags.join(", ")}`}
           />
           <div className="mb-6">
-            <p className="text-xs uppercase tracking-wide text-slate-500">
+            <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
               {new Date(post.date).toLocaleDateString()}
             </p>
-            <h1 className="mt-2 text-3xl font-bold text-slate-900 md:text-4xl">{post.title}</h1>
+            <h1 className="mt-2 text-3xl font-bold text-slate-900 dark:text-slate-100 md:text-4xl">{post.title}</h1>
             <div className="mt-4 flex flex-wrap gap-2">
               {post.tags.map((tag) => (
                 <span
                   key={tag}
-                  className="rounded-full bg-brand-50 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-brand-700"
+                  className="rounded-full bg-brand-50 dark:bg-brand-900/30 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-brand-700 dark:text-brand-400"
                 >
                   {tag}
                 </span>
@@ -545,19 +545,19 @@ export default function BlogPage() {
             </div>
           </div>
           <ShareLinks title={post.title} slug={post.slug} />
-          <div className="prose prose-slate mt-8 max-w-none">
+          <div className="prose prose-slate dark:prose-invert mt-8 max-w-none">
             <ReactMarkdown>{post.body}</ReactMarkdown>
           </div>
-          <div className="mt-8 flex items-center justify-between border-t border-slate-200 pt-6 text-sm">
+          <div className="mt-8 flex items-center justify-between border-t border-slate-200 dark:border-slate-700 pt-6 text-sm">
             <Link
               to="/blog"
-              className="font-semibold text-brand-600 hover:text-brand-700"
+              className="font-semibold text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300"
             >
               ← Back to blog
             </Link>
             <Link
               to="/advisor"
-              className="font-semibold text-brand-600 hover:text-brand-700"
+              className="font-semibold text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300"
             >
               Run a new idea →
             </Link>
@@ -577,13 +577,10 @@ export default function BlogPage() {
 
       {/* Hero Section */}
       <header className="mb-16 text-center">
-        <span className="inline-flex items-center gap-2 rounded-full bg-brand-50 px-4 py-1.5 text-xs font-semibold uppercase tracking-wide text-brand-700">
-          Blog
-        </span>
-        <h1 className="mt-6 text-4xl font-bold text-slate-900 md:text-5xl">
+        <h1 className="text-4xl font-bold text-slate-900 dark:text-slate-100 md:text-5xl">
           Ideas & Playbooks
         </h1>
-        <p className="mx-auto mt-4 max-w-2xl text-lg text-slate-600">
+        <p className="mx-auto mt-4 max-w-2xl text-lg text-slate-600 dark:text-slate-300">
           Weekly insights and curated ideas from Startup Idea Advisor. Subscribe to stay ahead of the curve.
         </p>
       </header>
@@ -592,10 +589,10 @@ export default function BlogPage() {
       <div className="grid gap-6 md:grid-cols-2">
         {posts.map((post, index) => {
           const colorClasses = [
-            { border: "border-brand-200", bg: "bg-brand-50" },
-            { border: "border-aqua-200", bg: "bg-aqua-50" },
-            { border: "border-coral-200", bg: "bg-coral-50" },
-            { border: "border-sand-200", bg: "bg-sand-50" },
+            { border: "border-brand-200 dark:border-brand-700", bg: "bg-brand-50 dark:bg-brand-900/30" },
+            { border: "border-aqua-200 dark:border-aqua-700", bg: "bg-aqua-50 dark:bg-aqua-900/30" },
+            { border: "border-coral-200 dark:border-coral-700", bg: "bg-coral-50 dark:bg-coral-900/30" },
+            { border: "border-sand-200 dark:border-sand-700", bg: "bg-sand-50 dark:bg-sand-900/30" },
           ];
           const colors = colorClasses[index % colorClasses.length];
 
@@ -604,16 +601,16 @@ export default function BlogPage() {
               key={post.slug}
               className={`rounded-2xl border ${colors.border} ${colors.bg} p-6 shadow-sm transition hover:shadow-md`}
             >
-              <p className="text-xs uppercase tracking-wide text-slate-500">
+              <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
                 {new Date(post.date).toLocaleDateString()}
               </p>
-              <h2 className="mt-2 text-xl font-semibold text-slate-900">{post.title}</h2>
-              <p className="mt-3 text-sm text-slate-600">{post.description}</p>
+              <h2 className="mt-2 text-xl font-semibold text-slate-900 dark:text-slate-100">{post.title}</h2>
+              <p className="mt-3 text-sm text-slate-600 dark:text-slate-300">{post.description}</p>
               <div className="mt-4 flex flex-wrap gap-2">
                 {post.tags.map((tag) => (
                   <span
                     key={tag}
-                    className="rounded-full bg-white/80 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-700"
+                    className="rounded-full bg-white/80 dark:bg-slate-800/80 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-700 dark:text-slate-300"
                   >
                     {tag}
                   </span>
@@ -622,7 +619,7 @@ export default function BlogPage() {
               <div className="mt-6 flex items-center justify-between">
                 <Link
                   to={`/blog/${post.slug}`}
-                  className="whitespace-nowrap rounded-xl border border-brand-300 bg-white px-4 py-2 text-sm font-semibold text-brand-700 shadow-sm transition hover:border-brand-400 hover:bg-brand-50"
+                  className="whitespace-nowrap rounded-xl border border-brand-300 dark:border-brand-700 bg-white dark:bg-slate-800 px-4 py-2 text-sm font-semibold text-brand-700 dark:text-brand-400 shadow-sm transition hover:border-brand-400 dark:hover:border-brand-600 hover:bg-brand-50 dark:hover:bg-brand-900/30"
                 >
                   Read article
                 </Link>

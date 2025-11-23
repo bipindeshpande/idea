@@ -28,10 +28,8 @@ function parseProfileSections(markdown = "") {
       continue;
     }
     
-    // Check for main section: **1. Title:** or **Title:**
-    // Match: **1. Core Motivations and Objective Framing:**
-    // Use a more flexible pattern that handles the colon
-    const boldSectionMatch = trimmed.match(/^\*\*(\d+\.\s*)?([^*]+)\*\*:?\s*$/);
+    // Check for main section: **1. Title:** or **Title:** (more flexible)
+    const boldSectionMatch = trimmed.match(/^\*\*(\d+\.\s*)?([^*]+?)\*\*:?\s*$/);
     if (boldSectionMatch) {
       const fullTitle = boldSectionMatch[0];
       if (fullTitle.toLowerCase().includes('profile summary document') || 
@@ -67,8 +65,8 @@ function parseProfileSections(markdown = "") {
       continue;
     }
     
-    // Check for markdown heading ####
-    const mdHeadingMatch = trimmed.match(/^####\s+(.+)$/);
+    // Check for markdown headings (#, ##, ###, ####) - more flexible
+    const mdHeadingMatch = trimmed.match(/^(#{1,6})\s+(.+)$/);
     if (mdHeadingMatch) {
       // Save previous section
       if (currentSection) {
@@ -85,18 +83,57 @@ function parseProfileSections(markdown = "") {
         sections.push(currentSection);
       }
       
-      // Start new section
-      const title = mdHeadingMatch[1].trim().replace(/^\d+\.\s*/, '');
-      currentSection = {
-        title,
-        level: 4,
-        intro: "",
-        subsections: [],
-      };
-      currentContent = [];
-      currentSubsection = null;
-      subsectionContent = [];
-      continue;
+      // Start new section - accept h2 and below as sections (h1 is usually title)
+      const title = mdHeadingMatch[2].trim().replace(/^\d+\.\s*/, '');
+      const headingLevel = mdHeadingMatch[1].length;
+      if (headingLevel >= 2) {
+        currentSection = {
+          title,
+          level: headingLevel,
+          intro: "",
+          subsections: [],
+        };
+        currentContent = [];
+        currentSubsection = null;
+        subsectionContent = [];
+        continue;
+      }
+    }
+    
+    // Check for lines that look like section headers (all caps, or title case with colon)
+    // Pattern: "SECTION TITLE:" or "Section Title:" at start of line
+    const headerLikeMatch = trimmed.match(/^([A-Z][A-Za-z\s]+):\s*$/);
+    if (headerLikeMatch && trimmed.length < 100 && !trimmed.includes('*') && !trimmed.includes('#')) {
+      // Only treat as header if it's a short line (likely a title) and we don't have a current section with content
+      if (!currentSection || currentContent.length > 5 || currentSection.intro.length > 50) {
+        // Save previous section
+        if (currentSection) {
+          if (currentContent.length > 0) {
+            currentSection.intro = currentContent.join("\n").trim();
+          }
+          if (currentSubsection) {
+            if (!currentSection.subsections) currentSection.subsections = [];
+            currentSection.subsections.push({
+              ...currentSubsection,
+              content: subsectionContent.join("\n").trim(),
+            });
+          }
+          sections.push(currentSection);
+        }
+        
+        // Start new section
+        const title = headerLikeMatch[1].trim();
+        currentSection = {
+          title,
+          level: 3,
+          intro: "",
+          subsections: [],
+        };
+        currentContent = [];
+        currentSubsection = null;
+        subsectionContent = [];
+        continue;
+      }
     }
     
     // Check for subsection: numbered list with bold
@@ -188,6 +225,40 @@ function parseProfileSections(markdown = "") {
       });
     }
     sections.push(currentSection);
+  }
+
+  // If no sections were found, try a more aggressive approach: split by double newlines or common patterns
+  if (sections.length === 0 && markdown.length > 0) {
+    // Try splitting by double newlines and treating each block as a potential section
+    const blocks = markdown.split(/\n\s*\n/).filter(block => block.trim().length > 0);
+    
+    for (let i = 0; i < blocks.length; i++) {
+      const block = blocks[i].trim();
+      const firstLine = block.split('\n')[0].trim();
+      
+      // If first line looks like a title (short, no punctuation at end, or ends with colon)
+      if (firstLine.length < 80 && (firstLine.match(/^[A-Z]/) || firstLine.endsWith(':'))) {
+        const title = firstLine.replace(/[:\.]$/, '').trim();
+        const content = block.split('\n').slice(1).join('\n').trim() || block;
+        
+        if (title.length > 0 && content.length > 0) {
+          sections.push({
+            title,
+            level: 3,
+            intro: content,
+            subsections: [],
+          });
+        }
+      } else if (block.length > 50) {
+        // If block doesn't have a clear title, create a generic section
+        sections.push({
+          title: `Section ${i + 1}`,
+          level: 3,
+          intro: block,
+          subsections: [],
+        });
+      }
+    }
   }
 
   return sections;
@@ -500,7 +571,7 @@ export default function ProfileReport() {
         path="/results/profile"
       />
       
-      <article className="rounded-3xl border border-slate-200 bg-white/95 p-8 shadow-soft">
+      <article className="rounded-3xl border border-slate-200 bg-white/95 p-6 shadow-soft">
         <h1 className="text-3xl font-semibold text-slate-900 mb-2">Profile Analysis</h1>
         <p className="text-sm text-slate-500 mb-8">
           Comprehensive analysis of your entrepreneurial profile, strengths, and opportunities
@@ -513,8 +584,41 @@ export default function ProfileReport() {
           </div>
         ) : sections.length === 0 ? (
           <div className="rounded-2xl border border-amber-200 bg-amber-50/80 p-6 text-amber-800">
-            <p className="text-sm">Sections parsed but empty. Check console for details.</p>
-            <p className="text-xs mt-2">Markdown length: {reports.profile_analysis?.length || 0}</p>
+            <p className="text-sm mb-4">Could not parse sections from markdown. Displaying raw content:</p>
+            <div className="prose prose-slate max-w-none bg-white p-4 rounded-lg border border-amber-300">
+              <ReactMarkdown
+                components={{
+                  p: ({ node, ...props }) => (
+                    <p className="text-slate-700 leading-relaxed mb-4" {...props} />
+                  ),
+                  ul: ({ node, ...props }) => (
+                    <ul className="list-disc list-outside space-y-2 text-slate-700 mb-4 ml-6" {...props} />
+                  ),
+                  ol: ({ node, ...props }) => (
+                    <ol className="list-decimal list-outside space-y-2 text-slate-700 mb-4 ml-6" {...props} />
+                  ),
+                  li: ({ node, ...props }) => <li className="leading-relaxed" {...props} />,
+                  strong: ({ node, ...props }) => (
+                    <strong className="font-semibold text-slate-900" {...props} />
+                  ),
+                  h1: ({ node, ...props }) => (
+                    <h1 className="text-3xl font-bold text-slate-900 mb-4 mt-6" {...props} />
+                  ),
+                  h2: ({ node, ...props }) => (
+                    <h2 className="text-2xl font-bold text-slate-900 mb-3 mt-5" {...props} />
+                  ),
+                  h3: ({ node, ...props }) => (
+                    <h3 className="text-xl font-semibold text-slate-800 mb-2 mt-4" {...props} />
+                  ),
+                  h4: ({ node, ...props }) => (
+                    <h4 className="text-lg font-semibold text-slate-800 mb-2 mt-3" {...props} />
+                  ),
+                }}
+              >
+                {reports.profile_analysis}
+              </ReactMarkdown>
+            </div>
+            <p className="text-xs mt-4 text-amber-700">Markdown length: {reports.profile_analysis?.length || 0} characters</p>
           </div>
         ) : (
           <div className="grid gap-4">

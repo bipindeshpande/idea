@@ -20,10 +20,17 @@ class User(db.Model):
     is_active = db.Column(db.Boolean, default=True)
     
     # Subscription fields
-    subscription_type = db.Column(db.String(50), default="free_trial")  # free_trial, weekly, monthly
+    subscription_type = db.Column(db.String(50), default="free")  # free, starter, pro, weekly, monthly (legacy)
     subscription_started_at = db.Column(db.DateTime, default=datetime.utcnow)
     subscription_expires_at = db.Column(db.DateTime)
     payment_status = db.Column(db.String(50), default="trial")  # trial, active, expired, cancelled
+    
+    # Usage tracking fields
+    free_validations_used = db.Column(db.Integer, default=0)  # Lifetime free validations used
+    free_discoveries_used = db.Column(db.Integer, default=0)  # Lifetime free discoveries used
+    monthly_validations_used = db.Column(db.Integer, default=0)  # Current month validations (for Starter/Pro)
+    monthly_discoveries_used = db.Column(db.Integer, default=0)  # Current month discoveries (for Starter/Pro)
+    usage_reset_date = db.Column(db.Date)  # Date when monthly usage resets
     
     # Password reset
     reset_token = db.Column(db.String(255), nullable=True)
@@ -63,20 +70,33 @@ class User(db.Model):
         self.reset_token_expires_at = None
     
     def is_subscription_active(self) -> bool:
-        """Check if user has active subscription."""
-        if self.subscription_type == "free_trial":
-            if not self.subscription_expires_at:
-                # Set 3-day free trial if not set
-                self.subscription_expires_at = self.subscription_started_at + timedelta(days=3)
-                db.session.commit()
-            return datetime.utcnow() < self.subscription_expires_at
+        """Check if user has active subscription.
         
-        if self.payment_status != "active":
-            return False
+        A subscription is active if subscription_expires_at is in the future,
+        regardless of payment_status. This ensures users have access until
+        their subscription actually expires, even if payment_status is not "active"
+        (e.g., cancelled subscriptions that haven't expired yet).
+        
+        Free tier users should always have access (no expiration).
+        """
+        # Free tier users always have access
+        if self.subscription_type == "free":
+            # If expiration is not set for free tier, set it far in the future
+            if not self.subscription_expires_at:
+                self.subscription_expires_at = datetime.utcnow() + timedelta(days=365*10)  # 10 years
+                self.payment_status = "active"
+                db.session.commit()
+            return True
         
         if not self.subscription_expires_at:
-            return False
+            # For free trials, set expiration if not set
+            if self.subscription_type == "free_trial" and self.subscription_started_at:
+                self.subscription_expires_at = self.subscription_started_at + timedelta(days=3)
+                db.session.commit()
+            else:
+                return False
         
+        # Subscription is active if expiration date is in the future
         return datetime.utcnow() < self.subscription_expires_at
     
     def days_remaining(self) -> int:
@@ -92,6 +112,187 @@ class User(db.Model):
         self.payment_status = "active"
         self.subscription_started_at = datetime.utcnow()
         self.subscription_expires_at = datetime.utcnow() + timedelta(days=duration_days)
+        
+        # Set usage reset date for monthly plans (starter, pro)
+        if subscription_type in ["starter", "pro"]:
+            from datetime import date
+            # Set reset date to first of next month
+            today = date.today()
+            if today.month == 12:
+                self.usage_reset_date = date(today.year + 1, 1, 1)
+            else:
+                self.usage_reset_date = date(today.year, today.month + 1, 1)
+            # Reset monthly counters
+            self.monthly_validations_used = 0
+            self.monthly_discoveries_used = 0
+    
+    def check_and_reset_monthly_usage(self):
+        """Check if monthly usage needs to be reset and reset if needed."""
+        if self.subscription_type in ["starter", "pro"] and self.usage_reset_date:
+            from datetime import date
+            if date.today() >= self.usage_reset_date:
+                # Reset monthly counters
+                self.monthly_validations_used = 0
+                self.monthly_discoveries_used = 0
+                # Set next reset date
+                today = date.today()
+                if today.month == 12:
+                    self.usage_reset_date = date(today.year + 1, 1, 1)
+                else:
+                    self.usage_reset_date = date(today.year, today.month + 1, 1)
+                db.session.commit()
+    
+    def can_perform_validation(self) -> tuple[bool, str]:
+        """Check if user can perform a validation. Returns (can_perform, error_message)."""
+        subscription_type = self.subscription_type or "free"
+        
+        # Handle legacy subscription types
+        if subscription_type == "free_trial":
+            subscription_type = "free"
+        elif subscription_type == "monthly":
+            subscription_type = "pro"  # Legacy monthly becomes pro (unlimited)
+        
+        # Check and reset monthly usage if needed
+        self.check_and_reset_monthly_usage()
+        
+        # Usage limits by subscription type
+        if subscription_type in ["pro", "weekly"]:
+            return True, ""  # Unlimited
+        
+        if subscription_type == "free":
+            if self.free_validations_used >= 3:
+                return False, "You've used all 3 free validations. Upgrade to continue."
+            return True, ""
+        
+        if subscription_type == "starter":
+            if self.monthly_validations_used >= 10:
+                return False, "You've reached your monthly limit of 10 validations. Upgrade to Pro for unlimited access."
+            return True, ""
+        
+        return False, "Invalid subscription type."
+    
+    def can_perform_discovery(self) -> tuple[bool, str]:
+        """Check if user can perform a discovery. Returns (can_perform, error_message)."""
+        subscription_type = self.subscription_type or "free"
+        
+        # Handle legacy subscription types
+        if subscription_type == "free_trial":
+            subscription_type = "free"
+        elif subscription_type == "monthly":
+            subscription_type = "pro"  # Legacy monthly becomes pro (unlimited)
+        
+        # Check and reset monthly usage if needed
+        self.check_and_reset_monthly_usage()
+        
+        # Usage limits by subscription type
+        if subscription_type in ["pro", "weekly"]:
+            return True, ""  # Unlimited
+        
+        if subscription_type == "free":
+            if self.free_discoveries_used >= 1:
+                return False, "You've used your free discovery. Upgrade to continue."
+            return True, ""
+        
+        if subscription_type == "starter":
+            if self.monthly_discoveries_used >= 5:
+                return False, "You've reached your monthly limit of 5 discoveries. Upgrade to Pro for unlimited access."
+            return True, ""
+        
+        return False, "Invalid subscription type."
+    
+    def increment_validation_usage(self):
+        """Increment validation usage counter."""
+        subscription_type = self.subscription_type or "free"
+        
+        # Handle legacy subscription types
+        if subscription_type == "free_trial":
+            subscription_type = "free"
+        elif subscription_type == "monthly":
+            subscription_type = "pro"
+        
+        if subscription_type == "free":
+            self.free_validations_used += 1
+        elif subscription_type == "starter":
+            self.monthly_validations_used += 1
+        # pro and weekly are unlimited, no increment needed
+        
+        db.session.commit()
+    
+    def increment_discovery_usage(self):
+        """Increment discovery usage counter."""
+        subscription_type = self.subscription_type or "free"
+        
+        # Handle legacy subscription types
+        if subscription_type == "free_trial":
+            subscription_type = "free"
+        elif subscription_type == "monthly":
+            subscription_type = "pro"
+        
+        if subscription_type == "free":
+            self.free_discoveries_used += 1
+        elif subscription_type == "starter":
+            self.monthly_discoveries_used += 1
+        # pro and weekly are unlimited, no increment needed
+        
+        db.session.commit()
+    
+    def get_usage_stats(self) -> dict:
+        """Get current usage statistics."""
+        subscription_type = self.subscription_type or "free"
+        
+        # Handle legacy subscription types
+        if subscription_type == "free_trial":
+            subscription_type = "free"
+        elif subscription_type == "monthly":
+            subscription_type = "pro"
+        
+        self.check_and_reset_monthly_usage()
+        
+        if subscription_type == "free":
+            return {
+                "subscription_type": "free",
+                "validations": {
+                    "used": self.free_validations_used,
+                    "limit": 3,
+                    "remaining": max(0, 3 - self.free_validations_used),
+                },
+                "discoveries": {
+                    "used": self.free_discoveries_used,
+                    "limit": 1,
+                    "remaining": max(0, 1 - self.free_discoveries_used),
+                },
+            }
+        elif subscription_type == "starter":
+            return {
+                "subscription_type": "starter",
+                "validations": {
+                    "used": self.monthly_validations_used,
+                    "limit": 10,
+                    "remaining": max(0, 10 - self.monthly_validations_used),
+                },
+                "discoveries": {
+                    "used": self.monthly_discoveries_used,
+                    "limit": 5,
+                    "remaining": max(0, 5 - self.monthly_discoveries_used),
+                },
+                "reset_date": self.usage_reset_date.isoformat() if self.usage_reset_date else None,
+            }
+        elif subscription_type in ["pro", "weekly"]:
+            return {
+                "subscription_type": subscription_type,
+                "validations": {
+                    "used": None,
+                    "limit": None,
+                    "remaining": None,
+                },
+                "discoveries": {
+                    "used": None,
+                    "limit": None,
+                    "remaining": None,
+                },
+            }
+        
+        return {}
     
     def to_dict(self):
         """Convert user to dictionary."""

@@ -1,9 +1,9 @@
 import { Helmet } from "react-helmet-async";
 
-const SITE_URL = "https://startupideaadvisor.com";
+const SITE_URL = "https://ideabunch.com";
 
 export default function Seo({
-  title = "Startup Idea Advisor",
+  title = "Idea Bunch",
   description = "AI-assisted startup idea generator that transforms your goals, time, and skills into actionable opportunities.",
   path = "/",
   keywords = "ai startup ideas, business idea generator, personalized startup recommendations",

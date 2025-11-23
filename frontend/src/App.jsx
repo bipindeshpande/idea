@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, lazy, Suspense } from "react";
-import { Link, NavLink, Navigate, Route, Routes } from "react-router-dom";
+import { Link, NavLink, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { useReports } from "./context/ReportsContext.jsx";
 import { useAuth } from "./context/AuthContext.jsx";
 import { useTheme } from "./context/ThemeContext.jsx";
@@ -141,12 +141,12 @@ function Navigation() {
   }, [learnMenuOpen, reportsMenuOpen]);
 
   return (
-    <header className="sticky top-0 z-40 border-b border-white/40 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur">
+    <header className="sticky top-0 z-40 border-b border-slate-200/60 dark:border-slate-800/80 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md shadow-sm">
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-6 py-4">
         <div className="flex items-center gap-4">
         <NavLink
           to="/"
-            className="text-xl font-semibold tracking-tight text-brand-700 dark:text-brand-400 whitespace-nowrap"
+            className="text-xl font-bold tracking-tight bg-gradient-to-r from-brand-600 to-brand-700 dark:from-brand-400 dark:to-brand-500 bg-clip-text text-transparent whitespace-nowrap transition-opacity hover:opacity-80"
             onClick={closeAllMenus}
         >
           Startup Idea Advisor
@@ -159,12 +159,16 @@ function Navigation() {
                 {label}
               </NavLink>
             ))}
-            <div className="relative" ref={learnMenuRef}>
+            <div className="group relative" ref={learnMenuRef}>
               <button
                 type="button"
                 className="flex items-center gap-1 rounded-full px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-300 transition hover:bg-slate-100 dark:hover:bg-slate-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-300"
                 onClick={() => {
                   setLearnMenuOpen((prev) => !prev);
+                  setReportsMenuOpen(false);
+                }}
+                onMouseEnter={() => {
+                  setLearnMenuOpen(true);
                   setReportsMenuOpen(false);
                 }}
                 aria-expanded={learnMenuOpen}
@@ -173,9 +177,11 @@ function Navigation() {
                 <span className="text-xs">▾</span>
               </button>
               <div
-                className={`absolute right-0 z-40 mt-2 w-48 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white/95 dark:bg-slate-800/95 p-2 shadow-lg transition-opacity ${
-                  learnMenuOpen ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"
-                }`}
+                className={`absolute right-0 z-40 mt-2 w-48 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white/95 dark:bg-slate-800/95 p-2 shadow-lg transition-all duration-200 ${
+                  learnMenuOpen ? "pointer-events-auto opacity-100 visible" : "pointer-events-none opacity-0 invisible"
+                } group-hover:pointer-events-auto group-hover:opacity-100 group-hover:visible`}
+                onMouseEnter={() => setLearnMenuOpen(true)}
+                onMouseLeave={() => setLearnMenuOpen(false)}
               >
                 {learnNavLinks.map(({ label, to }) => (
             <NavLink
@@ -196,12 +202,16 @@ function Navigation() {
               </div>
             </div>
             {hasReports && (
-              <div className="relative" ref={reportsMenuRef}>
+              <div className="group relative" ref={reportsMenuRef}>
                 <button
                   type="button"
                   className="flex items-center gap-1 rounded-full px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-300 transition hover:bg-slate-100 dark:hover:bg-slate-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-300"
                   onClick={() => {
                     setReportsMenuOpen((prev) => !prev);
+                    setLearnMenuOpen(false);
+                  }}
+                  onMouseEnter={() => {
+                    setReportsMenuOpen(true);
                     setLearnMenuOpen(false);
                   }}
                   aria-expanded={reportsMenuOpen}
@@ -210,9 +220,11 @@ function Navigation() {
                   <span className="text-xs">▾</span>
                 </button>
                 <div
-                className={`absolute right-0 z-40 mt-2 w-56 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white/95 dark:bg-slate-800/95 p-2 shadow-lg transition-opacity ${
-                  reportsMenuOpen ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"
-                }`}
+                className={`absolute right-0 z-40 mt-2 w-56 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white/95 dark:bg-slate-800/95 p-2 shadow-lg transition-all duration-200 ${
+                  reportsMenuOpen ? "pointer-events-auto opacity-100 visible" : "pointer-events-none opacity-0 invisible"
+                } group-hover:pointer-events-auto group-hover:opacity-100 group-hover:visible`}
+                onMouseEnter={() => setReportsMenuOpen(true)}
+                onMouseLeave={() => setReportsMenuOpen(false)}
                 >
                   {reportNavLinks.map(({ label, to }) => (
           <NavLink
@@ -248,7 +260,7 @@ function Navigation() {
                 <Link
                   to="/advisor"
                   onClick={closeAllMenus}
-                  className="rounded-full bg-gradient-to-r from-brand-500 to-brand-600 px-5 py-2 text-sm font-semibold text-white shadow-md transition hover:from-brand-600 hover:to-brand-700 whitespace-nowrap"
+                  className="rounded-xl bg-gradient-to-r from-brand-500 to-brand-600 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-brand-500/25 transition-all duration-200 hover:from-brand-600 hover:to-brand-700 hover:shadow-xl hover:shadow-brand-500/30 hover:-translate-y-0.5 whitespace-nowrap"
                 >
                   Start Run
                 </Link>
@@ -297,7 +309,7 @@ function Navigation() {
                 <Link
                   to="/register"
                   onClick={closeAllMenus}
-                  className="rounded-full bg-gradient-to-r from-brand-500 to-brand-600 px-5 py-2 text-sm font-semibold text-white shadow-md transition hover:from-brand-600 hover:to-brand-700 whitespace-nowrap"
+                  className="rounded-xl bg-gradient-to-r from-brand-500 to-brand-600 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-brand-500/25 transition-all duration-200 hover:from-brand-600 hover:to-brand-700 hover:shadow-xl hover:shadow-brand-500/30 hover:-translate-y-0.5 whitespace-nowrap"
                 >
                   Get Started
                 </Link>
@@ -472,7 +484,7 @@ export default function App() {
   return (
     <div className="min-h-screen bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-slate-100 transition-colors duration-300">
       <Navigation />
-      <main className="mx-auto max-w-6xl px-6 py-8 bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-slate-100">
+      <main className="mx-auto max-w-6xl px-6 py-10 bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-slate-100">
         <Routes>
             <Route path="/" element={<LandingPage />} />
             <Route path="/register" element={<RegisterPage />} />
@@ -566,11 +578,11 @@ export default function App() {
             <Route
               path="/results/recommendations/full"
               element={
-                <ProtectedRoute>
-                  <Suspense fallback={<LoadingIndicator simple={true} message="Loading report..." />}>
+                <Suspense fallback={<LoadingIndicator simple={true} message="Loading report..." />}>
+                  <SampleReportRoute>
                     <RecommendationFullReport />
-                  </Suspense>
-                </ProtectedRoute>
+                  </SampleReportRoute>
+                </Suspense>
               }
             />
             <Route path="*" element={<Navigate to="/" replace />} />
@@ -579,6 +591,24 @@ export default function App() {
       </main>
       <Footer />
     </div>
+  );
+}
+
+function SampleReportRoute({ children }) {
+  const { search } = useLocation();
+  const query = new URLSearchParams(search);
+  const isSample = query.get("sample") === "true";
+  
+  // If it's a sample report, allow access without authentication
+  if (isSample) {
+    return <>{children}</>;
+  }
+  
+  // Otherwise, require authentication
+  return (
+    <ProtectedRoute>
+      {children}
+    </ProtectedRoute>
   );
 }
 

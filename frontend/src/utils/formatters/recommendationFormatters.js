@@ -616,7 +616,8 @@ export function splitFullReportSections(markdown = "") {
   const sections = {};
   let current = "";
   markdown.split(/\r?\n/).forEach((line) => {
-    const headingMatch = line.trim().match(/^####\s+(.+)$/);
+    // Match both ### and #### headings
+    const headingMatch = line.trim().match(/^#{3,4}\s+(.+)$/);
     if (headingMatch) {
       current = headingMatch[1].trim().toLowerCase();
       sections[current] = [];

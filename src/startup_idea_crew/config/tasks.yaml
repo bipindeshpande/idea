@@ -10,7 +10,14 @@ profile_analysis_task:
 
     CRITICAL: Write in second-person ("You") ONLY. Never use "the user" or "their." Write like you're talking directly to the person.
 
-    Analyze the user's intake profile and create a concise, actionable strategic summary. Be direct and practical—cut all academic fluff.
+    CRITICAL ANALYSIS REQUIREMENT: Do NOT simply repeat what the user told you. You MUST provide insights, reasoning, and analysis. Explain:
+    - WHY their inputs matter and what they reveal
+    - WHAT these inputs mean strategically
+    - HOW different inputs connect and create opportunities or constraints
+    - WHAT the user might not realize about their own profile
+    - WHAT patterns or implications emerge from their choices
+
+    Your job is to ANALYZE and provide VALUE, not echo back their inputs. If you just restate what they said, you've failed.
 
     User inputs:
     - Goal Type: {goal_type}
@@ -35,25 +42,47 @@ profile_analysis_task:
     
     ## 1. Core Motivation
     
-    [Start with "You're exploring..." or "You want to..." - 2-3 sentences max. Use second-person only.]
+    [ANALYZE their goal type and experience summary. Don't just say "You want to {goal_type}". Instead, explain:
+    - What this goal type reveals about their priorities and mindset
+    - What underlying motivations drive this choice
+    - What patterns in their experience summary connect to this goal
+    - What they might be seeking beyond the surface-level goal
+    Start with "You're exploring..." or "You want to..." but then add WHY and WHAT THIS MEANS. 3-4 sentences with real insight.]
 
     ## 2. Operating Constraints
     
-    - Time ({time_commitment}): [One sentence on what this means for project scope]
-    - Work Style ({work_style}): [One sentence on how this shapes execution]
-    - Budget ({budget_range}): [One sentence on what tools/platforms this enables or rules out]
+    [ANALYZE the constraints, don't just list them. Explain the implications and trade-offs:
+    - Time ({time_commitment}): What this ACTUALLY means for project scope, what types of projects are realistic vs. unrealistic, what shortcuts or approaches this forces, what opportunities this creates (e.g., "10 hours/week means you can't build a complex SaaS, but you CAN validate ideas quickly through no-code tools")
+    - Work Style ({work_style}): How this shapes execution, what types of projects match this style, what challenges this creates, what advantages this provides
+    - Budget ({budget_range}): What tools/platforms this enables or rules out, what business models are feasible, what risks this creates, what creative solutions this demands
+    Each point should be 2-3 sentences with real analysis, not just "Your budget is {budget_range}."]
 
     ## 3. Opportunity Within [Interest Area]
     
-    [2-3 bullet points with concrete examples. Use specific tool names, frameworks, or market signals. NO abstract theory.]
+    [ANALYZE why this interest area matters NOW and what opportunities exist. Don't just list the interest area. Explain:
+    - Why this area is timely (market trends, technology shifts, demand signals)
+    - What specific opportunities exist within this area that match their constraints
+    - What gaps or problems exist that their skills could address
+    - What the user might not know about opportunities in this space
+    2-3 bullet points with concrete examples, specific tool names, frameworks, or market signals. Each bullet should provide insight, not just state facts.]
 
     ## 4. Strengths You Can Leverage
     
-    [2-4 bullet points. Each point: one strength + how it helps execution. Example: "Strong automation mindset → designing logical flows and triggers."]
+    [ANALYZE their skill strength and experience. Don't just repeat what they said. Explain:
+    - What this strength ACTUALLY means in practice
+    - How this strength gives them an advantage others don't have
+    - What types of problems this strength is uniquely suited to solve
+    - What the user might not realize about how valuable this strength is
+    2-4 bullet points. Each point: one strength + WHY it matters + HOW it helps execution + WHAT it enables. Example: "Strong automation mindset → You naturally think in systems and flows, which means you can design logical conversation triggers that others struggle with. This gives you an edge in building chatbots that actually work, not just look good."]
 
     ## 5. Skill Gaps to Fill
     
-    [2-4 bullet points. Be concrete: "NLP basics: intents, entities, context, conversation memory" NOT "understanding of technical concepts."]
+    [ANALYZE what's missing. Don't just list skills. Explain:
+    - WHY these gaps matter for their goals
+    - WHAT happens if they don't fill these gaps
+    - HOW these gaps connect to their interest area and constraints
+    - WHAT the fastest path to filling these gaps is
+    2-4 bullet points. Be concrete: "NLP basics: intents, entities, context, conversation memory" NOT "understanding of technical concepts." Each point should explain WHY this gap matters and WHAT it blocks.]
 
     ## 6. Recommendations
     
@@ -193,10 +222,14 @@ recommendation_task:
     - Add a "Profile Fit Summary" subsection with bullet points translating the profile into insights
     - Present a table or bullet comparison showing how each top idea aligns with goals, budget, and risk
     - Provide a numbered list `1.` to `3.` titled **Idea Name** with deep dives (see expected_output)
+      CRITICAL: Each idea MUST start with exactly: `1. **Idea Name**` (with number, period, space, bold, then idea name)
+      Example: `1. **AI-Powered Customer Support Bot**` NOT `1. AI-Powered Customer Support Bot` (missing bold)
+      Example: `**Idea Name**` NOT `1. **Idea Name**` (missing number)
     - Include dedicated sections for `### Financial Outlook`, `### Risk Radar`, `### Customer Persona`, `### Validation Questions`, and `### 30/60/90 Day Roadmap`
     - Close with `### Decision Checklist` summarizing go/no-go signals
-    - If you cannot produce this structure, request a rerun rather than returning a summary.
-    - Before finalizing, check that each idea contains at least one execution milestone, risk, and validation prompt that references the idea’s unique focus or audience; if not, rework that idea’s section until all elements are distinct.
+    - ALWAYS produce at least 3 ideas, even if inputs are minimal. Use the inputs you have and make reasonable assumptions.
+    - If inputs are minimal, still create detailed recommendations by making educated inferences from what's provided.
+    - Before finalizing, check that each idea contains at least one execution milestone, risk, and validation prompt that references the idea's unique focus or audience; if not, rework that idea's section until all elements are distinct.
 
     IMPORTANT: Use tools efficiently—only for the #1 recommended idea to save time:
     1. Use assess_startup_risks tool for the #1 idea only

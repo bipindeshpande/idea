@@ -28,6 +28,8 @@ if sys.platform == "win32":
 
 from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 from werkzeug.security import generate_password_hash, check_password_hash
 from sqlalchemy import func
 
@@ -40,10 +42,36 @@ from app.services.email_templates import (
     subscription_expiring_email,
     welcome_email,
     subscription_activated_email,
+    password_reset_email,
+    password_changed_email,
+    payment_failed_email,
+    get_base_template,
 )
 
 app = Flask(__name__)
-CORS(app)
+
+# CORS Configuration - Restrict to your domain in production
+FRONTEND_URL = os.environ.get("FRONTEND_URL", "https://ideabunch.com")
+ALLOWED_ORIGINS = [
+    FRONTEND_URL,
+    "https://www.ideabunch.com",
+    "http://localhost:5173",  # Development only
+    "http://127.0.0.1:5173",  # Development only
+]
+
+# Only allow localhost in development
+if os.environ.get("FLASK_ENV") != "development":
+    ALLOWED_ORIGINS = [origin for origin in ALLOWED_ORIGINS if not origin.startswith("http://localhost") and not origin.startswith("http://127.0.0.1")]
+
+CORS(app, origins=ALLOWED_ORIGINS, supports_credentials=True)
+
+# Rate Limiting Configuration
+limiter = Limiter(
+    app=app,
+    key_func=get_remote_address,
+    default_limits=["200 per day", "50 per hour"],
+    storage_uri="memory://",  # Use in-memory storage (for production, consider Redis)
+)
 
 # Database configuration
 app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get(
@@ -220,6 +248,7 @@ def health() -> Any:
 
 @app.post("/api/run")
 @require_auth
+@limiter.limit("10 per hour")  # Max 10 AI runs per hour per IP (AI calls are expensive)
 def run_crew() -> Any:
   """Run the Startup Idea Crew with provided inputs."""
   data: Dict[str, Any] = request.get_json(force=True, silent=True) or {}
@@ -250,6 +279,17 @@ def run_crew() -> Any:
     session = get_current_session()
     user = session.user if session else None
     
+    # Check usage limits for authenticated users
+    if user:
+      can_discover, error_message = user.can_perform_discovery()
+      if not can_discover:
+        return jsonify({
+          "success": False,
+          "error": error_message,
+          "usage_limit_reached": True,
+          "upgrade_required": True,
+        }), 403
+    
     app.logger.info("Starting crew run with inputs: %s", payload)
     crew = StartupIdeaCrew().crew()
     result = crew.kickoff(inputs=payload)
@@ -271,6 +311,8 @@ def run_crew() -> Any:
         reports=json.dumps(outputs),
       )
       db.session.add(user_run)
+      # Increment usage counter
+      user.increment_discovery_usage()
       db.session.commit()
 
     response = {
@@ -296,9 +338,25 @@ def run_crew() -> Any:
 
 @app.post("/api/validate-idea")
 @require_auth
+@limiter.limit("20 per hour")  # Max 20 validations per hour per IP (AI calls are expensive)
 def validate_idea() -> Any:
   """Validate a startup idea across 10 key parameters using OpenAI."""
   from openai import OpenAI
+  
+  # Check usage limits
+  session = get_current_session()
+  if not session:
+    return jsonify({"success": False, "error": "Not authenticated"}), 401
+  
+  user = session.user
+  can_validate, error_message = user.can_perform_validation()
+  if not can_validate:
+    return jsonify({
+      "success": False,
+      "error": error_message,
+      "usage_limit_reached": True,
+      "upgrade_required": True,
+    }), 403
   
   data: Dict[str, Any] = request.get_json(force=True, silent=True) or {}
   category_answers = data.get("category_answers", {})
@@ -417,7 +475,17 @@ Provide a detailed validation in the following JSON format:
   - What assumptions need validation
   - What would need to change for this to succeed
   - Honest assessment of whether this idea is worth pursuing
-  Be constructive but don't sugarcoat. If the idea has fundamental issues, say so clearly.>"
+  Be constructive but don't sugarcoat. If the idea has fundamental issues, say so clearly.>",
+  "next_steps": "<Provide 3-5 specific, actionable next steps in markdown format. Each step should be:
+  - Specific and concrete (not vague like 'research market')
+  - Include resources, links, or templates when possible
+  - Have a clear timeline (e.g., 'This week', 'Within 30 days')
+  - Be immediately actionable
+  Format as a numbered list with clear action items. Examples:
+  1. **Contact 10 potential customers this week**: Use this email template [provide template] and reach out to [specific audience] on LinkedIn groups: [list 3-5 relevant groups]
+  2. **Validate problem-solution fit within 14 days**: Create a simple landing page using [tool suggestion] and run $50 in Google Ads targeting [specific keywords] to measure interest
+  3. **Research top 3 competitors**: Analyze [Company A], [Company B], and [Company C]. Document their pricing, strengths, and weaknesses. Use this comparison template [link]
+  Make each step specific to the user's idea and industry.>"
 }}
 
 REMEMBER:
@@ -471,6 +539,7 @@ REMEMBER:
         },
         "details": {},
         "recommendations": content,
+        "next_steps": "1. **Review the detailed analysis above** to understand your idea's strengths and weaknesses.\n2. **Address critical flaws** identified in the recommendations section.\n3. **Validate key assumptions** by talking to potential customers.\n4. **Refine your idea** based on feedback and re-validate.",
       }
     
     validation_id = f"val_{int(time.time())}"
@@ -487,6 +556,8 @@ REMEMBER:
         validation_result=json.dumps(validation_data),
       )
       db.session.add(user_validation)
+      # Increment usage counter
+      user.increment_validation_usage()
       db.session.commit()
       
       # Send validation ready email
@@ -524,6 +595,7 @@ REMEMBER:
 
 
 @app.post("/admin/save-validation-questions")
+@limiter.limit("10 per hour")  # Max 10 config updates per hour per IP
 def save_validation_questions() -> Any:
   """Save validation questions configuration (admin only)."""
   if not check_admin_auth():
@@ -548,6 +620,7 @@ def save_validation_questions() -> Any:
 
 
 @app.post("/admin/save-intake-fields")
+@limiter.limit("10 per hour")  # Max 10 config updates per hour per IP
 def save_intake_fields() -> Any:
   """Save intake form fields configuration (admin only)."""
   if not check_admin_auth():
@@ -579,6 +652,7 @@ def save_intake_fields() -> Any:
 
 
 @app.get("/admin/stats")
+@limiter.limit("30 per hour")  # Max 30 admin API calls per hour per IP
 def get_admin_stats() -> Any:
   """Get admin statistics (admin only)."""
   if not check_admin_auth():
@@ -620,6 +694,7 @@ def get_admin_stats() -> Any:
 
 
 @app.get("/api/admin/users")
+@limiter.limit("30 per hour")  # Max 30 admin API calls per hour per IP
 def get_admin_users() -> Any:
     """Get all users (admin only)."""
     if not check_admin_auth():
@@ -635,6 +710,7 @@ def get_admin_users() -> Any:
 
 
 @app.get("/api/admin/payments")
+@limiter.limit("30 per hour")  # Max 30 admin API calls per hour per IP
 def get_admin_payments() -> Any:
     """Get all payments (admin only)."""
     if not check_admin_auth():
@@ -661,6 +737,7 @@ def get_admin_payments() -> Any:
 
 
 @app.get("/api/admin/user/<int:user_id>")
+@limiter.limit("30 per hour")  # Max 30 admin API calls per hour per IP
 def get_admin_user_detail(user_id: int) -> Any:
     """Get detailed user information (admin only)."""
     if not check_admin_auth():
@@ -707,6 +784,7 @@ def get_admin_user_detail(user_id: int) -> Any:
 
 
 @app.post("/api/admin/user/<int:user_id>/subscription")
+@limiter.limit("10 per hour")  # Max 10 subscription updates per hour per IP
 def update_user_subscription(user_id: int) -> Any:
     """Update user subscription (admin only)."""
     if not check_admin_auth():
@@ -737,6 +815,7 @@ with app.app_context():
 
 # Authentication & User Management Endpoints
 @app.post("/api/auth/register")
+@limiter.limit("3 per hour")  # Max 3 registrations per hour per IP
 def register() -> Any:
     """Register a new user."""
     data: Dict[str, Any] = request.get_json(force=True, silent=True) or {}
@@ -783,6 +862,26 @@ def register() -> Any:
         except Exception as e:
             app.logger.warning(f"Failed to send welcome email: {e}")
         
+        # Send admin notification for new user
+        try:
+            admin_email = os.environ.get("ADMIN_EMAIL")
+            if admin_email:
+                admin_html = f"""
+                <h2 style="color: #333; margin-top: 0;">New User Registration</h2>
+                <p><strong>Email:</strong> {user.email}</p>
+                <p><strong>Registered:</strong> {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')}</p>
+                <p><strong>Subscription:</strong> {user.subscription_type} (Free Trial)</p>
+                <p><strong>Expires:</strong> {user.subscription_expires_at.strftime('%Y-%m-%d') if user.subscription_expires_at else 'N/A'}</p>
+                """
+                email_service.send_email(
+                    to_email=admin_email,
+                    subject=f"New User: {user.email}",
+                    html_content=get_base_template(admin_html),
+                    text_content=f"New user registered: {user.email}\nRegistered: {datetime.utcnow().isoformat()}",
+                )
+        except Exception as e:
+            app.logger.warning(f"Failed to send admin notification: {e}")
+        
         return jsonify({
             "success": True,
             "user": user.to_dict(),
@@ -795,33 +894,45 @@ def register() -> Any:
 
 
 @app.post("/api/auth/login")
+@limiter.limit("5 per minute")  # Max 5 login attempts per minute per IP
 def login() -> Any:
     """Login user."""
-    data: Dict[str, Any] = request.get_json(force=True, silent=True) or {}
-    email = data.get("email", "").strip().lower()
-    password = data.get("password", "").strip()
-    
-    if not email or not password:
-        return jsonify({"success": False, "error": "Email and password are required"}), 400
-    
-    user = User.query.filter_by(email=email).first()
-    if not user or not user.check_password(password):
-        return jsonify({"success": False, "error": "Invalid email or password"}), 401
-    
-    if not user.is_active:
-        return jsonify({"success": False, "error": "Account is deactivated"}), 403
-    
-    # Create session
-    session = create_user_session(user.id, request.remote_addr, request.headers.get("User-Agent"))
-    
-    return jsonify({
-        "success": True,
-        "user": user.to_dict(),
-        "session_token": session.session_token,
-    })
+    try:
+        data: Dict[str, Any] = request.get_json(force=True, silent=True) or {}
+        email = data.get("email", "").strip().lower()
+        password = data.get("password", "").strip()
+        
+        if not email or not password:
+            return jsonify({"success": False, "error": "Email and password are required"}), 400
+        
+        user = User.query.filter_by(email=email).first()
+        if not user or not user.check_password(password):
+            return jsonify({"success": False, "error": "Invalid email or password"}), 401
+        
+        if not user.is_active:
+            return jsonify({"success": False, "error": "Account is deactivated"}), 403
+        
+        # Create session
+        try:
+            session = create_user_session(user.id, request.remote_addr, request.headers.get("User-Agent"))
+        except Exception as session_error:
+            app.logger.exception("Failed to create user session: %s", session_error)
+            db.session.rollback()
+            return jsonify({"success": False, "error": "Failed to create session. Please try again."}), 500
+        
+        return jsonify({
+            "success": True,
+            "user": user.to_dict(),
+            "session_token": session.session_token,
+        })
+    except Exception as exc:
+        app.logger.exception("Login failed: %s", exc)
+        db.session.rollback()
+        return jsonify({"success": False, "error": "Login failed. Please try again."}), 500
 
 
 @app.post("/api/auth/logout")
+@limiter.limit("20 per hour")  # Max 20 logouts per hour per IP
 def logout() -> Any:
     """Logout user."""
     session = get_current_session()
@@ -833,6 +944,7 @@ def logout() -> Any:
 
 
 @app.get("/api/auth/me")
+@limiter.limit("60 per hour")  # Max 60 requests per hour per IP (frequent but harmless)
 def get_current_user() -> Any:
     """Get current user info."""
     session = get_current_session()
@@ -847,6 +959,7 @@ def get_current_user() -> Any:
 
 
 @app.post("/api/auth/forgot-password")
+@limiter.limit("3 per hour")  # Max 3 password reset requests per hour per IP
 def forgot_password() -> Any:
     """Request password reset."""
     data: Dict[str, Any] = request.get_json(force=True, silent=True) or {}
@@ -863,21 +976,32 @@ def forgot_password() -> Any:
     token = user.generate_reset_token()
     db.session.commit()
     
-    # In production, send email with reset link
-    # For now, return token (in production, send via email)
-    reset_link = f"{os.environ.get('FRONTEND_URL', 'http://localhost:5173')}/reset-password?token={token}"
+    # Send email with reset link
+    reset_link = f"{os.environ.get('FRONTEND_URL', 'https://ideabunch.com')}/reset-password?token={token}"
     
-    app.logger.info(f"Password reset for {email}: {reset_link}")
+    try:
+        html_content, text_content = password_reset_email(user.email, reset_link)
+        email_service.send_email(
+            to_email=user.email,
+            subject="Reset Your Password - Idea Bunch",
+            html_content=html_content,
+            text_content=text_content,
+        )
+        app.logger.info(f"Password reset email sent to {email}")
+    except Exception as e:
+        app.logger.warning(f"Failed to send password reset email to {email}: {e}")
+        # Still return success to avoid revealing if email exists
     
     return jsonify({
         "success": True,
         "message": "If email exists, reset link sent",
-        # Remove in production - only for development
+        # Only include reset_link in DEBUG mode for development
         "reset_link": reset_link if os.environ.get("DEBUG") else None,
     })
 
 
 @app.post("/api/auth/reset-password")
+@limiter.limit("5 per hour")  # Max 5 password resets per hour per IP
 def reset_password() -> Any:
     """Reset password with token."""
     data: Dict[str, Any] = request.get_json(force=True, silent=True) or {}
@@ -898,10 +1022,23 @@ def reset_password() -> Any:
     user.clear_reset_token()
     db.session.commit()
     
+    # Send confirmation email
+    try:
+        html_content, text_content = password_changed_email(user.email)
+        email_service.send_email(
+            to_email=user.email,
+            subject="Password Changed - Idea Bunch",
+            html_content=html_content,
+            text_content=text_content,
+        )
+    except Exception as e:
+        app.logger.warning(f"Failed to send password changed email to {user.email}: {e}")
+    
     return jsonify({"success": True, "message": "Password reset successful"})
 
 
 @app.post("/api/auth/change-password")
+@limiter.limit("5 per hour")  # Max 5 password changes per hour per IP
 def change_password() -> Any:
     """Change password (requires current password)."""
     session = get_current_session()
@@ -925,11 +1062,24 @@ def change_password() -> Any:
     user.set_password(new_password)
     db.session.commit()
     
+    # Send confirmation email
+    try:
+        html_content, text_content = password_changed_email(user.email)
+        email_service.send_email(
+            to_email=user.email,
+            subject="Password Changed - Idea Bunch",
+            html_content=html_content,
+            text_content=text_content,
+        )
+    except Exception as e:
+        app.logger.warning(f"Failed to send password changed email to {user.email}: {e}")
+    
     return jsonify({"success": True, "message": "Password changed successfully"})
 
 
 # Subscription & Payment Endpoints
 @app.get("/api/subscription/status")
+@limiter.limit("30 per hour")  # Max 30 status checks per hour per IP
 def get_subscription_status() -> Any:
     """Get current subscription status."""
     session = get_current_session()
@@ -964,6 +1114,7 @@ def get_subscription_status() -> Any:
 
 
 @app.post("/api/subscription/cancel")
+@limiter.limit("5 per hour")  # Max 5 subscription cancellations per hour per IP
 def cancel_subscription() -> Any:
     """Cancel user subscription (keeps access until expiration)."""
     session = get_current_session()
@@ -1003,6 +1154,29 @@ def cancel_subscription() -> Any:
         db.session.add(cancellation)
         db.session.commit()
         
+        # Send admin notification for cancellation
+        try:
+            admin_email = os.environ.get("ADMIN_EMAIL")
+            if admin_email:
+                admin_html = f"""
+                <h2 style="color: #333; margin-top: 0;">⚠️ Subscription Cancelled</h2>
+                <p><strong>User:</strong> {user.email}</p>
+                <p><strong>Plan:</strong> {user.subscription_type.title()}</p>
+                <p><strong>Reason:</strong> {cancellation_reason}</p>
+                {f'<p><strong>Category:</strong> {cancellation_category}</p>' if cancellation_category else ''}
+                {f'<p><strong>Additional Comments:</strong> {additional_comments}</p>' if additional_comments else ''}
+                <p><strong>Access Until:</strong> {user.subscription_expires_at.strftime('%Y-%m-%d') if user.subscription_expires_at else 'N/A'}</p>
+                <p><strong>Date:</strong> {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')}</p>
+                """
+                email_service.send_email(
+                    to_email=admin_email,
+                    subject=f"Subscription Cancelled: {user.email}",
+                    html_content=get_base_template(admin_html),
+                    text_content=f"Subscription cancelled: {user.email}\nReason: {cancellation_reason}\nPlan: {user.subscription_type}",
+                )
+        except Exception as e:
+            app.logger.warning(f"Failed to send admin cancellation notification: {e}")
+        
         # Send cancellation confirmation email
         try:
             from app.services.email_templates import get_base_template
@@ -1015,7 +1189,7 @@ def cancel_subscription() -> Any:
             <p><strong>Important:</strong> You'll continue to have access to all features until {user.subscription_expires_at.strftime('%B %d, %Y') if user.subscription_expires_at else 'your subscription expires'} ({days_remaining} days remaining).</p>
             <p>After that date, you'll need to resubscribe to continue using the platform.</p>
             <div style="text-align: center; margin: 30px 0;">
-                <a href="https://startupideaadvisor.com/pricing" 
+                <a href="https://ideabunch.com/pricing" 
                    style="background: #667eea; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold;">
                     Resubscribe Anytime
                 </a>
@@ -1032,7 +1206,7 @@ You'll continue to have access until {user.subscription_expires_at.strftime('%B 
 
 After that date, you'll need to resubscribe to continue.
 
-Resubscribe: https://startupideaadvisor.com/pricing
+Resubscribe: https://ideabunch.com/pricing
 """
             
             html_content = get_base_template(content)
@@ -1057,6 +1231,7 @@ Resubscribe: https://startupideaadvisor.com/pricing
 
 
 @app.post("/api/subscription/change-plan")
+@limiter.limit("5 per hour")  # Max 5 plan changes per hour per IP
 def change_subscription_plan() -> Any:
     """Change subscription plan (upgrade or downgrade)."""
     session = get_current_session()
@@ -1108,7 +1283,26 @@ def change_subscription_plan() -> Any:
         return jsonify({"success": False, "error": "Failed to change subscription"}), 500
 
 
+@app.get("/api/user/usage")
+@require_auth
+@limiter.limit("30 per hour")
+def get_user_usage() -> Any:
+  """Get current usage statistics for the authenticated user."""
+  session = get_current_session()
+  if not session:
+    return jsonify({"success": False, "error": "Not authenticated"}), 401
+  
+  user = session.user
+  usage_stats = user.get_usage_stats()
+  
+  return jsonify({
+    "success": True,
+    "usage": usage_stats,
+  })
+
+
 @app.get("/api/user/activity")
+@limiter.limit("30 per hour")  # Max 30 activity checks per hour per IP
 def get_user_activity() -> Any:
     """Get current user's activity (runs, validations)."""
     session = get_current_session()
@@ -1120,11 +1314,20 @@ def get_user_activity() -> Any:
     try:
         # Get recent runs
         runs = UserRun.query.filter_by(user_id=user.id).order_by(UserRun.created_at.desc()).limit(10).all()
-        runs_data = [{
-            "id": r.id,
-            "run_id": r.run_id,
-            "created_at": r.created_at.isoformat() if r.created_at else None,
-        } for r in runs]
+        runs_data = []
+        for r in runs:
+            inputs_data = {}
+            try:
+                inputs_data = json.loads(r.inputs) if r.inputs else {}
+            except:
+                pass
+            
+            runs_data.append({
+                "id": r.id,
+                "run_id": r.run_id,
+                "inputs": inputs_data,
+                "created_at": r.created_at.isoformat() if r.created_at else None,
+            })
         
         # Get recent validations
         validations = UserValidation.query.filter_by(user_id=user.id).order_by(UserValidation.created_at.desc()).limit(10).all()
@@ -1157,8 +1360,54 @@ def get_user_activity() -> Any:
         return jsonify({"success": False, "error": str(exc)}), 500
 
 
+@app.get("/api/user/run/<run_id>")
+@require_auth
+@limiter.limit("30 per hour")  # Max 30 run fetches per hour per IP
+def get_user_run(run_id: str) -> Any:
+    """Get a specific user's run data including inputs and reports."""
+    session = get_current_session()
+    if not session:
+        return jsonify({"success": False, "error": "Not authenticated"}), 401
+    
+    user = session.user
+    
+    try:
+        # Find the run and verify it belongs to the user
+        user_run = UserRun.query.filter_by(user_id=user.id, run_id=run_id).first()
+        if not user_run:
+            return jsonify({"success": False, "error": "Run not found"}), 404
+        
+        # Parse inputs and reports from JSON strings
+        inputs = {}
+        reports = {}
+        try:
+            inputs = json.loads(user_run.inputs) if user_run.inputs else {}
+        except:
+            pass
+        try:
+            reports = json.loads(user_run.reports) if user_run.reports else {}
+        except:
+            pass
+        
+        return jsonify({
+            "success": True,
+            "run": {
+                "id": user_run.id,
+                "run_id": user_run.run_id,
+                "inputs": inputs,
+                "reports": reports,
+                "created_at": user_run.created_at.isoformat() if user_run.created_at else None,
+                "updated_at": user_run.updated_at.isoformat() if user_run.updated_at else None,
+            },
+        })
+    except Exception as exc:
+        app.logger.exception("Failed to get user run: %s", exc)
+        return jsonify({"success": False, "error": str(exc)}), 500
+
+
 @app.delete("/api/user/run/<run_id>")
 @require_auth
+@limiter.limit("20 per hour")  # Max 20 deletions per hour per IP
 def delete_user_run(run_id: str) -> Any:
     """Delete a user's run from the database."""
     session = get_current_session()
@@ -1185,6 +1434,7 @@ def delete_user_run(run_id: str) -> Any:
 
 
 @app.post("/api/payment/create-intent")
+@limiter.limit("10 per hour")  # Max 10 payment intent creations per hour per IP
 def create_payment_intent() -> Any:
     """Create Stripe payment intent."""
     session = get_current_session()
@@ -1238,10 +1488,28 @@ def create_payment_intent() -> Any:
         return jsonify({"success": False, "error": "Stripe not installed"}), 500
     except Exception as exc:
         app.logger.exception("Payment intent creation failed: %s", exc)
+        # Send payment failure email if user is authenticated
+        try:
+            if user:
+                html_content, text_content = payment_failed_email(
+                    user_name=user.email,
+                    subscription_type=subscription_type,
+                    error_message="Payment intent creation failed",
+                )
+                email_service.send_email(
+                    to_email=user.email,
+                    subject="Payment Failed - Idea Bunch",
+                    html_content=html_content,
+                    text_content=text_content,
+                )
+        except Exception as email_err:
+            app.logger.warning(f"Failed to send payment failure email: {email_err}")
+        
         return jsonify({"success": False, "error": "Payment processing failed"}), 500
 
 
 @app.post("/api/payment/confirm")
+@limiter.limit("10 per hour")  # Max 10 payment confirmations per hour per IP
 def confirm_payment() -> Any:
     """Confirm payment and activate subscription."""
     session = get_current_session()
@@ -1265,6 +1533,23 @@ def confirm_payment() -> Any:
         intent = stripe.PaymentIntent.retrieve(payment_intent_id)
         
         if intent.status != "succeeded":
+            # Send payment failure email
+            error_message = f"Payment status: {intent.status}"
+            try:
+                html_content, text_content = payment_failed_email(
+                    user_name=user.email,
+                    subscription_type=subscription_type,
+                    error_message=error_message,
+                )
+                email_service.send_email(
+                    to_email=user.email,
+                    subject="Payment Failed - Idea Bunch",
+                    html_content=html_content,
+                    text_content=text_content,
+                )
+            except Exception as e:
+                app.logger.warning(f"Failed to send payment failure email to {user.email}: {e}")
+            
             return jsonify({"success": False, "error": "Payment not completed"}), 400
         
         # Check if already processed
@@ -1317,8 +1602,123 @@ def confirm_payment() -> Any:
         return jsonify({"success": False, "error": "Payment confirmation failed"}), 500
 
 
+# Stripe Webhook Endpoint
+@app.post("/api/webhooks/stripe")
+@limiter.limit("100 per hour")  # Webhooks can be frequent, but still limit
+def stripe_webhook() -> Any:
+    """Handle Stripe webhook events with signature verification."""
+    payload = request.get_data()
+    sig_header = request.headers.get('Stripe-Signature')
+    webhook_secret = os.environ.get('STRIPE_WEBHOOK_SECRET')
+    
+    if not webhook_secret:
+        app.logger.error("STRIPE_WEBHOOK_SECRET not configured")
+        return jsonify({"error": "Webhook secret not configured"}), 500
+    
+    if not sig_header:
+        app.logger.warning("Stripe webhook called without signature")
+        return jsonify({"error": "Missing signature"}), 400
+    
+    try:
+        import stripe
+        stripe.api_key = os.environ.get("STRIPE_SECRET_KEY")
+        
+        # Verify webhook signature
+        event = stripe.Webhook.construct_event(
+            payload, sig_header, webhook_secret
+        )
+        
+        app.logger.info(f"Stripe webhook received: {event['type']}")
+        
+        # Handle different event types
+        if event['type'] == 'payment_intent.succeeded':
+            payment_intent = event['data']['object']
+            payment_intent_id = payment_intent['id']
+            
+            # Find the payment in database
+            payment = Payment.query.filter_by(stripe_payment_intent_id=payment_intent_id).first()
+            
+            if payment and payment.status != 'completed':
+                # Update payment status
+                payment.status = 'completed'
+                payment.completed_at = datetime.utcnow()
+                
+                # Activate user subscription if not already active
+                user = payment.user
+                if user.payment_status != 'active':
+                    subscription_type = payment.subscription_type
+                    duration_days = 7 if subscription_type == 'weekly' else 30
+                    user.activate_subscription(subscription_type, duration_days)
+                    
+                    # Send activation email
+                    try:
+                        html_content, text_content = subscription_activated_email(
+                            user_name=user.email,
+                            subscription_type=subscription_type,
+                        )
+                        email_service.send_email(
+                            to_email=user.email,
+                            subject="🎉 Your Subscription is Active!",
+                            html_content=html_content,
+                            text_content=text_content,
+                        )
+                    except Exception as e:
+                        app.logger.warning(f"Failed to send subscription activated email: {e}")
+                
+                db.session.commit()
+                app.logger.info(f"Payment {payment_intent_id} confirmed via webhook")
+        
+        elif event['type'] == 'payment_intent.payment_failed':
+            payment_intent = event['data']['object']
+            payment_intent_id = payment_intent['id']
+            
+            # Find the payment in database
+            payment = Payment.query.filter_by(stripe_payment_intent_id=payment_intent_id).first()
+            
+            if payment:
+                payment.status = 'failed'
+                db.session.commit()
+                
+                # Send failure email
+                try:
+                    user = payment.user
+                    html_content, text_content = payment_failed_email(
+                        user_name=user.email,
+                        subscription_type=payment.subscription_type,
+                        error_message="Payment failed",
+                    )
+                    email_service.send_email(
+                        to_email=user.email,
+                        subject="Payment Failed - Idea Bunch",
+                        html_content=html_content,
+                        text_content=text_content,
+                    )
+                except Exception as e:
+                    app.logger.warning(f"Failed to send payment failure email: {e}")
+                
+                app.logger.info(f"Payment {payment_intent_id} failed via webhook")
+        
+        return jsonify({"success": True}), 200
+        
+    except ValueError as e:
+        # Invalid payload
+        app.logger.error(f"Invalid webhook payload: {e}")
+        return jsonify({"error": "Invalid payload"}), 400
+    except stripe.error.SignatureVerificationError as e:
+        # Invalid signature
+        app.logger.error(f"Invalid webhook signature: {e}")
+        return jsonify({"error": "Invalid signature"}), 400
+    except ImportError:
+        app.logger.error("Stripe not installed")
+        return jsonify({"error": "Stripe not installed"}), 500
+    except Exception as e:
+        app.logger.exception(f"Webhook processing failed: {e}")
+        return jsonify({"error": "Webhook processing failed"}), 500
+
+
 # Email notification endpoints
 @app.post("/api/emails/check-expiring")
+@limiter.limit("10 per day")  # Max 10 cron job calls per day per IP (prevents abuse)
 def check_expiring_subscriptions() -> Any:
     """Check and send emails for expiring trials/subscriptions (can be called by cron job)."""
     try:
@@ -1385,6 +1785,115 @@ def check_expiring_subscriptions() -> Any:
     except Exception as exc:
         app.logger.exception("Failed to check expiring subscriptions: %s", exc)
         return jsonify({"success": False, "error": str(exc)}), 500
+
+
+# Contact form endpoint
+@app.post("/api/contact")
+@limiter.limit("5 per hour")  # Max 5 contact form submissions per hour per IP (prevents spam)
+def contact_form() -> Any:
+    """Handle contact form submissions."""
+    data: Dict[str, Any] = request.get_json(force=True, silent=True) or {}
+    
+    name = data.get("name", "").strip()
+    email = data.get("email", "").strip()
+    company = data.get("company", "").strip()
+    topic = data.get("topic", "").strip()
+    message = data.get("message", "").strip()
+    
+    if not name or not email or not message:
+        return jsonify({"success": False, "error": "Name, email, and message are required"}), 400
+    
+    # Validate email format
+    import re
+    if not re.match(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$', email):
+        return jsonify({"success": False, "error": "Invalid email format"}), 400
+    
+    # Get admin email from environment (defaults to FROM_EMAIL if not set)
+    admin_email = os.environ.get("ADMIN_EMAIL", os.environ.get("FROM_EMAIL", "noreply@ideabunch.com"))
+    
+    # Create email content
+    company_text = f"<strong>Company:</strong> {company}<br>" if company else ""
+    topic_text = f"<strong>Topic:</strong> {topic}<br>" if topic else ""
+    
+    html_content = f"""
+    <h2 style="color: #333; margin-top: 0;">New Contact Form Submission</h2>
+    <p><strong>Name:</strong> {name}</p>
+    <p><strong>Email:</strong> <a href="mailto:{email}">{email}</a></p>
+    {company_text}
+    {topic_text}
+    <p><strong>Message:</strong></p>
+    <div style="background: #f5f5f5; padding: 15px; border-radius: 6px; margin: 15px 0;">
+        {message.replace(chr(10), '<br>')}
+    </div>
+    <p style="color: #666; font-size: 14px; margin-top: 20px;">
+        Reply to: <a href="mailto:{email}">{email}</a>
+    </p>
+    """
+    
+    text_content = f"""
+New Contact Form Submission
+
+Name: {name}
+Email: {email}
+{('Company: ' + company) if company else ''}
+{('Topic: ' + topic) if topic else ''}
+
+Message:
+{message}
+
+Reply to: {email}
+"""
+    
+    try:
+        # Send email to admin
+        email_service.send_email(
+            to_email=admin_email,
+            subject=f"Contact Form: {topic or 'General Inquiry'} - {name}",
+            html_content=html_content,
+            text_content=text_content,
+        )
+        
+        # Send confirmation email to user
+        user_confirmation_html = f"""
+        <h2 style="color: #333; margin-top: 0;">Hi {name},</h2>
+        <p>Thank you for reaching out! We've received your message and will get back to you within one business day.</p>
+        <p><strong>Your message:</strong></p>
+        <div style="background: #f5f5f5; padding: 15px; border-radius: 6px; margin: 15px 0;">
+            {message.replace(chr(10), '<br>')}
+        </div>
+        <p style="color: #666; font-size: 14px;">If you have any urgent questions, feel free to reply to this email.</p>
+        """
+        
+        user_confirmation_text = f"""
+Hi {name},
+
+Thank you for reaching out! We've received your message and will get back to you within one business day.
+
+Your message:
+{message}
+
+If you have any urgent questions, feel free to reply to this email.
+"""
+        
+        email_service.send_email(
+            to_email=email,
+            subject="We've received your message - Idea Bunch",
+            html_content=get_base_template(user_confirmation_html),
+            text_content=user_confirmation_text,
+        )
+        
+        app.logger.info(f"Contact form submission from {email} sent to {admin_email}")
+        
+        return jsonify({
+            "success": True,
+            "message": "Thank you for your message! We'll get back to you soon.",
+        })
+    except Exception as exc:
+        app.logger.exception("Failed to send contact form email: %s", exc)
+        return jsonify({
+            "success": False,
+            "error": "Failed to send message. Please try again or email us directly.",
+        }), 500
 
 
 if __name__ == "__main__":

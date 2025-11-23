@@ -1,23 +1,45 @@
 import { useEffect, useState } from "react";
 
 const validationSteps = [
-  "Analyzing your idea",
-  "Evaluating market opportunity",
-  "Assessing competitive landscape",
-  "Reviewing business model viability",
-  "Analyzing risks & feasibility",
-  "Preparing critical feedback",
+  { step: 1, total: 6, text: "Analyzing your idea", description: "Understanding your concept and context" },
+  { step: 2, total: 6, text: "Evaluating market opportunity", description: "Assessing market size and demand signals" },
+  { step: 3, total: 6, text: "Assessing competitive landscape", description: "Identifying competitors and differentiation" },
+  { step: 4, total: 6, text: "Reviewing business model viability", description: "Analyzing revenue model and unit economics" },
+  { step: 5, total: 6, text: "Analyzing risks & feasibility", description: "Identifying critical risks and technical challenges" },
+  { step: 6, total: 6, text: "Preparing critical feedback", description: "Compiling actionable recommendations and next steps" },
 ];
 
 export default function ValidationLoadingIndicator() {
   const [stepIndex, setStepIndex] = useState(0);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [startTime] = useState(Date.now());
 
   useEffect(() => {
-    const interval = setInterval(() => {
-      setStepIndex((prev) => (prev + 1) % validationSteps.length);
-    }, 2000);
-    return () => clearInterval(interval);
-  }, []);
+    // Progress through steps (don't cycle back)
+    const stepInterval = setInterval(() => {
+      setStepIndex((prev) => {
+        if (prev < validationSteps.length - 1) {
+          return prev + 1;
+        }
+        return prev; // Stay on last step
+      });
+    }, 5000); // Change step every 5 seconds
+
+    // Update elapsed time every second
+    const timeInterval = setInterval(() => {
+      setElapsedSeconds(Math.floor((Date.now() - startTime) / 1000));
+    }, 1000);
+
+    return () => {
+      clearInterval(stepInterval);
+      clearInterval(timeInterval);
+    };
+  }, [startTime]);
+
+  const currentStep = validationSteps[stepIndex];
+  const estimatedTotalSeconds = 30;
+  const estimatedRemaining = Math.max(0, estimatedTotalSeconds - elapsedSeconds);
+  const progressPercent = Math.min(100, (elapsedSeconds / estimatedTotalSeconds) * 100);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm">
@@ -33,17 +55,32 @@ export default function ValidationLoadingIndicator() {
           </div>
           
           <h3 className="mb-2 text-xl font-bold text-slate-900">Validating Your Idea</h3>
-          <p className="mb-6 text-sm text-slate-600">
-            This typically takes 15-30 seconds
+          <p className="mb-2 text-sm text-slate-600">
+            Step {currentStep.step} of {currentStep.total}
           </p>
           
           <div className="mb-4 h-2 w-full overflow-hidden rounded-full bg-brand-100">
-            <div className="h-full w-full animate-progress bg-gradient-to-r from-brand-400 via-brand-500 to-brand-600" />
+            <div 
+              className="h-full bg-gradient-to-r from-brand-400 via-brand-500 to-brand-600 transition-all duration-1000"
+              style={{ width: `${progressPercent}%` }}
+            />
           </div>
           
-          <p className="text-sm font-medium text-brand-700">
-            {validationSteps[stepIndex]}...
+          <p className="mb-1 text-base font-semibold text-brand-700">
+            {currentStep.text}...
           </p>
+          <p className="text-xs text-slate-500">
+            {currentStep.description}
+          </p>
+          
+          <div className="mt-4 space-y-1">
+            <p className="text-xs text-slate-500">
+              Time elapsed: {elapsedSeconds}s
+            </p>
+            <p className="text-xs font-medium text-brand-600">
+              Estimated time remaining: {estimatedRemaining}s
+            </p>
+          </div>
         </div>
       </div>
     </div>

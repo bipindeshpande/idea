@@ -138,16 +138,49 @@ export function ReportsProvider({ children }) {
     }
   }, [getAuthHeaders]);
 
-  const loadRunById = useCallback((runId) => {
+  const loadRunById = useCallback(async (runId) => {
+    // First try localStorage
     const runs = loadSavedRuns();
     const match = runs.find((run) => run.id === runId);
     if (match) {
       setCurrentRunId(match.id);
-      setInputsState(normalizeInputs(match.inputs));
-      setReports(match.outputs);
+      setInputsState(normalizeInputs(match.inputs || {}));
+      setReports(match.outputs || {});
+      return match;
     }
-    return match;
-  }, []);
+    
+    // If not found in localStorage, try API (if it looks like an API run_id)
+    if (runId && (runId.startsWith('run_') || runId.includes('_'))) {
+      try {
+        const headers = getAuthHeaders();
+        const response = await fetch(`/api/user/run/${runId}`, {
+          headers: headers,
+        });
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success && data.run) {
+            setCurrentRunId(data.run.run_id);
+            setInputsState(normalizeInputs(data.run.inputs || {}));
+            try {
+              setReports(data.run.reports || {});
+            } catch (e) {
+              setReports({});
+            }
+            return {
+              id: data.run.run_id,
+              inputs: data.run.inputs || {},
+              outputs: data.run.reports || {},
+              from_api: true,
+            };
+          }
+        }
+      } catch (error) {
+        console.error("Failed to load run from API:", error);
+      }
+    }
+    
+    return null;
+  }, [getAuthHeaders]);
 
   const deleteRun = useCallback((runId) => {
     const runs = loadSavedRuns();
