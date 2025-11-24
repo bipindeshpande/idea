@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
-import html2canvas from "html2canvas";
-import jsPDF from "jspdf";
+// Lazy load PDF dependencies - only load when needed
+// import html2canvas from "html2canvas";
+// import jsPDF from "jspdf";
 import Seo from "../../components/common/Seo.jsx";
 import { useReports } from "../../context/ReportsContext.jsx";
 import { useAuth } from "../../context/AuthContext.jsx";
@@ -32,11 +33,15 @@ export default function RecommendationsReport() {
         try {
           const result = await loadRunById(runId);
           if (!result) {
-            console.warn("Run not found:", runId);
+            if (process.env.NODE_ENV === 'development') {
+              console.warn("Run not found:", runId);
+            }
             setError(`Report not found. The report ID "${runId}" may be invalid or may have been deleted.`);
           }
         } catch (err) {
-          console.error("Failed to load run:", err);
+          if (process.env.NODE_ENV === 'development') {
+            console.error("Failed to load run:", err);
+          }
           setError(err.message || "Failed to load report data. Please try again.");
         } finally {
           setIsLoading(false);
@@ -64,8 +69,8 @@ export default function RecommendationsReport() {
   const allIdeas = useMemo(() => {
     try {
       const parsed = parseTopIdeas(markdown, 10);
-      // Debug logging
-      if (parsed.length === 0 && markdown.length > 0) {
+      // Debug logging (only in development)
+      if (process.env.NODE_ENV === 'development' && parsed.length === 0 && markdown.length > 0) {
         console.log("Failed to parse ideas from markdown:", {
           markdownLength: markdown.length,
           markdownPreview: markdown.substring(0, 500),
@@ -74,7 +79,9 @@ export default function RecommendationsReport() {
       }
       return parsed;
     } catch (err) {
-      console.error("Error parsing ideas:", err);
+      if (process.env.NODE_ENV === 'development') {
+        console.error("Error parsing ideas:", err);
+      }
       return [];
     }
   }, [markdown]);
@@ -113,12 +120,38 @@ export default function RecommendationsReport() {
     if (!reportRef.current || downloading) return;
     try {
       setDownloading(true);
-      const canvas = await html2canvas(reportRef.current, { scale: 1.5, backgroundColor: "#ffffff" });
+      
+      // Lazy load heavy PDF dependencies only when needed
+      const [{ default: html2canvas }, { default: jsPDF }] = await Promise.all([
+        import('html2canvas'),
+        import('jspdf')
+      ]);
+      
+      const canvas = await html2canvas(reportRef.current, { 
+        scale: 1.5, 
+        backgroundColor: "#ffffff",
+        useCORS: true,
+        logging: false
+      });
       const imgData = canvas.toDataURL("image/png");
       const pdf = new jsPDF("p", "pt", "a4");
       const pdfWidth = pdf.internal.pageSize.getWidth();
       const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-      pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, pdfHeight);
+      
+      // Handle multi-page PDF
+      let heightLeft = pdfHeight;
+      let position = 0;
+      
+      pdf.addImage(imgData, "PNG", 0, position, pdfWidth, pdfHeight);
+      heightLeft -= pdf.internal.pageSize.getHeight();
+      
+      while (heightLeft > 0) {
+        position = heightLeft - pdfHeight;
+        pdf.addPage();
+        pdf.addImage(imgData, "PNG", 0, position, pdfWidth, pdfHeight);
+        heightLeft -= pdf.internal.pageSize.getHeight();
+      }
+      
       pdf.save(`startup-idea-advisor-${runId || currentRunId || Date.now()}.pdf`);
     } catch (err) {
       console.error("Failed to generate PDF", err);

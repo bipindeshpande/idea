@@ -237,7 +237,9 @@ export default function RecommendationDetail() {
 
   const ideas = useMemo(() => {
     const parsed = parseTopIdeas(markdown, 10);
-    console.log("Parsed ideas:", parsed);
+    if (process.env.NODE_ENV === 'development') {
+      console.log("Parsed ideas:", parsed);
+    }
     return parsed;
   }, [markdown]);
   

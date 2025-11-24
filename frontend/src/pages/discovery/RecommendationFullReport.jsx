@@ -369,7 +369,9 @@ export default function RecommendationFullReport() {
       }
     } catch (e) {
       // If splitFullReportSections fails, continue
-      console.warn("Failed to parse sections:", e);
+      if (process.env.NODE_ENV === 'development') {
+        console.warn("Failed to parse sections:", e);
+      }
     }
     
     return "";
@@ -416,7 +418,9 @@ export default function RecommendationFullReport() {
       
       pdf.save(`startup-idea-advisor-complete-report-${runQuery || Date.now()}.pdf`);
     } catch (err) {
-      console.error("Failed to generate PDF", err);
+      if (process.env.NODE_ENV === 'development') {
+        console.error("Failed to generate PDF", err);
+      }
     } finally {
       setDownloading(false);
     }

@@ -9,6 +9,7 @@ import secrets
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict, Optional
+from functools import lru_cache
 
 # Fix Unicode encoding issues on Windows
 if sys.platform == "win32":
@@ -1742,8 +1743,9 @@ def get_user_activity() -> Any:
             inputs_data = {}
             try:
                 inputs_data = json.loads(r.inputs) if r.inputs else {}
-            except:
-                pass
+            except (json.JSONDecodeError, TypeError) as e:
+                app.logger.warning(f"Failed to parse inputs for run {r.run_id}: {e}")
+                inputs_data = {}
             
             runs_data.append({
                 "id": r.id,
@@ -1800,17 +1802,21 @@ def get_user_run(run_id: str) -> Any:
         if not user_run:
             return jsonify({"success": False, "error": "Run not found"}), 404
         
-        # Parse inputs and reports from JSON strings
+        # Parse inputs and reports from JSON strings (optimized with better error handling)
         inputs = {}
         reports = {}
-        try:
-            inputs = json.loads(user_run.inputs) if user_run.inputs else {}
-        except:
-            pass
-        try:
-            reports = json.loads(user_run.reports) if user_run.reports else {}
-        except:
-            pass
+        if user_run.inputs:
+            try:
+                inputs = json.loads(user_run.inputs)
+            except (json.JSONDecodeError, TypeError) as e:
+                app.logger.warning(f"Failed to parse inputs for run {run_id}: {e}")
+                inputs = {}
+        if user_run.reports:
+            try:
+                reports = json.loads(user_run.reports)
+            except (json.JSONDecodeError, TypeError) as e:
+                app.logger.warning(f"Failed to parse reports for run {run_id}: {e}")
+                reports = {}
         
         return jsonify({
             "success": True,

@@ -95,11 +95,33 @@ const PERSONALIZATION_RULES = [
   { pattern: /\btheir\b/gi, replacement: "your" },
 ];
 
+// Cache for personalizeCopy to avoid re-processing same text
+const personalizeCache = new Map();
+const MAX_CACHE_SIZE = 1000;
+
 export function personalizeCopy(text = "") {
-  return PERSONALIZATION_RULES.reduce(
+  if (!text || typeof text !== "string") return text;
+  
+  // Check cache first
+  if (personalizeCache.has(text)) {
+    return personalizeCache.get(text);
+  }
+  
+  // Apply personalization rules
+  const result = PERSONALIZATION_RULES.reduce(
     (acc, { pattern, replacement }) => acc.replace(pattern, replacement),
     text
   );
+  
+  // Cache the result (with size limit to prevent memory issues)
+  if (personalizeCache.size >= MAX_CACHE_SIZE) {
+    // Remove oldest entry (simple FIFO)
+    const firstKey = personalizeCache.keys().next().value;
+    personalizeCache.delete(firstKey);
+  }
+  personalizeCache.set(text, result);
+  
+  return result;
 }
 
 export function splitIdeaSections(body = "") {
