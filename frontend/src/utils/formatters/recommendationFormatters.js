@@ -681,23 +681,90 @@ export function buildValidationQuestions(sectionText = "", ideaTitle = "", audie
   const combined = [];
   const seen = new Set();
 
-  list.forEach((item) => {
-    const cleaned = personalizeCopy(item);
-    const fingerprint = cleaned.toLowerCase();
-    if (!seen.has(fingerprint)) {
-      seen.add(fingerprint);
-      combined.push({
-        question: cleaned,
-        listenFor: "Note concrete answers that reveal urgency, existing workarounds, and budget authority.",
-        actOn: "Use the response to refine positioning, pricing, or your next experiment.",
-      });
-    }
-  });
-
   const normalizedIdea = ideaTitle || "this idea";
   const normalizedAudience = audience || "your target customers";
   const normalizedGoal = goal || "your primary goal";
 
+  list.forEach((item, index) => {
+    // Parse the item to extract question, listenFor, and actOn
+    const lines = item.split(/\n/).map(l => l.trim()).filter(l => l);
+    let question = "";
+    let listenFor = null;
+    let actOn = null;
+    
+    // Find the question (usually the first line that's not a "What to listen for" or "Act on it" line)
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      if (line.match(/what\s+to\s+listen\s+for[:\-]/i)) {
+        listenFor = line.replace(/what\s+to\s+listen\s+for[:\-]\s*/i, "").trim();
+      } else if (line.match(/act\s+on\s+it[:\-]/i)) {
+        actOn = line.replace(/act\s+on\s+it[:\-]\s*/i, "").trim();
+      } else if (!question && line.length > 10 && !line.match(/^[-*+]\s*$/)) {
+        // First substantial line that's not a bullet point marker is likely the question
+        question = line.replace(/^[-*+]\s*/, "").replace(/^\d+\.\s*/, "").trim();
+      }
+    }
+    
+    // If no question found, use the first line
+    if (!question && lines.length > 0) {
+      question = lines[0].replace(/^[-*+]\s*/, "").replace(/^\d+\.\s*/, "").trim();
+    }
+    
+    const cleaned = personalizeCopy(question);
+    const fingerprint = cleaned.toLowerCase();
+    
+    if (!seen.has(fingerprint) && question) {
+      seen.add(fingerprint);
+      
+      // If listenFor/actOn not found in markdown, match question to appropriate template
+      if (!listenFor || !actOn) {
+        const questionLower = cleaned.toLowerCase();
+        let templateIndex = 0;
+        
+        // Match question content to appropriate template
+        if (questionLower.includes("pain point") || questionLower.includes("problem") || questionLower.includes("challenge") || questionLower.includes("biggest")) {
+          templateIndex = 0; // Pain point question
+        } else if (questionLower.includes("success") || questionLower.includes("outcome") || questionLower.includes("result") || questionLower.includes("describe")) {
+          templateIndex = 1; // Success/outcome question
+        } else if (questionLower.includes("channel") || questionLower.includes("partnership") || questionLower.includes("marketing") || questionLower.includes("paid")) {
+          templateIndex = 2; // Channel/partnership question
+        } else if (questionLower.includes("30 days") || questionLower.includes("double down") || questionLower.includes("outcome must")) {
+          templateIndex = 3; // 30-day outcome question
+        } else if (questionLower.includes("best use") || questionLower.includes("time") || questionLower.includes("compared") || questionLower.includes("other paths")) {
+          templateIndex = 4; // Best use of time question
+        } else if (questionLower.includes("feedback") || questionLower.includes("honest") || questionLower.includes("advice") || questionLower.includes("fastest")) {
+          templateIndex = 5; // Feedback question
+        } else if (questionLower.includes("retention") || questionLower.includes("repeat") || questionLower.includes("long-term") || questionLower.includes("behavior")) {
+          templateIndex = 6; // Retention question
+        } else {
+          // Default: cycle through templates based on index
+          templateIndex = index % VALIDATION_TEMPLATES.length;
+        }
+        
+        const template = VALIDATION_TEMPLATES[templateIndex] || VALIDATION_TEMPLATES[0];
+        listenFor = listenFor || personalizeCopy(
+          template.listenFor
+            .replace(/{{idea}}/g, normalizedIdea)
+            .replace(/{{audience}}/g, normalizedAudience)
+            .replace(/{{goal}}/g, normalizedGoal)
+        );
+        actOn = actOn || personalizeCopy(
+          template.actOn
+            .replace(/{{idea}}/g, normalizedIdea)
+            .replace(/{{audience}}/g, normalizedAudience)
+            .replace(/{{goal}}/g, normalizedGoal)
+        );
+      }
+      
+      combined.push({
+        question: cleaned,
+        listenFor: listenFor || "Listen for specific, concrete answers that reveal the customer's true needs and priorities.",
+        actOn: actOn || "Use the response to inform your product development, messaging, or go-to-market strategy.",
+      });
+    }
+  });
+
+  // Fill up to 6 questions if needed using templates
   let templateIndex = 0;
   while (combined.length < 6 && templateIndex < VALIDATION_TEMPLATES.length) {
     const template = VALIDATION_TEMPLATES[templateIndex];

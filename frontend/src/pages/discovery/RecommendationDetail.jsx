@@ -731,16 +731,17 @@ export default function RecommendationDetail() {
                 </CollapsibleSection>
               )}
               {personaMarkdown && (
-                <CollapsibleSection
-                  title="Customer persona"
-                  theme={getSectionTheme("Customer persona")}
-                  isOpen={openSections.has("persona")}
-                  onToggle={() => toggleSection("persona")}
-                >
-                  <div className="rounded-2xl border border-violet-100 bg-white/90 p-4 shadow-inner">
-                    <ReactMarkdown>{cleanNarrativeMarkdown(personaMarkdown)}</ReactMarkdown>
-                  </div>
-                </CollapsibleSection>
+            <CollapsibleSection
+              title="Customer persona"
+              description="A detailed profile of your ideal customer—their demographics, pain points, goals, and buying behavior. Use this to tailor your messaging, product features, and marketing channels."
+              theme={getSectionTheme("Customer persona")}
+              isOpen={openSections.has("persona")}
+              onToggle={() => toggleSection("persona")}
+            >
+              <div className="rounded-2xl border border-violet-100 bg-white/90 p-4 shadow-inner">
+                <ReactMarkdown>{cleanNarrativeMarkdown(personaMarkdown)}</ReactMarkdown>
+              </div>
+            </CollapsibleSection>
               )}
             </div>
           )}

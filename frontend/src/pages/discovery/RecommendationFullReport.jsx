@@ -1207,7 +1207,12 @@ function FullReportContent({ remainderMarkdown, inputs, topIdeas = [] }) {
 
       {sections["customer persona"] && (
         <article className="rounded-3xl border border-violet-100 bg-gradient-to-br from-violet-50 via-white to-white p-8 shadow-soft">
-          <h2 className="text-2xl font-semibold text-slate-900">Customer persona</h2>
+          <header className="space-y-1 mb-4">
+            <h2 className="text-2xl font-semibold text-slate-900">Customer persona</h2>
+            <p className="text-sm text-slate-600">
+              A detailed profile of your ideal customer—their demographics, pain points, goals, and buying behavior. Use this to tailor your messaging, product features, and marketing channels.
+            </p>
+          </header>
           <div className="mt-4 rounded-2xl border border-violet-100 bg-white/90 p-4 shadow-inner">
             <ReactMarkdown>{cleanNarrativeMarkdown(sections["customer persona"])}</ReactMarkdown>
           </div>
