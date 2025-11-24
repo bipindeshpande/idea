@@ -23,6 +23,7 @@ export default function RecommendationsReport() {
   const [downloading, setDownloading] = useState(false);
   const [error, setError] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState("ideas");
   const isPro = subscription && (subscription.subscription_type === "pro" || subscription.subscription_type === "weekly");
 
   useEffect(() => {
@@ -364,107 +365,162 @@ export default function RecommendationsReport() {
 
         {topIdeas.length > 0 && (
           <>
-            <div className="rounded-3xl border border-slate-200 bg-white/95 p-6 shadow-soft">
-              <h2 className="text-xl font-semibold text-slate-900">
-                Top Startup Ideas
-              </h2>
-              <p className="mt-1 text-sm text-slate-500">
-                Review your three tailored ideas. Click any row to open the full playbook with financial outlook, risk radar, validation questions, and more.
-              </p>
-            <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200 shadow-sm shadow-brand-100">
-              <table className="min-w-full divide-y divide-slate-200 text-sm">
-                <thead className="bg-brand-500/10 text-left uppercase tracking-wide text-slate-500">
-                  <tr>
-                    <th className="px-4 py-3">#</th>
-                    <th className="px-4 py-3">Idea</th>
-                    <th className="px-4 py-3">Summary</th>
-                    <th className="px-4 py-3 text-right">Details</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-200">
-                  {topIdeas.map((idea) => {
-                    const runQuery = runId || currentRunId;
-                    const detailPath = runQuery
-                      ? `/results/recommendations/${idea.index}?id=${runQuery}`
-                      : `/results/recommendations/${idea.index}`;
-                    return (
-                      <tr key={idea.index} className="transition hover:bg-brand-50/60">
-                        <td className="px-4 py-3 font-semibold text-slate-600">{idea.index}</td>
-                        <td className="px-4 py-3 font-medium text-slate-800">{idea.title}</td>
-                        <td className="px-4 py-3 text-slate-600">{personalizeCopy(idea.summary)}</td>
-                        <td className="px-4 py-3">
-                          <Link
-                            to={detailPath}
-                            className="mx-auto flex max-w-[8rem] justify-center rounded-full bg-gradient-to-r from-brand-500 via-brand-600 to-brand-700 px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:brightness-105 whitespace-nowrap"
-                          >
-                            View details
-                          </Link>
-                        </td>
+            {/* Tabbed Interface */}
+            <div className="border-b border-slate-200">
+              <nav className="-mb-px flex space-x-8 overflow-x-auto pb-2">
+                <button
+                  onClick={() => setActiveTab("ideas")}
+                  className={`whitespace-nowrap border-b-2 py-4 px-1 text-sm font-semibold transition ${
+                    activeTab === "ideas"
+                      ? "border-brand-500 text-brand-600"
+                      : "border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700"
+                  }`}
+                >
+                  Top Startup Ideas
+                </button>
+                <button
+                  onClick={() => setActiveTab("nextsteps")}
+                  className={`whitespace-nowrap border-b-2 py-4 px-1 text-sm font-semibold transition ${
+                    activeTab === "nextsteps"
+                      ? "border-brand-500 text-brand-600"
+                      : "border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700"
+                  }`}
+                >
+                  Next Steps
+                </button>
+                {finalConclusion && (
+                  <button
+                    onClick={() => setActiveTab("conclusion")}
+                    className={`whitespace-nowrap border-b-2 py-4 px-1 text-sm font-semibold transition ${
+                      activeTab === "conclusion"
+                        ? "border-brand-500 text-brand-600"
+                        : "border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700"
+                    }`}
+                  >
+                    Final Conclusion
+                  </button>
+                )}
+              </nav>
+            </div>
+
+            {/* Tab Content: Top Startup Ideas */}
+            {activeTab === "ideas" && (
+              <div className="rounded-3xl border border-slate-200 bg-white/95 p-6 shadow-soft">
+                <h2 className="text-xl font-semibold text-slate-900">
+                  Top Startup Ideas
+                </h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  Review your three tailored ideas. Click any row to open the full playbook with financial outlook, risk radar, validation questions, and more.
+                </p>
+                <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200 shadow-sm shadow-brand-100">
+                  <table className="min-w-full divide-y divide-slate-200 text-sm">
+                    <thead className="bg-brand-500/10 text-left uppercase tracking-wide text-slate-500">
+                      <tr>
+                        <th className="px-4 py-3">#</th>
+                        <th className="px-4 py-3">Idea</th>
+                        <th className="px-4 py-3">Summary</th>
+                        <th className="px-4 py-3 text-right">Details</th>
                       </tr>
-                    );
-                  })}
-                  {topIdeas.length < 3 && (
-                    <tr className="bg-slate-50/60 text-slate-500">
-                      <td colSpan={4} className="px-4 py-3 text-center italic">
-                        Fewer than three ideas generated—rerun with expanded preferences for more options.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-            {/* Next Steps */}
-            <div className="mb-4 rounded-3xl border-2 border-emerald-200 bg-gradient-to-br from-emerald-50 to-white p-6 shadow-soft">
-              <div className="mb-4 flex items-center gap-3">
-                <h2 className="text-2xl font-bold text-slate-900">🚀 Your Next Steps</h2>
-                <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">Start Here</span>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200">
+                      {topIdeas.map((idea) => {
+                        const runQuery = runId || currentRunId;
+                        const detailPath = runQuery
+                          ? `/results/recommendations/${idea.index}?id=${runQuery}`
+                          : `/results/recommendations/${idea.index}`;
+                        return (
+                          <tr key={idea.index} className="transition hover:bg-brand-50/60">
+                            <td className="px-4 py-3 font-semibold text-slate-600">{idea.index}</td>
+                            <td className="px-4 py-3 font-medium text-slate-800">{idea.title}</td>
+                            <td className="px-4 py-3 text-slate-600">{personalizeCopy(idea.summary)}</td>
+                            <td className="px-4 py-3">
+                              <Link
+                                to={detailPath}
+                                className="mx-auto flex max-w-[8rem] justify-center rounded-full bg-gradient-to-r from-brand-500 via-brand-600 to-brand-700 px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:brightness-105 whitespace-nowrap"
+                              >
+                                View details
+                              </Link>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                      {topIdeas.length < 3 && (
+                        <tr className="bg-slate-50/60 text-slate-500">
+                          <td colSpan={4} className="px-4 py-3 text-center italic">
+                            Fewer than three ideas generated—rerun with expanded preferences for more options.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="mt-6 flex flex-wrap gap-3">
+                  <Link
+                    to={
+                      runId || currentRunId
+                        ? `/results/recommendations/full?id=${runId || currentRunId}`
+                        : "/results/recommendations/full"
+                    }
+                    className="inline-flex items-center gap-2 rounded-xl border border-brand-300 bg-white px-4 py-2 text-sm font-semibold text-brand-700 shadow-sm transition hover:border-brand-400 hover:text-brand-800"
+                  >
+                    View full recommendation report
+                  </Link>
+                </div>
               </div>
-              <p className="mb-6 text-slate-600">
-                Follow these specific steps to move forward with your startup ideas.
-              </p>
-              <ol className="ml-6 space-y-4 text-slate-700">
-                <li className="flex items-start gap-3">
-                  <span className="mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-500 text-xs font-bold text-white">1</span>
-                  <div>
-                    <strong className="font-semibold text-slate-900">Review all 3 recommendations</strong>
-                    <p className="mt-1 text-sm text-slate-600">Click "View details" on each idea to see the full analysis, financial outlook, and execution roadmap.</p>
-                  </div>
-                </li>
-                <li className="flex items-start gap-3">
-                  <span className="mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-500 text-xs font-bold text-white">2</span>
-                  <div>
-                    <strong className="font-semibold text-slate-900">Validate your top choice</strong>
-                    <p className="mt-1 text-sm text-slate-600">Use our validation tool to get detailed feedback on your selected idea across 10 key parameters.</p>
-                  </div>
-                </li>
-                <li className="flex items-start gap-3">
-                  <span className="mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-500 text-xs font-bold text-white">3</span>
-                  <div>
-                    <strong className="font-semibold text-slate-900">Talk to potential customers</strong>
-                    <p className="mt-1 text-sm text-slate-600">Reach out to 10 people in your target market this week. Use the customer validation questions from the detailed reports.</p>
-                  </div>
-                </li>
-                <li className="flex items-start gap-3">
-                  <span className="mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-500 text-xs font-bold text-white">4</span>
-                  <div>
-                    <strong className="font-semibold text-slate-900">Create a simple prototype or landing page</strong>
-                    <p className="mt-1 text-sm text-slate-600">Within 30 days, build a minimal version to test interest. Use tools like Carrd, Webflow, or no-code platforms.</p>
-                  </div>
-                </li>
-                <li className="flex items-start gap-3">
-                  <span className="mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-500 text-xs font-bold text-white">5</span>
-                  <div>
-                    <strong className="font-semibold text-slate-900">Download templates and resources</strong>
-                    <p className="mt-1 text-sm text-slate-600">Access our business plan template, pitch deck template, and email templates from the Resources section.</p>
-                  </div>
-                </li>
-              </ol>
-            </div>
+            )}
 
-            {/* Final Conclusion */}
-            {finalConclusion && (
+            {/* Tab Content: Next Steps */}
+            {activeTab === "nextsteps" && (
+              <div className="mb-4 rounded-3xl border-2 border-emerald-200 bg-gradient-to-br from-emerald-50 to-white p-6 shadow-soft">
+                <div className="mb-4 flex items-center gap-3">
+                  <h2 className="text-2xl font-bold text-slate-900">🚀 Your Next Steps</h2>
+                  <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">Start Here</span>
+                </div>
+                <p className="mb-6 text-slate-600">
+                  Follow these specific steps to move forward with your startup ideas.
+                </p>
+                <ol className="ml-6 space-y-4 text-slate-700">
+                  <li className="flex items-start gap-3">
+                    <span className="mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-500 text-xs font-bold text-white">1</span>
+                    <div>
+                      <strong className="font-semibold text-slate-900">Review all 3 recommendations</strong>
+                      <p className="mt-1 text-sm text-slate-600">Click "View details" on each idea to see the full analysis, financial outlook, and execution roadmap.</p>
+                    </div>
+                  </li>
+                  <li className="flex items-start gap-3">
+                    <span className="mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-500 text-xs font-bold text-white">2</span>
+                    <div>
+                      <strong className="font-semibold text-slate-900">Validate your top choice</strong>
+                      <p className="mt-1 text-sm text-slate-600">Use our validation tool to get detailed feedback on your selected idea across 10 key parameters.</p>
+                    </div>
+                  </li>
+                  <li className="flex items-start gap-3">
+                    <span className="mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-500 text-xs font-bold text-white">3</span>
+                    <div>
+                      <strong className="font-semibold text-slate-900">Talk to potential customers</strong>
+                      <p className="mt-1 text-sm text-slate-600">Reach out to 10 people in your target market this week. Use the customer validation questions from the detailed reports.</p>
+                    </div>
+                  </li>
+                  <li className="flex items-start gap-3">
+                    <span className="mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-500 text-xs font-bold text-white">4</span>
+                    <div>
+                      <strong className="font-semibold text-slate-900">Create a simple prototype or landing page</strong>
+                      <p className="mt-1 text-sm text-slate-600">Within 30 days, build a minimal version to test interest. Use tools like Carrd, Webflow, or no-code platforms.</p>
+                    </div>
+                  </li>
+                  <li className="flex items-start gap-3">
+                    <span className="mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-500 text-xs font-bold text-white">5</span>
+                    <div>
+                      <strong className="font-semibold text-slate-900">Download templates and resources</strong>
+                      <p className="mt-1 text-sm text-slate-600">Access our business plan template, pitch deck template, and email templates from the Resources section.</p>
+                    </div>
+                  </li>
+                </ol>
+              </div>
+            )}
+
+            {/* Tab Content: Final Conclusion */}
+            {activeTab === "conclusion" && finalConclusion && (
               <div className="rounded-3xl border-2 border-brand-300 bg-gradient-to-br from-brand-50 to-white p-8 shadow-soft">
                 <div className="prose prose-slate max-w-none">
                   <ReactMarkdown
@@ -494,19 +550,6 @@ export default function RecommendationsReport() {
                 </div>
               </div>
             )}
-
-            <div className="flex flex-wrap gap-3">
-              <Link
-                to={
-                  runId || currentRunId
-                    ? `/results/recommendations/full?id=${runId || currentRunId}`
-                    : "/results/recommendations/full"
-                }
-                className="inline-flex items-center gap-2 rounded-xl border border-brand-300 bg-white px-4 py-2 text-sm font-semibold text-brand-700 shadow-sm transition hover:border-brand-400 hover:text-brand-800"
-              >
-                View full recommendation report
-              </Link>
-            </div>
           </>
         )}
       </div>

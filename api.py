@@ -1771,7 +1771,7 @@ def get_user_usage() -> Any:
 
 
 @app.get("/api/user/activity")
-@limiter.limit("30 per hour")  # Max 30 activity checks per hour per IP
+@limiter.limit("100 per hour")  # Max 100 activity checks per hour per IP (increased to prevent 429 errors)
 def get_user_activity() -> Any:
     """Get current user's activity (runs, validations)."""
     session = get_current_session()

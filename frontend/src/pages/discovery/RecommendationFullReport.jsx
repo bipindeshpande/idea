@@ -1074,6 +1074,8 @@ function SampleReportContent({ inputs }) {
 }
 
 function FullReportContent({ remainderMarkdown, inputs, topIdeas = [] }) {
+  const [activeTab, setActiveTab] = useState("matrix");
+  
   const sections = useMemo(() => splitFullReportSections(remainderMarkdown), [remainderMarkdown]);
 
   const profileSummary = useMemo(() => buildConciseProfileSummary(inputs), [inputs]);
@@ -1088,6 +1090,7 @@ function FullReportContent({ remainderMarkdown, inputs, topIdeas = [] }) {
   );
   const roadmapMarkdown = sections["30/60/90 day roadmap"];
   const decisionChecklist = dedupeStrings(extractValidationQuestions(sections["decision checklist"]));
+  const finalConclusion = useMemo(() => buildFinalConclusion(topIdeas, matrixRows, inputs), [topIdeas, matrixRows, inputs]);
 
   const otherSections = Object.entries(sections)
     .filter(
@@ -1105,6 +1108,27 @@ function FullReportContent({ remainderMarkdown, inputs, topIdeas = [] }) {
     )
     .map(([key, value]) => ({ heading: key, content: value }));
 
+  // Build tabs list based on available content
+  const tabs = [];
+  if (matrixRows.length > 0) tabs.push({ id: "matrix", label: "Recommendation Matrix" });
+  if (financialOutlook.length > 0) tabs.push({ id: "financial", label: "Financial Outlook" });
+  if (riskRows.length > 0) tabs.push({ id: "risk", label: "Risk Radar" });
+  if (sections["customer persona"]) tabs.push({ id: "persona", label: "Customer Persona" });
+  if (validationQuestions.length > 0) tabs.push({ id: "validation", label: "Validation Questions" });
+  if (roadmapMarkdown) tabs.push({ id: "roadmap", label: "30/60/90 Day Roadmap" });
+  if (decisionChecklist.length > 0) tabs.push({ id: "checklist", label: "Decision Checklist" });
+  if (finalConclusion) tabs.push({ id: "conclusion", label: "Final Conclusion" });
+  otherSections.forEach((section) => {
+    tabs.push({ id: `other-${section.heading}`, label: formatSectionHeading(section.heading) });
+  });
+
+  // Set default active tab to first available
+  useEffect(() => {
+    if (tabs.length > 0 && !tabs.find(t => t.id === activeTab)) {
+      setActiveTab(tabs[0].id);
+    }
+  }, [tabs.length, activeTab, tabs]);
+
   return (
     <div className="grid gap-4">
       <article className="rounded-2xl border border-slate-200 bg-white/95 p-5 shadow-soft">
@@ -1115,9 +1139,33 @@ function FullReportContent({ remainderMarkdown, inputs, topIdeas = [] }) {
         </p>
       </article>
 
+      {/* Tabbed Interface */}
+      {tabs.length > 0 && (
+        <>
+          <div className="border-b border-slate-200">
+            <nav className="-mb-px flex space-x-8 overflow-x-auto pb-2">
+              {tabs.map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`whitespace-nowrap border-b-2 py-4 px-1 text-sm font-semibold transition ${
+                    activeTab === tab.id
+                      ? "border-brand-500 text-brand-600"
+                      : "border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700"
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </nav>
+          </div>
+        </>
+      )}
 
-      {matrixRows.length > 0 && (
-        <article className="rounded-2xl border border-slate-200 bg-white/95 p-5 shadow-soft">
+
+      {/* Tab Content */}
+      {activeTab === "matrix" && matrixRows.length > 0 && (
+        <div className="rounded-2xl border border-slate-200 bg-white/95 p-5 shadow-soft">
           <h2 className="text-xl font-semibold text-slate-900 mb-1.5">Recommendation Matrix</h2>
           <p className="text-sm text-slate-600 mb-4">Compare how each idea aligns with your goals, capacity, and preferences.</p>
           <div className="mt-4 overflow-x-auto rounded-2xl border border-slate-200">
@@ -1162,11 +1210,11 @@ function FullReportContent({ remainderMarkdown, inputs, topIdeas = [] }) {
               </tbody>
             </table>
           </div>
-        </article>
+        </div>
       )}
 
-      {financialOutlook.length > 0 && (
-        <article className="rounded-2xl border border-amber-100 bg-amber-50/80 p-5 shadow-soft">
+      {activeTab === "financial" && financialOutlook.length > 0 && (
+        <div className="rounded-2xl border border-amber-100 bg-amber-50/80 p-5 shadow-soft">
           <h2 className="text-xl font-semibold text-slate-900">Financial outlook</h2>
           <div className="mt-3 overflow-hidden rounded-xl border border-amber-100 bg-white">
             <table className="min-w-full divide-y divide-amber-100 text-sm">
@@ -1190,11 +1238,11 @@ function FullReportContent({ remainderMarkdown, inputs, topIdeas = [] }) {
               </tbody>
             </table>
           </div>
-        </article>
+        </div>
       )}
 
-      {riskRows.length > 0 && (
-        <article className="rounded-2xl border border-slate-200 bg-white/95 p-5 shadow-soft">
+      {activeTab === "risk" && riskRows.length > 0 && (
+        <div className="rounded-2xl border border-slate-200 bg-white/95 p-5 shadow-soft">
           <h2 className="text-xl font-semibold text-slate-900">Risk radar</h2>
           <div className="mt-3 overflow-hidden rounded-xl border border-slate-200">
             <table className="min-w-full divide-y divide-slate-200 text-sm">
@@ -1216,11 +1264,11 @@ function FullReportContent({ remainderMarkdown, inputs, topIdeas = [] }) {
               </tbody>
             </table>
           </div>
-        </article>
+        </div>
       )}
 
-      {sections["customer persona"] && (
-        <article className="rounded-2xl border border-violet-100 bg-gradient-to-br from-violet-50 via-white to-white p-5 shadow-soft">
+      {activeTab === "persona" && sections["customer persona"] && (
+        <div className="rounded-2xl border border-violet-100 bg-gradient-to-br from-violet-50 via-white to-white p-5 shadow-soft">
           <header className="space-y-1 mb-3">
             <h2 className="text-xl font-semibold text-slate-900">Customer persona</h2>
             <p className="text-sm text-slate-600">
@@ -1230,11 +1278,11 @@ function FullReportContent({ remainderMarkdown, inputs, topIdeas = [] }) {
           <div className="mt-4 rounded-2xl border border-violet-100 bg-white/90 p-4 shadow-inner">
             <ReactMarkdown>{cleanNarrativeMarkdown(sections["customer persona"])}</ReactMarkdown>
           </div>
-        </article>
+        </div>
       )}
 
-      {validationQuestions.length > 0 && (
-        <article className="rounded-2xl border border-slate-200 bg-white/95 p-5 shadow-soft">
+      {activeTab === "validation" && validationQuestions.length > 0 && (
+        <div className="rounded-2xl border border-slate-200 bg-white/95 p-5 shadow-soft">
           <header className="space-y-1">
             <h2 className="text-xl font-semibold text-slate-900">Validation questions</h2>
             <p className="text-sm text-slate-500">
@@ -1259,32 +1307,57 @@ function FullReportContent({ remainderMarkdown, inputs, topIdeas = [] }) {
               </div>
             ))}
           </div>
-        </article>
+        </div>
       )}
 
-      {roadmapMarkdown && (
-        <article className="rounded-2xl border border-brand-100 bg-brand-50/70 p-5 shadow-soft">
+      {activeTab === "roadmap" && roadmapMarkdown && (
+        <div className="rounded-2xl border border-brand-100 bg-brand-50/70 p-5 shadow-soft">
           <h2 className="text-xl font-semibold text-slate-900">30/60/90 day roadmap</h2>
           <p className="mt-1.5 text-sm text-slate-600">
             Split execution into focused sprints that move from validation to launch. Refresh these milestones as real-world feedback arrives.
           </p>
           <div className="mt-3 grid gap-3 md:grid-cols-3">
-            {["0-30 Days", "30-60 Days", "60-90 Days"].map((window, index) => (
-              <div key={window} className="rounded-2xl border border-brand-100 bg-white/95 p-4 shadow-inner">
-                <p className="text-xs font-semibold uppercase tracking-wide text-brand-600">{window}</p>
-                <div className="mt-2 text-sm text-slate-700">
-                  <ReactMarkdown>
-                    {extractTimelineSlice(personalizeCopy(roadmapMarkdown), index)}
-                  </ReactMarkdown>
+            {["0-30 Days", "30-60 Days", "60-90 Days"].map((window, index) => {
+              const segmentContent = extractTimelineSlice(personalizeCopy(roadmapMarkdown), index);
+              return (
+                <div key={window} className="rounded-2xl border border-brand-100 bg-white/95 p-4 shadow-inner">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-brand-600 mb-3">{window}</p>
+                  <div className="text-sm text-slate-700">
+                    {segmentContent && segmentContent.length > 10 ? (
+                      <ReactMarkdown
+                        components={{
+                          p: ({ node, ...props }) => (
+                            <p className="mb-2 leading-relaxed" {...props} />
+                          ),
+                          ul: ({ node, ...props }) => (
+                            <ul className="list-disc list-outside space-y-1 mb-2 ml-4" {...props} />
+                          ),
+                          ol: ({ node, ...props }) => (
+                            <ol className="list-decimal list-outside space-y-1 mb-2 ml-4" {...props} />
+                          ),
+                          li: ({ node, ...props }) => (
+                            <li className="leading-relaxed" {...props} />
+                          ),
+                          strong: ({ node, ...props }) => (
+                            <strong className="font-semibold text-slate-900" {...props} />
+                          ),
+                        }}
+                      >
+                        {segmentContent}
+                      </ReactMarkdown>
+                    ) : (
+                      <p className="text-slate-500 italic">Define clear milestones for this period.</p>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
-        </article>
+        </div>
       )}
 
-      {decisionChecklist.length > 0 && (
-        <article className="rounded-2xl border border-slate-200 bg-white/95 p-5 shadow-soft">
+      {activeTab === "checklist" && decisionChecklist.length > 0 && (
+        <div className="rounded-2xl border border-slate-200 bg-white/95 p-5 shadow-soft">
           <h2 className="text-xl font-semibold text-slate-900">Decision checklist</h2>
           <ul className="mt-3 space-y-2 text-sm text-slate-700">
             {decisionChecklist.map((item, index) => (
@@ -1294,57 +1367,54 @@ function FullReportContent({ remainderMarkdown, inputs, topIdeas = [] }) {
               </li>
             ))}
           </ul>
-        </article>
+        </div>
       )}
 
-      {/* Final Conclusion */}
-      {(() => {
-        const conclusion = buildFinalConclusion(
-          topIdeas,
-          matrixRows,
-          inputs
-        );
-        if (!conclusion) return null;
-        return (
-          <article className="rounded-2xl border-2 border-brand-300 bg-gradient-to-br from-brand-50 to-white p-5 shadow-soft no-print">
-            <div className="prose prose-slate max-w-none prose-p:leading-normal prose-p:mb-1.5 prose-ul:space-y-1 prose-li:leading-normal prose-h2:mb-2 prose-h2:mt-3 prose-h3:mb-1.5 prose-h3:mt-2">
-              <ReactMarkdown
-                components={{
-                  h2: ({ node, ...props }) => (
-                    <h2 className="text-xl font-bold text-slate-900 mb-2 mt-3" {...props} />
-                  ),
-                  h3: ({ node, ...props }) => (
-                    <h3 className="text-lg font-semibold text-slate-800 mb-1.5 mt-2" {...props} />
-                  ),
-                  p: ({ node, ...props }) => (
-                    <p className="text-slate-700 leading-normal mb-1.5" {...props} />
-                  ),
-                  ul: ({ node, ...props }) => (
-                    <ul className="list-disc list-outside space-y-1 text-slate-700 mb-2 ml-5" {...props} />
-                  ),
-                  li: ({ node, ...props }) => (
-                    <li className="leading-normal" {...props} />
-                  ),
-                  strong: ({ node, ...props }) => (
-                    <strong className="font-semibold text-slate-900" {...props} />
-                  ),
-                }}
-              >
-                {conclusion}
-              </ReactMarkdown>
-            </div>
-          </article>
-        );
-      })()}
-
-      {otherSections.map((section) => (
-        <article key={section.heading} className="rounded-2xl border border-slate-200 bg-white/95 p-5 shadow-soft">
-          <h2 className="text-xl font-semibold text-slate-900">{formatSectionHeading(section.heading)}</h2>
-          <div className="mt-3 prose prose-slate">
-            <ReactMarkdown>{personalizeCopy(section.content)}</ReactMarkdown>
+      {activeTab === "conclusion" && finalConclusion && (
+        <div className="rounded-2xl border-2 border-brand-300 bg-gradient-to-br from-brand-50 to-white p-5 shadow-soft no-print">
+          <div className="prose prose-slate max-w-none prose-p:leading-normal prose-p:mb-1.5 prose-ul:space-y-1 prose-li:leading-normal prose-h2:mb-2 prose-h2:mt-3 prose-h3:mb-1.5 prose-h3:mt-2">
+            <ReactMarkdown
+              components={{
+                h2: ({ node, ...props }) => (
+                  <h2 className="text-xl font-bold text-slate-900 mb-2 mt-3" {...props} />
+                ),
+                h3: ({ node, ...props }) => (
+                  <h3 className="text-lg font-semibold text-slate-800 mb-1.5 mt-2" {...props} />
+                ),
+                p: ({ node, ...props }) => (
+                  <p className="text-slate-700 leading-normal mb-1.5" {...props} />
+                ),
+                ul: ({ node, ...props }) => (
+                  <ul className="list-disc list-outside space-y-1 text-slate-700 mb-2 ml-5" {...props} />
+                ),
+                li: ({ node, ...props }) => (
+                  <li className="leading-normal" {...props} />
+                ),
+                strong: ({ node, ...props }) => (
+                  <strong className="font-semibold text-slate-900" {...props} />
+                ),
+              }}
+            >
+              {finalConclusion}
+            </ReactMarkdown>
           </div>
-        </article>
-      ))}
+        </div>
+      )}
+
+      {activeTab.startsWith("other-") && otherSections.map((section) => {
+        const tabId = `other-${section.heading}`;
+        if (activeTab === tabId) {
+          return (
+            <div key={section.heading} className="rounded-2xl border border-slate-200 bg-white/95 p-5 shadow-soft">
+              <h2 className="text-xl font-semibold text-slate-900">{formatSectionHeading(section.heading)}</h2>
+              <div className="mt-3 prose prose-slate">
+                <ReactMarkdown>{personalizeCopy(section.content)}</ReactMarkdown>
+              </div>
+            </div>
+          );
+        }
+        return null;
+      })}
     </div>
   );
 }

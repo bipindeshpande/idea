@@ -1,8 +1,9 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import Seo from "../../components/common/Seo.jsx";
 import { useReports } from "../../context/ReportsContext.jsx";
 import { useAuth } from "../../context/AuthContext.jsx";
+import { useValidation } from "../../context/ValidationContext.jsx";
 import DashboardTips from "../../components/dashboard/DashboardTips.jsx";
 
 const STORAGE_KEY = "sia_saved_runs";
@@ -15,6 +16,7 @@ export default function DashboardPage() {
   const [activeTab, setActiveTab] = useState("ideas"); // "ideas" or "validations"
   const { deleteRun, setInputs } = useReports();
   const { user, isAuthenticated, subscription, getAuthHeaders } = useAuth();
+  const { getSavedValidations } = useValidation();
   const navigate = useNavigate();
 
   const loadRuns = () => {
@@ -31,8 +33,8 @@ export default function DashboardPage() {
   useEffect(() => {
     loadRuns();
     if (isAuthenticated) {
+      // Only call loadApiRuns once - it loads both runs and validations
       loadApiRuns();
-      loadApiValidations();
     } else {
       setLoadingRuns(false);
     }
@@ -45,7 +47,8 @@ export default function DashboardPage() {
         // TODO: Add validation delete endpoint if needed
         // For now, just remove from local state
         setApiValidations(prev => prev.filter(v => v.validation_id !== session.validation_id));
-        await loadApiValidations();
+        // Reload both runs and validations from the same endpoint
+        await loadApiRuns();
         return;
       }
       
@@ -78,7 +81,7 @@ export default function DashboardPage() {
     }
   };
 
-  const loadApiRuns = async () => {
+  const loadApiRuns = useCallback(async () => {
     try {
       const response = await fetch("/api/user/activity", {
         headers: getAuthHeaders(),
@@ -89,25 +92,15 @@ export default function DashboardPage() {
         setApiValidations(data.activity?.validations || []);
       }
     } catch (error) {
-      console.error("Failed to load API runs:", error);
+      if (process.env.NODE_ENV === 'development') {
+        console.error("Failed to load API runs:", error);
+      }
     } finally {
       setLoadingRuns(false);
     }
-  };
+  }, [getAuthHeaders]);
 
-  const loadApiValidations = async () => {
-    try {
-      const response = await fetch("/api/user/activity", {
-        headers: getAuthHeaders(),
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setApiValidations(data.activity?.validations || []);
-      }
-    } catch (error) {
-      console.error("Failed to load API validations:", error);
-    }
-  };
+  // Removed loadApiValidations - now handled by loadApiRuns to avoid duplicate API calls
 
   const handleNewRequest = async (run) => {
     // If it's an API run and we don't have inputs, fetch them
@@ -163,17 +156,40 @@ export default function DashboardPage() {
     return merged.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
   }, [runs, apiRuns]);
 
-  // Format validations for display
+  // Format validations for display - combine API and localStorage validations
   const allValidations = useMemo(() => {
-    return apiValidations.map(v => ({
+    // Get validations from API
+    const apiVals = apiValidations.map(v => ({
       id: `val_${v.validation_id}`,
       validation_id: v.validation_id,
       timestamp: v.created_at ? new Date(v.created_at).getTime() : Date.now(),
       overall_score: v.overall_score,
       from_api: true,
       is_validation: true,
-    })).sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
-  }, [apiValidations]);
+    }));
+
+    // Get validations from localStorage
+    const localValidations = getSavedValidations();
+    const localVals = localValidations.map(v => ({
+      id: v.id || `local_${v.timestamp}`,
+      validation_id: v.id || `local_${v.timestamp}`,
+      timestamp: v.timestamp || Date.now(),
+      overall_score: v.validation?.overall_score,
+      from_api: false,
+      is_validation: true,
+    }));
+
+    // Combine and deduplicate (prefer API validations if same ID exists)
+    const combined = [...apiVals];
+    const apiIds = new Set(apiVals.map(v => v.validation_id));
+    localVals.forEach(localVal => {
+      if (!apiIds.has(localVal.validation_id)) {
+        combined.push(localVal);
+      }
+    });
+
+    return combined.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+  }, [apiValidations, getSavedValidations]);
 
   // Combine runs and validations, sorted by timestamp
   const allSessions = useMemo(() => {
