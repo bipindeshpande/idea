@@ -99,8 +99,9 @@ class User(db.Model):
                     self.subscription_expires_at = self.subscription_started_at + timedelta(days=3)
                     try:
                         db.session.commit()
-                    except Exception:
+                    except Exception as e:
                         db.session.rollback()
+                        app.logger.error(f"Failed to set free_trial expiration: {e}")
                 elif subscription_type in ["starter", "pro", "weekly"]:
                     # For paid subscriptions without expiration, check if they have recent payments
                     # If subscription_started_at exists, extend from there
@@ -124,18 +125,35 @@ class User(db.Model):
                     
                     try:
                         db.session.commit()
-                    except Exception:
+                        # Refresh the object to ensure we have the updated expiration
+                        db.session.refresh(self)
+                    except Exception as e:
                         db.session.rollback()
+                        import logging
+                        logging.error(f"Failed to set paid subscription expiration: {e}")
                 else:
                     # Unknown subscription type without expiration - treat as inactive
                     return False
             
             # Subscription is active if expiration date is in the future
+            if not self.subscription_expires_at:
+                # If we still don't have an expiration date after trying to set it, return False
+                return False
             return datetime.utcnow() < self.subscription_expires_at
         except Exception as e:
             # Log error but don't crash - default to False for safety
             import logging
             logging.error(f"Error checking subscription status for user {self.id}: {e}")
+            # If it's a free user, they should still have access even if there's an error
+            subscription_type = self.subscription_type or "free"
+            if subscription_type == "free":
+                return True
+            # For paid subscriptions, if there's an error, check if expiration exists and is in future
+            if self.subscription_expires_at:
+                try:
+                    return datetime.utcnow() < self.subscription_expires_at
+                except:
+                    pass
             return False
     
     def days_remaining(self) -> int:

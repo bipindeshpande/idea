@@ -18,42 +18,31 @@ export default function DashboardPage() {
   const { user, isAuthenticated, subscription, getAuthHeaders } = useAuth();
   const { getSavedValidations } = useValidation();
   const navigate = useNavigate();
-  const [smartRecommendations, setSmartRecommendations] = useState(null);
-  const [loadingSmartRecs, setLoadingSmartRecs] = useState(false);
   const [actions, setActions] = useState([]);
   const [loadingActions, setLoadingActions] = useState(false);
   const [notes, setNotes] = useState([]);
   const [loadingNotes, setLoadingNotes] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [sortBy, setSortBy] = useState("date"); // "date", "score", "name"
+  const [dateFilter, setDateFilter] = useState("all"); // "all", "week", "month", "3months", "year"
+  const [scoreFilter, setScoreFilter] = useState("all"); // "all", "high" (>=7), "medium" (5-7), "low" (<5)
 
   const loadRuns = () => {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored) {
       try {
-        setRuns(JSON.parse(stored));
+        const parsed = JSON.parse(stored);
+        // Filter out any validations that might have been saved as runs
+        const filtered = parsed.filter(run => {
+          // If it has validation_id or overall_score, it's a validation, not a run
+          return !run.validation_id && run.overall_score === undefined;
+        });
+        setRuns(filtered);
       } catch (error) {
         console.error("Failed to parse saved runs", error);
       }
     }
   };
-
-  const loadSmartRecommendations = useCallback(async () => {
-    setLoadingSmartRecs(true);
-    try {
-      const response = await fetch("/api/user/smart-recommendations", {
-        headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
-      });
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success) {
-          setSmartRecommendations(data.insights);
-        }
-      }
-    } catch (error) {
-      console.error("Failed to load smart recommendations:", error);
-    } finally {
-      setLoadingSmartRecs(false);
-    }
-  }, [getAuthHeaders]);
 
   const loadActions = useCallback(async () => {
     setLoadingActions(true);
@@ -117,13 +106,12 @@ export default function DashboardPage() {
     if (isAuthenticated) {
       // Only call loadApiRuns once - it loads both runs and validations
       loadApiRuns();
-      loadSmartRecommendations();
       loadActions();
       loadNotes();
     } else {
       setLoadingRuns(false);
     }
-  }, [isAuthenticated, loadApiRuns, loadSmartRecommendations, loadActions, loadNotes]);
+  }, [isAuthenticated, loadApiRuns, loadActions, loadNotes]);
 
   const handleDelete = async (session) => {
     if (window.confirm("Are you sure you want to delete this session? This action cannot be undone.")) {
@@ -214,7 +202,15 @@ export default function DashboardPage() {
           outputs: {},
           run_id: apiRun.run_id,
           from_api: true,
+          is_validation: false, // Explicitly mark as not a validation
         });
+      }
+    });
+    
+    // Ensure all runs are explicitly marked as not validations
+    merged.forEach(run => {
+      if (run.is_validation === undefined) {
+        run.is_validation = false;
       }
     });
     
@@ -267,6 +263,130 @@ export default function DashboardPage() {
     ];
     return combined.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
   }, [allRuns, allValidations]);
+
+  // Filter and sort sessions
+  const filteredRuns = useMemo(() => {
+    // Filter out validations - check multiple conditions to be safe
+    let filtered = allRuns.filter(s => {
+      // Explicitly exclude validations
+      if (s.is_validation === true) return false;
+      // If it has validation_id, it's a validation
+      if (s.validation_id) return false;
+      // If it has overall_score but no run_id, it might be a validation
+      if (s.overall_score !== undefined && !s.run_id) return false;
+      // If it has idea_explanation but no inputs, it might be a validation
+      if (s.idea_explanation && !s.inputs) return false;
+      return true;
+    });
+    
+    // Search filter
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(session => {
+        const goalType = session.inputs?.goal_type?.toLowerCase() || "";
+        const interestArea = session.inputs?.interest_area?.toLowerCase() || "";
+        const subInterest = session.inputs?.sub_interest_area?.toLowerCase() || "";
+        const runId = session.run_id?.toLowerCase() || "";
+        return goalType.includes(query) || interestArea.includes(query) || 
+               subInterest.includes(query) || runId.includes(query);
+      });
+    }
+    
+    // Date filter
+    if (dateFilter !== "all") {
+      const now = Date.now();
+      const filterMap = {
+        week: 7 * 24 * 60 * 60 * 1000,
+        month: 30 * 24 * 60 * 60 * 1000,
+        "3months": 90 * 24 * 60 * 60 * 1000,
+        year: 365 * 24 * 60 * 60 * 1000,
+      };
+      const cutoff = now - filterMap[dateFilter];
+      filtered = filtered.filter(s => (s.timestamp || 0) >= cutoff);
+    }
+    
+    // Sort
+    filtered.sort((a, b) => {
+      switch (sortBy) {
+        case "score":
+          // For runs, we don't have scores, so sort by date
+          return (b.timestamp || 0) - (a.timestamp || 0);
+        case "name":
+          const aName = a.inputs?.goal_type || "";
+          const bName = b.inputs?.goal_type || "";
+          return aName.localeCompare(bName);
+        case "date":
+        default:
+          return (b.timestamp || 0) - (a.timestamp || 0);
+      }
+    });
+    
+    return filtered;
+  }, [allRuns, searchQuery, dateFilter, sortBy]);
+
+  const filteredValidations = useMemo(() => {
+    let filtered = [...allValidations];
+    
+    // Search filter
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(session => {
+        const idea = session.idea_explanation?.toLowerCase() || "";
+        const valId = session.validation_id?.toLowerCase() || "";
+        return idea.includes(query) || valId.includes(query);
+      });
+    }
+    
+    // Date filter
+    if (dateFilter !== "all") {
+      const now = Date.now();
+      const filterMap = {
+        week: 7 * 24 * 60 * 60 * 1000,
+        month: 30 * 24 * 60 * 60 * 1000,
+        "3months": 90 * 24 * 60 * 60 * 1000,
+        year: 365 * 24 * 60 * 60 * 1000,
+      };
+      const cutoff = now - filterMap[dateFilter];
+      filtered = filtered.filter(s => (s.timestamp || 0) >= cutoff);
+    }
+    
+    // Score filter
+    if (scoreFilter !== "all") {
+      filtered = filtered.filter(s => {
+        const score = s.overall_score;
+        if (score === undefined || score === null) return false;
+        switch (scoreFilter) {
+          case "high":
+            return score >= 7;
+          case "medium":
+            return score >= 5 && score < 7;
+          case "low":
+            return score < 5;
+          default:
+            return true;
+        }
+      });
+    }
+    
+    // Sort
+    filtered.sort((a, b) => {
+      switch (sortBy) {
+        case "score":
+          const aScore = a.overall_score ?? 0;
+          const bScore = b.overall_score ?? 0;
+          return bScore - aScore;
+        case "name":
+          const aName = a.idea_explanation || "";
+          const bName = b.idea_explanation || "";
+          return aName.localeCompare(bName);
+        case "date":
+        default:
+          return (b.timestamp || 0) - (a.timestamp || 0);
+      }
+    });
+    
+    return filtered;
+  }, [allValidations, searchQuery, dateFilter, scoreFilter, sortBy]);
 
   // Check if a session has open (non-completed) actions
   const sessionHasOpenActions = useCallback((session) => {
@@ -345,6 +465,12 @@ export default function DashboardPage() {
           </div>
           <div className="flex gap-3">
             <Link
+              to="/dashboard/analytics"
+              className="rounded-xl border border-slate-200/60 dark:border-slate-700/60 bg-white dark:bg-slate-800 px-4 py-2.5 text-sm font-semibold text-slate-700 dark:text-slate-300 shadow-sm transition-all duration-200 hover:bg-slate-50 dark:hover:bg-slate-800 hover:-translate-y-0.5 whitespace-nowrap"
+            >
+              📊 Analytics
+            </Link>
+            <Link
               to="/validate-idea"
               className="rounded-xl border border-brand-300/60 dark:border-brand-700/60 bg-white dark:bg-slate-800 px-4 py-2.5 text-sm font-semibold text-brand-700 dark:text-brand-300 shadow-sm transition-all duration-200 hover:bg-brand-50 dark:hover:bg-brand-900/20 hover:-translate-y-0.5 whitespace-nowrap"
             >
@@ -359,47 +485,6 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
-
-      {/* Smart Insights - On top */}
-      {smartRecommendations && 
-       smartRecommendations.total_validations >= 2 && 
-       !smartRecommendations.message &&
-       ((smartRecommendations.patterns && smartRecommendations.patterns.length > 0) || 
-        (smartRecommendations.similar_ideas && smartRecommendations.similar_ideas.length > 0)) && (
-        <section className="mb-6 rounded-2xl border border-brand-200/60 dark:border-brand-700/60 bg-gradient-to-br from-brand-50 to-brand-100/50 dark:from-brand-900/30 dark:to-brand-800/20 p-4 shadow-lg">
-          <h2 className="mb-2.5 text-base font-bold text-slate-900 dark:text-slate-50">💡 Smart Insights</h2>
-          {loadingSmartRecs ? (
-            <p className="text-xs text-slate-600 dark:text-slate-300">Loading insights...</p>
-          ) : (
-            <div className="space-y-2">
-              {smartRecommendations.patterns && smartRecommendations.patterns.length > 0 && (
-                smartRecommendations.patterns.slice(0, 2).map((pattern, idx) => (
-                  <div key={idx} className="rounded-lg border border-brand-200 dark:border-brand-700 bg-white dark:bg-slate-800 p-2">
-                    <p className="text-xs text-slate-900 dark:text-slate-100 leading-relaxed">{pattern.message}</p>
-                  </div>
-                ))
-              )}
-              {smartRecommendations.similar_ideas && smartRecommendations.similar_ideas.length > 0 && (
-                <div className="mt-2 rounded-lg border border-brand-200 dark:border-brand-700 bg-white dark:bg-slate-800 p-2">
-                  <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-brand-700 dark:text-brand-300">
-                    Similar Ideas
-                  </p>
-                  {smartRecommendations.similar_ideas.slice(0, 2).map((idea, idx) => (
-                    <div key={idx} className="mb-1 text-xs text-slate-700 dark:text-slate-300">
-                      <span className="font-semibold">{idea.score.toFixed(1)}/10</span>
-                      {idea.idea_explanation && (
-                        <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400 line-clamp-1">
-                          {idea.idea_explanation.substring(0, 50)}...
-                        </p>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-        </section>
-      )}
 
       {/* Main Tabbed Interface - Active Ideas & My Sessions */}
       <section className="mb-8 rounded-2xl border border-slate-200/60 dark:border-slate-700/60 bg-white/95 dark:bg-slate-800/95 p-6 shadow-lg">
@@ -627,20 +712,99 @@ export default function DashboardPage() {
           <>
             <div className="mb-6 flex items-center justify-between">
               <div>
-                <h3 className="text-lg font-bold text-slate-900 dark:text-slate-50">My Sessions</h3>
-                <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
+                <p className="text-sm text-slate-600 dark:text-slate-300">
                   Manage your idea discovery runs and validations - revisit previous recommendations, compare results, or generate new ones.
                 </p>
               </div>
-          {(allRuns.length > 1 || allValidations.length > 1) && (
-            <Link
-              to="/dashboard/compare"
-              className="rounded-xl border border-brand-300/60 dark:border-brand-700/60 bg-brand-50/80 dark:bg-brand-900/20 px-4 py-2 text-sm font-semibold text-brand-700 dark:text-brand-300 transition-all duration-200 hover:border-brand-400 hover:bg-brand-100 dark:hover:bg-brand-900/30"
-            >
-              Compare Sessions
-            </Link>
-          )}
-        </div>
+              {(allRuns.filter(s => !s.is_validation).length > 1 || allValidations.length > 1) && (
+                <Link
+                  to="/dashboard/compare"
+                  className="rounded-xl border border-brand-300/60 dark:border-brand-700/60 bg-brand-50/80 dark:bg-brand-900/20 px-4 py-2 text-sm font-semibold text-brand-700 dark:text-brand-300 transition-all duration-200 hover:border-brand-400 hover:bg-brand-100 dark:hover:bg-brand-900/30"
+                >
+                  Compare Sessions
+                </Link>
+              )}
+            </div>
+
+            {/* Search and Filters */}
+            <div className="mb-6 space-y-3">
+              {/* Search Bar */}
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="Search sessions by name, interest area, or ID..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full rounded-xl border border-slate-200/60 dark:border-slate-700/60 bg-white dark:bg-slate-800/50 px-4 py-2.5 pl-10 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-brand-400 dark:focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100 dark:focus:ring-brand-900"
+                />
+                <svg
+                  className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 dark:text-slate-500"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery("")}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300"
+                  >
+                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                )}
+              </div>
+
+              {/* Filter Row */}
+              <div className="flex flex-wrap items-center gap-3">
+                {/* Date Filter */}
+                <select
+                  value={dateFilter}
+                  onChange={(e) => setDateFilter(e.target.value)}
+                  className="rounded-lg border border-slate-200/60 dark:border-slate-700/60 bg-white dark:bg-slate-800/50 px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-300 focus:border-brand-400 dark:focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100 dark:focus:ring-brand-900"
+                >
+                  <option value="all">All Time</option>
+                  <option value="week">Last Week</option>
+                  <option value="month">Last Month</option>
+                  <option value="3months">Last 3 Months</option>
+                  <option value="year">Last Year</option>
+                </select>
+
+                {/* Score Filter (only for validations tab) */}
+                {activeTab === "validations" && (
+                  <select
+                    value={scoreFilter}
+                    onChange={(e) => setScoreFilter(e.target.value)}
+                    className="rounded-lg border border-slate-200/60 dark:border-slate-700/60 bg-white dark:bg-slate-800/50 px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-300 focus:border-brand-400 dark:focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100 dark:focus:ring-brand-900"
+                  >
+                    <option value="all">All Scores</option>
+                    <option value="high">High (≥7.0)</option>
+                    <option value="medium">Medium (5.0-6.9)</option>
+                    <option value="low">Low (&lt;5.0)</option>
+                  </select>
+                )}
+
+                {/* Sort By */}
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value)}
+                  className="rounded-lg border border-slate-200/60 dark:border-slate-700/60 bg-white dark:bg-slate-800/50 px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-300 focus:border-brand-400 dark:focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100 dark:focus:ring-brand-900"
+                >
+                  <option value="date">Sort by Date</option>
+                  {activeTab === "validations" && <option value="score">Sort by Score</option>}
+                  <option value="name">Sort by Name</option>
+                </select>
+
+                {/* Results Count */}
+                <div className="ml-auto text-xs text-slate-500 dark:text-slate-400">
+                  {activeTab === "ideas" 
+                    ? `Showing ${filteredRuns.length} of ${allRuns.filter(s => !s.is_validation).length} ideas`
+                    : `Showing ${filteredValidations.length} of ${allValidations.length} validations`}
+                </div>
+              </div>
+            </div>
 
         {/* Tabs */}
         <div className="mb-6 border-b border-slate-200/60 dark:border-slate-700/60">
@@ -653,7 +817,7 @@ export default function DashboardPage() {
                   : "border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 hover:border-slate-300 dark:hover:border-slate-600"
               }`}
             >
-              Ideas Search ({allRuns.length})
+              Ideas Search ({filteredRuns.length})
             </button>
             <button
               onClick={() => setActiveTab("validations")}
@@ -663,7 +827,7 @@ export default function DashboardPage() {
                   : "border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 hover:border-slate-300 dark:hover:border-slate-600"
               }`}
             >
-              Validations ({allValidations.length})
+              Validations ({filteredValidations.length})
             </button>
           </nav>
         </div>
@@ -676,7 +840,7 @@ export default function DashboardPage() {
             {/* Ideas Search Tab */}
             {activeTab === "ideas" && (
               <>
-                {allRuns.filter(s => !s.is_validation).length === 0 ? (
+                {filteredRuns.length === 0 ? (
                   <div className="rounded-2xl border border-slate-200/60 dark:border-slate-700/60 bg-slate-50/80 dark:bg-slate-800/50 p-6 text-center">
                     <p className="text-sm text-slate-600 dark:text-slate-300 mb-4">No idea discovery sessions yet.</p>
                     <Link
@@ -688,7 +852,7 @@ export default function DashboardPage() {
                   </div>
                 ) : (
                   <div className="grid gap-4">
-                    {allRuns.filter(s => !s.is_validation).map((session) => {
+                    {filteredRuns.map((session) => {
                       const hasOpenActions = sessionHasOpenActions(session);
                       const hasNotes = sessionHasNotes(session);
                       
@@ -789,7 +953,7 @@ export default function DashboardPage() {
             {/* Validations Tab */}
             {activeTab === "validations" && (
               <>
-                {allValidations.length === 0 ? (
+                {filteredValidations.length === 0 ? (
                   <div className="rounded-2xl border border-slate-200/60 dark:border-slate-700/60 bg-slate-50/80 dark:bg-slate-800/50 p-6 text-center">
                     <p className="text-sm text-slate-600 dark:text-slate-300 mb-4">No validations yet.</p>
                     <Link
@@ -801,7 +965,7 @@ export default function DashboardPage() {
                   </div>
                 ) : (
                   <div className="grid gap-4">
-                    {allValidations.map((session) => {
+                    {filteredValidations.map((session) => {
                       const hasOpenActions = sessionHasOpenActions(session);
                       const hasNotes = sessionHasNotes(session);
                       

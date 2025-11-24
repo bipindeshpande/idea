@@ -34,6 +34,7 @@ import FrameworksPage from "./pages/resources/Frameworks.jsx";
 // Dashboard pages
 import DashboardPage from "./pages/dashboard/Dashboard.jsx";
 import CompareSessionsPage from "./pages/dashboard/CompareSessions.jsx";
+import AnalyticsPage from "./pages/dashboard/Analytics.jsx";
 // Lazy load heavy pages
 const AccountPage = lazy(() => import("./pages/dashboard/Account.jsx"));
 
@@ -253,8 +254,8 @@ function Navigation() {
             {isAuthenticated ? (
               <>
                 <NavLink to="/dashboard" className={sessionsLinkClass} onClick={closeAllMenus}>
-                  My Sessions
-          </NavLink>
+                  Dashboard
+                </NavLink>
                 <Link
                   to="/advisor"
                   onClick={closeAllMenus}
@@ -382,7 +383,7 @@ function Navigation() {
                   {user?.email}
                 </div>
                 <NavLink to="/dashboard" className={mobileLinkClass} onClick={closeAllMenus}>
-                  My Sessions
+                  Dashboard
                 </NavLink>
                 <NavLink to="/account" className={mobileLinkClass} onClick={closeAllMenus}>
                   Account Settings
@@ -550,6 +551,16 @@ export default function App() {
               element={
                 <ProtectedRoute>
                   <CompareSessionsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/dashboard/analytics"
+              element={
+                <ProtectedRoute>
+                  <Suspense fallback={<LoadingIndicator simple={true} message="Loading analytics..." />}>
+                    <AnalyticsPage />
+                  </Suspense>
                 </ProtectedRoute>
               }
             />
