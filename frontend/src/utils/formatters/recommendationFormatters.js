@@ -1056,6 +1056,11 @@ function sanitizeMatrixNotes(notes = "") {
 export function extractTimelineSlice(markdown = "", segmentIndex = 0) {
   if (!markdown) return "Define clear milestones for this period.";
   
+  // Debug logging (only in development)
+  if (process.env.NODE_ENV === 'development' && segmentIndex === 0) {
+    console.log('[extractTimelineSlice] Markdown preview:', markdown.substring(0, 200));
+  }
+  
   // First, try to parse as markdown table
   const rows = markdown.match(/\|.*\|/g);
   if (rows && rows.length >= 3) {
@@ -1171,7 +1176,17 @@ export function extractTimelineSlice(markdown = "", segmentIndex = 0) {
   
   // Return the requested segment
   if (segments[segmentIndex] && segments[segmentIndex].length > 10) {
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`[extractTimelineSlice] Returning segment ${segmentIndex}, length:`, segments[segmentIndex].length);
+    }
     return segments[segmentIndex];
+  }
+  
+  // Debug: log what we found
+  if (process.env.NODE_ENV === 'development') {
+    console.log(`[extractTimelineSlice] No segment found for index ${segmentIndex}. Found segments:`, segments.map((s, i) => ({ index: i, length: s?.length || 0 })));
+    console.log(`[extractTimelineSlice] Markdown lines count:`, lines.length);
+    console.log(`[extractTimelineSlice] First 10 lines:`, lines.slice(0, 10));
   }
   
   return "Define clear milestones for this period.";
