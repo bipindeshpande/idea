@@ -180,7 +180,7 @@ export default function PricingPage() {
                 <div className="rounded-xl border border-emerald-300/60 dark:border-emerald-700/60 bg-gradient-to-br from-emerald-50 to-emerald-100/50 dark:from-emerald-900/30 dark:to-emerald-800/20 p-4 text-center shadow-sm">
                   <p className="text-sm font-bold text-emerald-700 dark:text-emerald-300">Current Plan</p>
                   <p className="mt-1 text-xs text-emerald-600 dark:text-emerald-400">
-                    {subscription.days_remaining > 0 ? `${subscription.days_remaining} days remaining` : "Expired"}
+                    Active
                   </p>
                 </div>
               ) : (

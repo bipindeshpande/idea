@@ -556,12 +556,7 @@ export default function ProfileReport() {
     });
   };
 
-  // Open first section by default
-  useEffect(() => {
-    if (sections.length > 0 && openSections.size === 0) {
-      setOpenSections(new Set([0]));
-    }
-  }, [sections.length]);
+  // All sections start folded by default - user can expand as needed
 
   return (
     <section className="grid gap-6">
@@ -573,9 +568,23 @@ export default function ProfileReport() {
       
       <article className="rounded-3xl border border-slate-200 bg-white/95 p-6 shadow-soft">
         <h1 className="text-3xl font-semibold text-slate-900 mb-2">Profile Analysis</h1>
-        <p className="text-sm text-slate-500 mb-8">
+        <p className="text-sm text-slate-500 mb-4">
           Comprehensive analysis of your entrepreneurial profile, strengths, and opportunities
         </p>
+        
+        {reports?.personalized_recommendations && (
+          <div className="mb-6 rounded-xl border border-emerald-200 bg-emerald-50/80 p-4 text-emerald-800 shadow-sm">
+            <div className="flex items-start gap-3">
+              <span className="text-xl flex-shrink-0">✨</span>
+              <div>
+                <p className="font-semibold text-sm mb-1">Your personalized reports are ready!</p>
+                <p className="text-xs text-emerald-700">
+                  View your <a href={`/results/recommendations${runId ? `?id=${runId}` : ''}`} className="underline font-medium hover:text-emerald-900">startup recommendations</a> and detailed analysis reports.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
         
         {!reports?.profile_analysis ? (
           <div className="rounded-2xl border border-amber-200 bg-amber-50/80 p-6 text-amber-800">

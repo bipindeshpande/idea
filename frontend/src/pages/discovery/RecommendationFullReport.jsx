@@ -1113,8 +1113,7 @@ function FullReportContent({ remainderMarkdown, inputs, topIdeas = [] }) {
   if (matrixRows.length > 0) tabs.push({ id: "matrix", label: "Recommendation Matrix" });
   if (financialOutlook.length > 0) tabs.push({ id: "financial", label: "Financial Outlook" });
   if (riskRows.length > 0) tabs.push({ id: "risk", label: "Risk Radar" });
-  if (sections["customer persona"]) tabs.push({ id: "persona", label: "Customer Persona" });
-  if (validationQuestions.length > 0) tabs.push({ id: "validation", label: "Validation Questions" });
+  if (sections["customer persona"] || validationQuestions.length > 0) tabs.push({ id: "persona-validation", label: "Customer & Validation" });
   if (roadmapMarkdown) tabs.push({ id: "roadmap", label: "30/60/90 Day Roadmap" });
   if (decisionChecklist.length > 0) tabs.push({ id: "checklist", label: "Decision Checklist" });
   if (finalConclusion) tabs.push({ id: "conclusion", label: "Final Conclusion" });
@@ -1267,46 +1266,67 @@ function FullReportContent({ remainderMarkdown, inputs, topIdeas = [] }) {
         </div>
       )}
 
-      {activeTab === "persona" && sections["customer persona"] && (
-        <div className="rounded-2xl border border-violet-100 bg-gradient-to-br from-violet-50 via-white to-white p-5 shadow-soft">
-          <header className="space-y-1 mb-3">
-            <h2 className="text-xl font-semibold text-slate-900">Customer persona</h2>
-            <p className="text-sm text-slate-600">
-              A detailed profile of your ideal customer—their demographics, pain points, goals, and buying behavior. Use this to tailor your messaging, product features, and marketing channels.
-            </p>
-          </header>
-          <div className="mt-4 rounded-2xl border border-violet-100 bg-white/90 p-4 shadow-inner">
-            <ReactMarkdown>{cleanNarrativeMarkdown(sections["customer persona"])}</ReactMarkdown>
-          </div>
-        </div>
-      )}
-
-      {activeTab === "validation" && validationQuestions.length > 0 && (
-        <div className="rounded-2xl border border-slate-200 bg-white/95 p-5 shadow-soft">
-          <header className="space-y-1">
-            <h2 className="text-xl font-semibold text-slate-900">Validation questions</h2>
-            <p className="text-sm text-slate-500">
-              Use these prompts in discovery conversations or lightweight surveys to confirm demand, buying triggers, and
-              budget fit. Treat responses as go/no-go signals before committing more cycles.
-            </p>
-          </header>
-          <div className="mt-3 grid gap-3 md:grid-cols-2">
-            {validationQuestions.map(({ question, listenFor, actOn }, index) => (
-              <div
-                key={index}
-                className="rounded-2xl border border-brand-100 bg-brand-50/70 p-4 text-sm text-slate-800 shadow-inner"
-              >
-                <p className="font-semibold text-brand-700">Question {index + 1}</p>
-                <p className="mt-2 text-sm">{question}</p>
-                <p className="mt-3 text-xs text-slate-500">
-                  <strong>What to listen for:</strong> {listenFor}
+      {activeTab === "persona-validation" && (sections["customer persona"] || validationQuestions.length > 0) && (
+        <div className="space-y-6">
+          {sections["customer persona"] && (
+            <div className="rounded-2xl border border-violet-100 dark:border-violet-800 bg-gradient-to-br from-violet-50 via-white to-white dark:from-violet-900/20 dark:via-slate-800 dark:to-slate-800 p-5 shadow-soft">
+              <header className="space-y-1 mb-3">
+                <h2 className="text-xl font-semibold text-slate-900 dark:text-slate-100">Customer persona</h2>
+                <p className="text-sm text-slate-600 dark:text-slate-400">
+                  A detailed profile of your ideal customer—their demographics, pain points, goals, and buying behavior. Use this to tailor your messaging, product features, and marketing channels.
                 </p>
-                <p className="mt-2 text-xs text-slate-500">
-                  <strong>Act on it:</strong> {actOn}
-                </p>
+              </header>
+              <div className="mt-4 rounded-2xl border border-violet-100 dark:border-violet-800 bg-white/90 dark:bg-slate-700/50 p-4 shadow-inner">
+                <ReactMarkdown
+                  components={{
+                    p: ({ node, ...props }) => (
+                      <p className="text-slate-700 dark:text-slate-300 leading-relaxed mb-3" {...props} />
+                    ),
+                    strong: ({ node, ...props }) => (
+                      <strong className="font-semibold text-slate-900 dark:text-slate-100" {...props} />
+                    ),
+                    ul: ({ node, ...props }) => (
+                      <ul className="list-disc list-outside space-y-2 text-slate-700 dark:text-slate-300 mb-3 ml-5" {...props} />
+                    ),
+                    li: ({ node, ...props }) => (
+                      <li className="leading-relaxed" {...props} />
+                    ),
+                  }}
+                >
+                  {cleanNarrativeMarkdown(sections["customer persona"])}
+                </ReactMarkdown>
               </div>
-            ))}
-          </div>
+            </div>
+          )}
+
+          {validationQuestions.length > 0 && (
+            <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white/95 dark:bg-slate-800/50 p-5 shadow-soft">
+              <header className="space-y-1">
+                <h2 className="text-xl font-semibold text-slate-900 dark:text-slate-100">Validation questions</h2>
+                <p className="text-sm text-slate-500 dark:text-slate-400">
+                  Use these prompts in discovery conversations or lightweight surveys to confirm demand, buying triggers, and
+                  budget fit. Treat responses as go/no-go signals before committing more cycles.
+                </p>
+              </header>
+              <div className="mt-3 grid gap-3 md:grid-cols-2">
+                {validationQuestions.map(({ question, listenFor, actOn }, index) => (
+                  <div
+                    key={index}
+                    className="rounded-2xl border border-brand-100 dark:border-brand-800 bg-brand-50/70 dark:bg-brand-900/30 p-4 text-sm text-slate-800 dark:text-slate-200 shadow-inner"
+                  >
+                    <p className="font-semibold text-brand-700 dark:text-brand-400">Question {index + 1}</p>
+                    <p className="mt-2 text-sm">{question}</p>
+                    <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
+                      <strong>What to listen for:</strong> {listenFor}
+                    </p>
+                    <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                      <strong>Act on it:</strong> {actOn}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -1376,22 +1396,22 @@ function FullReportContent({ remainderMarkdown, inputs, topIdeas = [] }) {
             <ReactMarkdown
               components={{
                 h2: ({ node, ...props }) => (
-                  <h2 className="text-xl font-bold text-slate-900 mb-2 mt-3" {...props} />
+                  <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100 mb-2 mt-3" {...props} />
                 ),
                 h3: ({ node, ...props }) => (
-                  <h3 className="text-lg font-semibold text-slate-800 mb-1.5 mt-2" {...props} />
+                  <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-200 mb-1.5 mt-2" {...props} />
                 ),
                 p: ({ node, ...props }) => (
-                  <p className="text-slate-700 leading-normal mb-1.5" {...props} />
+                  <p className="text-slate-700 dark:text-slate-300 leading-normal mb-1.5" {...props} />
                 ),
                 ul: ({ node, ...props }) => (
-                  <ul className="list-disc list-outside space-y-1 text-slate-700 mb-2 ml-5" {...props} />
+                  <ul className="list-disc list-outside space-y-1 text-slate-700 dark:text-slate-300 mb-2 ml-5" {...props} />
                 ),
                 li: ({ node, ...props }) => (
                   <li className="leading-normal" {...props} />
                 ),
                 strong: ({ node, ...props }) => (
-                  <strong className="font-semibold text-slate-900" {...props} />
+                  <strong className="font-semibold text-slate-900 dark:text-slate-100" {...props} />
                 ),
               }}
             >

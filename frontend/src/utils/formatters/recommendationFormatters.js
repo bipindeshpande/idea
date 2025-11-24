@@ -802,7 +802,15 @@ export function buildValidationQuestions(sectionText = "", ideaTitle = "", audie
 }
 
 export function extractOtherSection(sectionText = "") {
-  return personalizeCopy(sectionText);
+  if (!sectionText) return "";
+  // Remove "- **Execution Path:** -" pattern and similar empty execution path markers
+  let cleaned = sectionText
+    .replace(/^-\s*\*\*Execution\s+Path\*\*:\s*-?\s*$/gim, "")
+    .replace(/^-\s*\*\*execution\s+path\*\*:\s*-?\s*$/gim, "")
+    .replace(/^\*\*Execution\s+Path\*\*:\s*-?\s*$/gim, "")
+    .replace(/^\*\*execution\s+path\*\*:\s*-?\s*$/gim, "")
+    .trim();
+  return personalizeCopy(cleaned);
 }
 
 export function parseProfileSummary(sectionText = "") {

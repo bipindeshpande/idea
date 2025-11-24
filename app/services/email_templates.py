@@ -147,6 +147,87 @@ Renew now: https://ideabunch.com/pricing
     return get_base_template(content), text_content
 
 
+def subscription_reminder_email(user_name: str, subscription_type: str, days_remaining: int, percent_complete: int) -> tuple[str, str]:
+    """Email template for subscription reminder at 75% or 95% completion."""
+    name = user_name.split("@")[0] if "@" in user_name else user_name
+    plan_name = "Weekly" if subscription_type == "weekly" else "Monthly"
+    days_text = "1 day" if days_remaining == 1 else f"{days_remaining} days"
+    
+    if percent_complete == 75:
+        reminder_text = "three-quarters"
+        urgency = "moderate"
+    else:  # 95%
+        reminder_text = "almost complete"
+        urgency = "high"
+    
+    content = f"""
+    <h2 style="color: #333; margin-top: 0;">Hi {name},</h2>
+    <p>Your {plan_name} subscription is {reminder_text} through. You have <strong>{days_text} remaining</strong>.</p>
+    <p>Make the most of your remaining time:</p>
+    <ul>
+        <li>Run idea validations to test your concepts</li>
+        <li>Explore personalized startup recommendations</li>
+        <li>Access detailed analysis and roadmaps</li>
+    </ul>
+    <div style="text-align: center; margin: 30px 0;">
+        <a href="https://ideabunch.com/dashboard" 
+           style="background: #667eea; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold;">
+            View Your Dashboard
+        </a>
+    </div>
+    <p style="color: #666; font-size: 14px;">Renew your subscription to continue accessing all features when it expires.</p>
+    """
+    
+    text_content = f"""
+Hi {name},
+
+Your {plan_name} subscription is {reminder_text} through. You have {days_text} remaining.
+
+View your dashboard: https://ideabunch.com/dashboard
+
+Renew your subscription to continue accessing all features when it expires.
+"""
+    
+    return get_base_template(content), text_content
+
+
+def subscription_final_reminder_email(user_name: str, subscription_type: str, days_remaining: int) -> tuple[str, str]:
+    """Email template for final reminder (2 days remaining)."""
+    name = user_name.split("@")[0] if "@" in user_name else user_name
+    plan_name = "Weekly" if subscription_type == "weekly" else "Monthly"
+    
+    content = f"""
+    <h2 style="color: #333; margin-top: 0;">Hi {name},</h2>
+    <p>Your {plan_name} subscription expires in <strong>2 days</strong>.</p>
+    <p>This is your final reminder to renew and continue accessing:</p>
+    <ul>
+        <li>Unlimited idea validations</li>
+        <li>Personalized startup recommendations</li>
+        <li>Detailed analysis and roadmaps</li>
+        <li>All platform features</li>
+    </ul>
+    <div style="text-align: center; margin: 30px 0;">
+        <a href="https://ideabunch.com/pricing" 
+           style="background: #667eea; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold;">
+            Renew Subscription Now
+        </a>
+    </div>
+    <p style="color: #666; font-size: 14px;">Don't lose access to your valuable insights and recommendations.</p>
+    """
+    
+    text_content = f"""
+Hi {name},
+
+Your {plan_name} subscription expires in 2 days.
+
+This is your final reminder to renew and continue accessing all features.
+
+Renew now: https://ideabunch.com/pricing
+"""
+    
+    return get_base_template(content), text_content
+
+
 def welcome_email(user_name: str) -> tuple[str, str]:
     """Email template for new user welcome."""
     name = user_name.split("@")[0] if "@" in user_name else user_name

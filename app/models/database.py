@@ -405,6 +405,40 @@ class UserValidation(db.Model):
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
+class UserAction(db.Model):
+    """User's action items for tracking progress on recommendations."""
+    __tablename__ = "user_actions"
+    
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    idea_id = db.Column(db.String(255), nullable=False, index=True)  # Can be run_id or validation_id
+    action_text = db.Column(db.Text, nullable=False)
+    status = db.Column(db.String(50), default="pending")  # pending, in_progress, completed, blocked
+    due_date = db.Column(db.DateTime, nullable=True)
+    completed_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationships
+    user = db.relationship("User", backref="actions")
+
+
+class UserNote(db.Model):
+    """User's notes and journal entries for ideas."""
+    __tablename__ = "user_notes"
+    
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    idea_id = db.Column(db.String(255), nullable=False, index=True)  # Can be run_id or validation_id
+    content = db.Column(db.Text, nullable=False)
+    tags = db.Column(db.Text)  # JSON string array of tags
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationships
+    user = db.relationship("User", backref="notes")
+
+
 class Admin(db.Model):
     """Admin user model."""
     __tablename__ = "admins"

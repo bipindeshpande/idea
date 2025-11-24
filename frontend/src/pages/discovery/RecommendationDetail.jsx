@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import { Link, Navigate, useLocation, useParams } from "react-router-dom";
 import ReactMarkdown from "react-markdown";
 import Seo from "../../components/common/Seo.jsx";
 import { useReports } from "../../context/ReportsContext.jsx";
+import { useAuth } from "../../context/AuthContext.jsx";
 import { parseTopIdeas, trimFromHeading } from "../../utils/markdown/markdown.js";
 import {
   splitIdeaSections,
@@ -215,9 +216,16 @@ function CollapsibleSection({ title, description, theme, isOpen, onToggle, child
 export default function RecommendationDetail() {
   const { ideaIndex } = useParams();
   const { reports, loadRunById, currentRunId, inputs, loading } = useReports();
+  const { getAuthHeaders, isAuthenticated } = useAuth();
   const query = useQuery();
   const runId = query.get("id");
-  const [openSections, setOpenSections] = useState(new Set(["why-fits"]));
+  const [openSections, setOpenSections] = useState(new Set());
+  const [actions, setActions] = useState([]);
+  const [notes, setNotes] = useState([]);
+  const [loadingActions, setLoadingActions] = useState(false);
+  const [loadingNotes, setLoadingNotes] = useState(false);
+  const [newActionText, setNewActionText] = useState("");
+  const [newNoteContent, setNewNoteContent] = useState("");
 
   useEffect(() => {
     // Only load if we don't already have the reports data to prevent multiple API calls
@@ -245,6 +253,146 @@ export default function RecommendationDetail() {
   
   const numericIndex = Number.parseInt(ideaIndex ?? "", 10);
   const activeIdea = ideas.find((idea) => idea.index === numericIndex);
+
+  // Load actions and notes for this idea
+  const ideaId = useMemo(() => {
+    if (runId && activeIdea?.index !== undefined) return `run_${runId}_idea_${activeIdea.index}`;
+    if (currentRunId && activeIdea?.index !== undefined) return `run_${currentRunId}_idea_${activeIdea.index}`;
+    if (activeIdea?.index !== undefined) return `idea_${activeIdea.index}`;
+    if (runId) return `run_${runId}`;
+    if (currentRunId) return `run_${currentRunId}`;
+    return null;
+  }, [runId, currentRunId, activeIdea?.index]);
+
+  useEffect(() => {
+    if (!isAuthenticated || !ideaId) return;
+    
+    const loadActions = async () => {
+      setLoadingActions(true);
+      try {
+        const response = await fetch(`/api/user/actions?idea_id=${encodeURIComponent(ideaId)}`, {
+          headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
+        });
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success) {
+            setActions(data.actions || []);
+          }
+        }
+      } catch (error) {
+        console.error("Failed to load actions:", error);
+      } finally {
+        setLoadingActions(false);
+      }
+    };
+
+    const loadNotes = async () => {
+      setLoadingNotes(true);
+      try {
+        const response = await fetch(`/api/user/notes?idea_id=${encodeURIComponent(ideaId)}`, {
+          headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
+        });
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success) {
+            setNotes(data.notes || []);
+          }
+        }
+      } catch (error) {
+        console.error("Failed to load notes:", error);
+      } finally {
+        setLoadingNotes(false);
+      }
+    };
+
+    loadActions();
+    loadNotes();
+  }, [ideaId, isAuthenticated, getAuthHeaders]);
+
+  const handleCreateAction = useCallback(async () => {
+    if (!newActionText.trim() || !ideaId) return;
+    
+    try {
+      const response = await fetch("/api/user/actions", {
+        method: "POST",
+        headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify({
+          idea_id: ideaId,
+          action_text: newActionText.trim(),
+          status: "pending",
+        }),
+      });
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          setActions((prev) => [data.action, ...prev]);
+          setNewActionText("");
+        } else {
+          alert(data.error || "Failed to create action. Please try again.");
+        }
+      } else {
+        const errorData = await response.json().catch(() => ({ error: "Unknown error" }));
+        alert(errorData.error || "Failed to create action. Please try again.");
+      }
+    } catch (error) {
+      console.error("Failed to create action:", error);
+      alert("Network error. Please check your connection and try again.");
+    }
+  }, [newActionText, ideaId, getAuthHeaders]);
+
+  const handleUpdateAction = useCallback(async (actionId, status) => {
+    try {
+      const response = await fetch(`/api/user/actions/${actionId}`, {
+        method: "PUT",
+        headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          setActions((prev) => prev.map((a) => (a.id === actionId ? data.action : a)));
+        } else {
+          console.error("Failed to update action:", data.error);
+        }
+      } else {
+        const errorData = await response.json().catch(() => ({ error: "Unknown error" }));
+        console.error("Failed to update action:", errorData.error);
+      }
+    } catch (error) {
+      console.error("Failed to update action:", error);
+    }
+  }, [getAuthHeaders]);
+
+  const handleCreateNote = useCallback(async () => {
+    if (!newNoteContent.trim() || !ideaId) return;
+    
+    try {
+      const response = await fetch("/api/user/notes", {
+        method: "POST",
+        headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify({
+          idea_id: ideaId,
+          content: newNoteContent.trim(),
+          tags: [],
+        }),
+      });
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          setNotes((prev) => [data.note, ...prev]);
+          setNewNoteContent("");
+        } else {
+          alert(data.error || "Failed to create note. Please try again.");
+        }
+      } else {
+        const errorData = await response.json().catch(() => ({ error: "Unknown error" }));
+        alert(errorData.error || "Failed to create note. Please try again.");
+      }
+    } catch (error) {
+      console.error("Failed to create note:", error);
+      alert("Network error. Please check your connection and try again.");
+    }
+  }, [newNoteContent, ideaId, getAuthHeaders]);
   
   // Debug logging (only in development)
   if (process.env.NODE_ENV === 'development') {
@@ -258,12 +406,7 @@ export default function RecommendationDetail() {
     });
   }
 
-  // Open first section by default (matching Profile Summary behavior)
-  useEffect(() => {
-    if (activeIdea && openSections.size === 0) {
-      setOpenSections(new Set(["why-fits"]));
-    }
-  }, [activeIdea, openSections.size]);
+  // All sections start closed by default - user can expand as needed
 
   const runQuery = runId || currentRunId;
   const backPath = runQuery ? `/results/recommendations?id=${runQuery}` : "/results/recommendations";
@@ -415,7 +558,7 @@ export default function RecommendationDetail() {
       "financial snapshot",
       "key risks & mitigations",
       "validation questions",
-      "customer persona",
+      "customer persona",  // Combined with validation questions in UI
       "immediate experiments",
       "immediate next steps",
       "timeline & effort",
@@ -511,7 +654,35 @@ export default function RecommendationDetail() {
       {activeIdea && (
         <>
           <article className="rounded-3xl bg-gradient-to-br from-brand-500 via-brand-600 to-brand-700 px-8 py-10 text-white shadow-soft shadow-brand-300/50">
-            <p className="text-xs uppercase tracking-wide text-white/80">Idea #{activeIdea.index}</p>
+            <div className="flex items-center justify-between">
+              <p className="text-xs uppercase tracking-wide text-white/80">Idea #{activeIdea.index}</p>
+              {(actions.length > 0 || notes.length > 0) && (
+                <div className="flex items-center gap-2">
+                  {actions.length > 0 && (
+                    <span 
+                      className="inline-flex items-center gap-1 rounded-full bg-white/20 backdrop-blur-sm px-3 py-1 text-xs font-semibold text-white"
+                      title={`${actions.length} action item${actions.length !== 1 ? 's' : ''}`}
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                      </svg>
+                      {actions.length} Task{actions.length !== 1 ? 's' : ''}
+                    </span>
+                  )}
+                  {notes.length > 0 && (
+                    <span 
+                      className="inline-flex items-center gap-1 rounded-full bg-white/20 backdrop-blur-sm px-3 py-1 text-xs font-semibold text-white"
+                      title={`${notes.length} note${notes.length !== 1 ? 's' : ''}`}
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                      </svg>
+                      {notes.length} Note{notes.length !== 1 ? 's' : ''}
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
             <h1 className="mt-2 text-3xl font-semibold md:text-4xl">{activeIdea.title}</h1>
             <p className="mt-4 max-w-3xl text-sm text-white/90 md:text-base">{heroStatement}</p>
             {heroChips.length > 0 && (
@@ -707,76 +878,98 @@ export default function RecommendationDetail() {
             </CollapsibleSection>
           )}
 
-          {(marketInsights.length > 0 || personaMarkdown) && (
-            <div className="grid gap-6 lg:grid-cols-2">
-              {marketInsights.length > 0 && (
-                <CollapsibleSection
-                  title="Market signals"
-                  description="Trends and proof points worth validating as you move forward."
-                  theme={getSectionTheme("Market signals")}
-                  isOpen={openSections.has("market")}
-                  onToggle={() => toggleSection("market")}
-                >
-                  <ul className="space-y-3 text-sm text-slate-700">
-                    {marketInsights.map((insight, index) => (
-                      <li
-                        key={index}
-                        className="flex gap-3 rounded-2xl border border-teal-100 bg-white/90 p-3 shadow-inner"
-                      >
-                        <span className="mt-1 text-teal-500">📈</span>
-                        <span>{insight}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </CollapsibleSection>
-              )}
-              {personaMarkdown && (
+          {marketInsights.length > 0 && (
             <CollapsibleSection
-              title="Customer persona"
-              description="A detailed profile of your ideal customer—their demographics, pain points, goals, and buying behavior. Use this to tailor your messaging, product features, and marketing channels."
-              theme={getSectionTheme("Customer persona")}
-              isOpen={openSections.has("persona")}
-              onToggle={() => toggleSection("persona")}
+              title="Market signals"
+              description="Trends and proof points worth validating as you move forward."
+              theme={getSectionTheme("Market signals")}
+              isOpen={openSections.has("market")}
+              onToggle={() => toggleSection("market")}
             >
-              <div className="rounded-2xl border border-violet-100 bg-white/90 p-4 shadow-inner">
-                <ReactMarkdown>{cleanNarrativeMarkdown(personaMarkdown)}</ReactMarkdown>
-              </div>
+              <ul className="space-y-3 text-sm text-slate-700 dark:text-slate-300">
+                {marketInsights.map((insight, index) => (
+                  <li
+                    key={index}
+                    className="flex gap-3 rounded-2xl border border-teal-100 dark:border-teal-800 bg-white/90 dark:bg-slate-700/50 p-3 shadow-inner"
+                  >
+                    <span className="mt-1 text-teal-500">📈</span>
+                    <span>{insight}</span>
+                  </li>
+                ))}
+              </ul>
             </CollapsibleSection>
-              )}
-            </div>
           )}
 
-          {(validationQuestions.length > 0 ||
-            immediateExperimentsList.length > 0 ||
+          {(personaMarkdown || validationQuestions.length > 0) && (
+            <CollapsibleSection
+              title="Customer Persona & Validation Questions"
+              description="Understand your ideal customer profile and use these validation questions to confirm demand and buying triggers."
+              theme={getSectionTheme("Customer persona")}
+              isOpen={openSections.has("persona-validation")}
+              onToggle={() => toggleSection("persona-validation")}
+            >
+              <div className="space-y-6">
+                {personaMarkdown && (
+                  <div>
+                    <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-2">Customer Persona</h3>
+                    <p className="text-sm text-slate-600 dark:text-slate-400 mb-3">
+                      A detailed profile of your ideal customer—their demographics, pain points, goals, and buying behavior.
+                    </p>
+                    <div className="rounded-2xl border border-violet-100 dark:border-violet-800 bg-white/90 dark:bg-slate-700/50 p-4 shadow-inner">
+                      <ReactMarkdown
+                        components={{
+                          p: ({ node, ...props }) => (
+                            <p className="text-slate-700 dark:text-slate-300 leading-relaxed mb-3" {...props} />
+                          ),
+                          strong: ({ node, ...props }) => (
+                            <strong className="font-semibold text-slate-900 dark:text-slate-100" {...props} />
+                          ),
+                          ul: ({ node, ...props }) => (
+                            <ul className="list-disc list-outside space-y-2 text-slate-700 dark:text-slate-300 mb-3 ml-5" {...props} />
+                          ),
+                          li: ({ node, ...props }) => (
+                            <li className="leading-relaxed" {...props} />
+                          ),
+                        }}
+                      >
+                        {cleanNarrativeMarkdown(personaMarkdown)}
+                      </ReactMarkdown>
+                    </div>
+                  </div>
+                )}
+
+                {validationQuestions.length > 0 && (
+                  <div>
+                    <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-2">Validation Questions</h3>
+                    <p className="text-sm text-slate-600 dark:text-slate-400 mb-3">
+                      Ask these during discovery interviews, quick surveys, or pilot onboarding to confirm demand, willingness to pay, and whether the idea solves the right pain.
+                    </p>
+                    <div className="grid gap-4 md:grid-cols-2">
+                      {validationQuestions.map(({ question, listenFor, actOn }, index) => (
+                        <div
+                          key={index}
+                          className="rounded-2xl border border-brand-100 dark:border-brand-800 bg-brand-50/70 dark:bg-brand-900/30 p-4 text-sm text-slate-800 dark:text-slate-200 shadow-inner"
+                        >
+                          <p className="font-semibold text-brand-700 dark:text-brand-400">Question {index + 1}</p>
+                          <p className="mt-2 text-sm">{question}</p>
+                          <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
+                            <strong>What to listen for:</strong> {listenFor}
+                          </p>
+                          <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                            <strong>Act on it:</strong> {actOn}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </CollapsibleSection>
+          )}
+
+          {(immediateExperimentsList.length > 0 ||
             immediateNextSteps.length > 0) && (
             <div className="grid gap-6">
-              {validationQuestions.length > 0 && (
-                <CollapsibleSection
-                  title="Validation questions"
-                  description="Ask these during discovery interviews, quick surveys, or pilot onboarding to confirm demand, willingness to pay, and whether the idea solves the right pain. Capture verbatims and note which answers indicate a fast 'go' versus red flags that require pivots."
-                  theme={getSectionTheme("Validation questions")}
-                  isOpen={openSections.has("validation")}
-                  onToggle={() => toggleSection("validation")}
-                >
-          <div className="grid gap-4 md:grid-cols-2">
-            {validationQuestions.map(({ question, listenFor, actOn }, index) => (
-                      <div
-                        key={index}
-                        className="rounded-2xl border border-brand-100 bg-brand-50/70 p-4 text-sm text-slate-800 shadow-inner"
-                      >
-                        <p className="font-semibold text-brand-700">Question {index + 1}</p>
-                        <p className="mt-2 text-sm">{question}</p>
-                        <p className="mt-3 text-xs text-slate-500">
-                          <strong>What to listen for:</strong> {listenFor}
-                        </p>
-                        <p className="mt-2 text-xs text-slate-500">
-                          <strong>Act on it:</strong> {actOn}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                </CollapsibleSection>
-              )}
               {immediateExperimentsList.length > 0 && (
                 <CollapsibleSection
                   title="Experiments to run next"
@@ -872,6 +1065,162 @@ export default function RecommendationDetail() {
                     </div>
                   </div>
                 ))}
+              </div>
+            </CollapsibleSection>
+          )}
+
+          {/* Action Items Section */}
+          {isAuthenticated && (
+            <CollapsibleSection
+              title="Action Items"
+              description="Track your progress on this idea. Mark items as completed as you work through them."
+              theme={getSectionTheme("Action Items")}
+              isOpen={openSections.has("actions")}
+              onToggle={() => toggleSection("actions")}
+            >
+              <div className="space-y-4">
+                {/* Add new action */}
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={newActionText}
+                    onChange={(e) => setNewActionText(e.target.value)}
+                    onKeyPress={(e) => e.key === "Enter" && handleCreateAction()}
+                    placeholder="Add a new action item..."
+                    className="flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-100"
+                  />
+                  <button
+                    onClick={handleCreateAction}
+                    disabled={!newActionText.trim()}
+                    className="rounded-lg bg-brand-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-600 disabled:opacity-50"
+                  >
+                    Add
+                  </button>
+                </div>
+
+                {/* Actions list */}
+                {loadingActions ? (
+                  <p className="text-sm text-slate-500">Loading actions...</p>
+                ) : actions.length === 0 ? (
+                  <p className="text-sm text-slate-500">No action items yet. Add one above to get started!</p>
+                ) : (
+                  <div className="space-y-2">
+                    {actions.map((action) => (
+                      <div
+                        key={action.id}
+                        className="flex items-center gap-3 rounded-lg border border-slate-200 bg-white p-3"
+                      >
+                        <select
+                          value={action.status}
+                          onChange={(e) => handleUpdateAction(action.id, e.target.value)}
+                          className="rounded border border-slate-300 bg-white px-2 py-1 text-xs font-semibold text-slate-700 focus:border-brand-400 focus:outline-none"
+                        >
+                          <option value="pending">Pending</option>
+                          <option value="in_progress">In Progress</option>
+                          <option value="completed">Completed</option>
+                          <option value="blocked">Blocked</option>
+                        </select>
+                        <span
+                          className={`flex-1 text-sm ${
+                            action.status === "completed" ? "line-through text-slate-500" : "text-slate-900"
+                          }`}
+                        >
+                          {action.action_text}
+                        </span>
+                        {action.due_date && (() => {
+                          try {
+                            const dueDate = new Date(action.due_date);
+                            if (!isNaN(dueDate.getTime())) {
+                              return (
+                                <span className="text-xs text-slate-500">
+                                  Due: {dueDate.toLocaleDateString()}
+                                </span>
+                              );
+                            }
+                          } catch (e) {
+                            // Invalid date, don't show
+                          }
+                        })()}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </CollapsibleSection>
+          )}
+
+          {/* Notes Section */}
+          {isAuthenticated && (
+            <CollapsibleSection
+              title="Notes & Journal"
+              description="Capture your thoughts, insights, customer feedback, and research findings for this idea."
+              theme={getSectionTheme("Notes")}
+              isOpen={openSections.has("notes")}
+              onToggle={() => toggleSection("notes")}
+            >
+              <div className="space-y-4">
+                {/* Add new note */}
+                <div className="space-y-2">
+                  <textarea
+                    value={newNoteContent}
+                    onChange={(e) => setNewNoteContent(e.target.value)}
+                    placeholder="Add a note... (e.g., customer interview insights, pivot ideas, market research)"
+                    rows={4}
+                    className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-100"
+                  />
+                  <button
+                    onClick={handleCreateNote}
+                    disabled={!newNoteContent.trim()}
+                    className="rounded-lg bg-brand-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-600 disabled:opacity-50"
+                  >
+                    Save Note
+                  </button>
+                </div>
+
+                {/* Notes list */}
+                {loadingNotes ? (
+                  <p className="text-sm text-slate-500">Loading notes...</p>
+                ) : notes.length === 0 ? (
+                  <p className="text-sm text-slate-500">No notes yet. Add one above to start tracking your insights!</p>
+                ) : (
+                  <div className="space-y-3">
+                    {notes.map((note) => (
+                      <div
+                        key={note.id}
+                        className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm"
+                      >
+                        <div className="mb-2 flex items-center justify-between">
+                          <span className="text-xs text-slate-500">
+                            {note.created_at ? (() => {
+                              try {
+                                const date = new Date(note.created_at);
+                                return isNaN(date.getTime()) ? "Unknown date" : date.toLocaleString();
+                              } catch (e) {
+                                return "Unknown date";
+                              }
+                            })() : "Unknown date"}
+                          </span>
+                          {note.updated_at && note.created_at && note.updated_at !== note.created_at && (
+                            <span className="text-xs text-slate-400">(edited)</span>
+                          )}
+                        </div>
+                        <p className="whitespace-pre-wrap text-sm text-slate-900">{note.content}</p>
+                        {note.tags && note.tags.length > 0 && (
+                          <div className="mt-2 flex flex-wrap gap-1">
+                            {note.tags.map((tag, idx) => (
+                              <span
+                                key={idx}
+                                className="rounded-full bg-brand-100 px-2 py-0.5 text-xs text-brand-700"
+                              >
+                                {tag}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </CollapsibleSection>
           )}

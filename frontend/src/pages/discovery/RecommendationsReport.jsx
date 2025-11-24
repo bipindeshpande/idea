@@ -16,14 +16,16 @@ function useQuery() {
 
 export default function RecommendationsReport() {
   const { reports, loadRunById, currentRunId, inputs } = useReports();
-  const { subscription } = useAuth();
+  const { subscription, getAuthHeaders, isAuthenticated } = useAuth();
   const query = useQuery();
   const runId = query.get("id");
   const reportRef = useRef(null);
-  const [downloading, setDownloading] = useState(false);
   const [error, setError] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("ideas");
+  const [smartRecommendations, setSmartRecommendations] = useState(null);
+  const [ideasWithActions, setIdeasWithActions] = useState(new Set());
+  const [ideasWithNotes, setIdeasWithNotes] = useState(new Set());
   const isPro = subscription && (subscription.subscription_type === "pro" || subscription.subscription_type === "weekly");
 
   useEffect(() => {
@@ -57,6 +59,69 @@ export default function RecommendationsReport() {
       setIsLoading(false);
     }
   }, [runId, loadRunById]);
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      const loadSmartRecs = async () => {
+        try {
+          const response = await fetch("/api/user/smart-recommendations", {
+            headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
+          });
+          if (response.ok) {
+            const data = await response.json();
+            if (data.success) {
+              setSmartRecommendations(data.insights);
+            }
+          }
+        } catch (error) {
+          console.error("Failed to load smart recommendations:", error);
+        }
+      };
+      
+      const loadActionsAndNotes = async () => {
+        try {
+          // Load all actions
+          const actionsResponse = await fetch("/api/user/actions", {
+            headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
+          });
+          if (actionsResponse.ok) {
+            const actionsData = await actionsResponse.json();
+            if (actionsData.success) {
+              const ideaIdsWithActions = new Set();
+              actionsData.actions?.forEach(action => {
+                if (action.idea_id) {
+                  ideaIdsWithActions.add(action.idea_id);
+                }
+              });
+              setIdeasWithActions(ideaIdsWithActions);
+            }
+          }
+          
+          // Load all notes
+          const notesResponse = await fetch("/api/user/notes", {
+            headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
+          });
+          if (notesResponse.ok) {
+            const notesData = await notesResponse.json();
+            if (notesData.success) {
+              const ideaIdsWithNotes = new Set();
+              notesData.notes?.forEach(note => {
+                if (note.idea_id) {
+                  ideaIdsWithNotes.add(note.idea_id);
+                }
+              });
+              setIdeasWithNotes(ideaIdsWithNotes);
+            }
+          }
+        } catch (error) {
+          console.error("Failed to load actions/notes:", error);
+        }
+      };
+      
+      loadSmartRecs();
+      loadActionsAndNotes();
+    }
+  }, [isAuthenticated, getAuthHeaders]);
 
   const markdown = useMemo(() => {
     try {
@@ -124,64 +189,6 @@ export default function RecommendationsReport() {
       return null;
     }
   }, [topIdeas, matrixRows, inputs]);
-
-  const handleDownloadPDF = async () => {
-    if (!reportRef.current || downloading) return;
-    try {
-      setDownloading(true);
-      
-      // Lazy load heavy PDF dependencies only when needed
-      const [{ default: html2canvas }, { default: jsPDF }] = await Promise.all([
-        import('html2canvas'),
-        import('jspdf')
-      ]);
-      
-      // Exclude buttons and interactive elements from PDF
-      const elementsToHide = reportRef.current.querySelectorAll('button, a, [role="button"], .no-print');
-      elementsToHide.forEach(el => el.style.display = 'none');
-      
-      const canvas = await html2canvas(reportRef.current, { 
-        scale: 1.2, // Reduced from 1.5 to reduce file size
-        backgroundColor: "#ffffff",
-        useCORS: true,
-        logging: false,
-        ignoreElements: (element) => {
-          // Exclude buttons, links, and interactive elements
-          return element.tagName === 'BUTTON' || 
-                 element.tagName === 'A' || 
-                 element.classList?.contains('no-print') ||
-                 element.getAttribute('role') === 'button';
-        }
-      });
-      
-      // Restore elements after capture
-      elementsToHide.forEach(el => el.style.display = '');
-      const imgData = canvas.toDataURL("image/png");
-      const pdf = new jsPDF("p", "pt", "a4");
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-      
-      // Handle multi-page PDF
-      let heightLeft = pdfHeight;
-      let position = 0;
-      
-      pdf.addImage(imgData, "PNG", 0, position, pdfWidth, pdfHeight);
-      heightLeft -= pdf.internal.pageSize.getHeight();
-      
-      while (heightLeft > 0) {
-        position = heightLeft - pdfHeight;
-        pdf.addPage();
-        pdf.addImage(imgData, "PNG", 0, position, pdfWidth, pdfHeight);
-        heightLeft -= pdf.internal.pageSize.getHeight();
-      }
-      
-      pdf.save(`startup-idea-advisor-${runId || currentRunId || Date.now()}.pdf`);
-    } catch (err) {
-      console.error("Failed to generate PDF", err);
-    } finally {
-      setDownloading(false);
-    }
-  };
 
   // Show error state
   if (error) {
@@ -276,14 +283,6 @@ export default function RecommendationsReport() {
       />
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-semibold text-slate-900">Recommendation Report</h1>
-        <button
-          type="button"
-          onClick={handleDownloadPDF}
-          disabled={downloading || !markdown}
-          className="rounded-xl border border-brand-300 bg-white px-4 py-2 text-sm font-medium text-brand-700 shadow-sm transition hover:border-brand-400 hover:text-brand-800 disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-400 whitespace-nowrap"
-        >
-          {downloading ? "Preparing PDF..." : "Download PDF"}
-        </button>
       </div>
 
       <div ref={reportRef} className="grid gap-6">
@@ -428,10 +427,49 @@ export default function RecommendationsReport() {
                         const detailPath = runQuery
                           ? `/results/recommendations/${idea.index}?id=${runQuery}`
                           : `/results/recommendations/${idea.index}`;
+                        const ideaId = runQuery ? `run_${runQuery}_idea_${idea.index}` : `idea_${idea.index}`;
+                        const hasActions = ideasWithActions.has(ideaId);
+                        const hasNotes = ideasWithNotes.has(ideaId);
+                        
                         return (
                           <tr key={idea.index} className="transition hover:bg-brand-50/60">
                             <td className="px-4 py-3 font-semibold text-slate-600">{idea.index}</td>
-                            <td className="px-4 py-3 font-medium text-slate-800">{idea.title}</td>
+                            <td className="px-4 py-3 font-medium text-slate-800">
+                              <div className="flex items-center gap-2">
+                                <span>{idea.title}</span>
+                                {(hasActions || hasNotes) && (
+                                  <div className="flex items-center gap-1">
+                                    {hasActions && (
+                                      <span 
+                                        className="inline-flex items-center gap-1 rounded-full bg-blue-100 dark:bg-blue-900/30 px-2 py-0.5 text-xs font-semibold text-blue-700 dark:text-blue-300"
+                                        title="Has action items"
+                                      >
+                                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                                        </svg>
+                                        Tasks
+                                      </span>
+                                    )}
+                                    {hasNotes && (
+                                      <span 
+                                        className="inline-flex items-center gap-1 rounded-full bg-purple-100 dark:bg-purple-900/30 px-2 py-0.5 text-xs font-semibold text-purple-700 dark:text-purple-300"
+                                        title="Has notes"
+                                      >
+                                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                        </svg>
+                                        Notes
+                                      </span>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                              {runQuery && (
+                                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                                  ID: {runQuery.slice(-8)}
+                                </p>
+                              )}
+                            </td>
                             <td className="px-4 py-3 text-slate-600">{personalizeCopy(idea.summary)}</td>
                             <td className="px-4 py-3">
                               <Link
@@ -521,32 +559,67 @@ export default function RecommendationsReport() {
 
             {/* Tab Content: Final Conclusion */}
             {activeTab === "conclusion" && finalConclusion && (
-              <div className="rounded-3xl border-2 border-brand-300 bg-gradient-to-br from-brand-50 to-white p-8 shadow-soft">
+              <div className="rounded-3xl border-2 border-brand-300 dark:border-brand-600 bg-gradient-to-br from-brand-50 to-white dark:from-brand-900/20 dark:to-slate-800 p-8 shadow-soft">
                 <div className="prose prose-slate max-w-none">
                   <ReactMarkdown
                     components={{
                       h2: ({ node, ...props }) => (
-                        <h2 className="text-2xl font-bold text-slate-900 mb-4" {...props} />
+                        <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-100 mb-4" {...props} />
                       ),
                       h3: ({ node, ...props }) => (
-                        <h3 className="text-xl font-semibold text-slate-800 mb-3 mt-4" {...props} />
+                        <h3 className="text-xl font-semibold text-slate-800 dark:text-slate-200 mb-3 mt-4" {...props} />
                       ),
                       p: ({ node, ...props }) => (
-                        <p className="text-slate-700 leading-relaxed mb-3" {...props} />
+                        <p className="text-slate-700 dark:text-slate-300 leading-relaxed mb-3" {...props} />
                       ),
                       ul: ({ node, ...props }) => (
-                        <ul className="list-disc list-outside space-y-2 text-slate-700 mb-4 ml-6" {...props} />
+                        <ul className="list-disc list-outside space-y-2 text-slate-700 dark:text-slate-300 mb-4 ml-6" {...props} />
                       ),
                       li: ({ node, ...props }) => (
                         <li className="leading-relaxed" {...props} />
                       ),
                       strong: ({ node, ...props }) => (
-                        <strong className="font-semibold text-slate-900" {...props} />
+                        <strong className="font-semibold text-slate-900 dark:text-slate-100" {...props} />
                       ),
                     }}
                   >
                     {finalConclusion}
                   </ReactMarkdown>
+                </div>
+              </div>
+            )}
+
+            {/* Similar Ideas Section */}
+            {smartRecommendations && smartRecommendations.similar_ideas && smartRecommendations.similar_ideas.length > 0 && (
+              <div className="mt-6 rounded-3xl border border-brand-200 dark:border-brand-700 bg-gradient-to-br from-brand-50 to-white dark:from-brand-900/20 dark:to-slate-800 p-6 shadow-soft">
+                <h2 className="mb-4 text-xl font-bold text-slate-900 dark:text-slate-100">
+                  💡 Similar High-Scoring Ideas from Your History
+                </h2>
+                <p className="mb-4 text-sm text-slate-600 dark:text-slate-300">
+                  Based on your validation history, here are similar ideas you've validated highly in the past:
+                </p>
+                <div className="space-y-3">
+                  {smartRecommendations.similar_ideas.slice(0, 3).map((idea, idx) => (
+                    <div
+                      key={idx}
+                      className="rounded-lg border border-brand-200 dark:border-brand-700 bg-white dark:bg-slate-800 p-4"
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm font-semibold text-brand-600 dark:text-brand-400">
+                          Score: {idea.score.toFixed(1)}/10
+                        </span>
+                        <Link
+                          to={`/validate-result?id=${idea.validation_id}`}
+                          className="text-xs font-semibold text-brand-600 dark:text-brand-400 hover:underline"
+                        >
+                          View Validation →
+                        </Link>
+                      </div>
+                      {idea.idea_explanation && (
+                        <p className="text-sm text-slate-700 dark:text-slate-300">{idea.idea_explanation}</p>
+                      )}
+                    </div>
+                  ))}
                 </div>
               </div>
             )}

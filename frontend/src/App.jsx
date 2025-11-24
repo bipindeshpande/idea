@@ -33,6 +33,7 @@ import FrameworksPage from "./pages/resources/Frameworks.jsx";
 
 // Dashboard pages
 import DashboardPage from "./pages/dashboard/Dashboard.jsx";
+import CompareSessionsPage from "./pages/dashboard/CompareSessions.jsx";
 // Lazy load heavy pages
 const AccountPage = lazy(() => import("./pages/dashboard/Account.jsx"));
 
@@ -251,11 +252,6 @@ function Navigation() {
           <div className="hidden lg:flex items-center gap-2">
             {isAuthenticated ? (
               <>
-                {subscription && (
-                  <span className="text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">
-                    {subscription.days_remaining > 0 ? `${subscription.days_remaining} days left` : "Expired"}
-                  </span>
-                )}
                 <NavLink to="/dashboard" className={sessionsLinkClass} onClick={closeAllMenus}>
                   My Sessions
           </NavLink>
@@ -382,11 +378,6 @@ function Navigation() {
             )}
             {isAuthenticated ? (
               <div className="space-y-2">
-                {subscription && (
-                  <div className="px-4 py-2 text-xs text-slate-500 dark:text-slate-400">
-                    {subscription.days_remaining > 0 ? `${subscription.days_remaining} days remaining` : "Subscription expired"}
-                  </div>
-                )}
                 <div className="px-4 py-2 text-xs text-slate-600 border-b border-slate-200">
                   {user?.email}
                 </div>
@@ -479,6 +470,7 @@ function Navigation() {
 
 export default function App() {
   const { reports, loading } = useReports();
+  const { isAuthenticated } = useAuth();
   const { pathname } = useLocation();
   const hasReports = Boolean(
     reports?.profile_analysis || reports?.personalized_recommendations
@@ -493,7 +485,12 @@ export default function App() {
       {!isAdminRoute && <Navigation />}
       <main className={isAdminRoute ? "min-h-screen bg-slate-100 dark:bg-slate-900" : "mx-auto max-w-6xl px-6 py-10 bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-slate-100"}>
         <Routes>
-            <Route path="/" element={<LandingPage />} />
+            <Route
+              path="/"
+              element={
+                isAuthenticated ? <Navigate to="/dashboard" replace /> : <LandingPage />
+              }
+            />
             <Route path="/register" element={<RegisterPage />} />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/forgot-password" element={<ForgotPasswordPage />} />
@@ -545,6 +542,14 @@ export default function App() {
               element={
                 <ProtectedRoute>
                   <DashboardPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/dashboard/compare"
+              element={
+                <ProtectedRoute>
+                  <CompareSessionsPage />
                 </ProtectedRoute>
               }
             />
@@ -678,9 +683,7 @@ function ProtectedRoute({ children }) {
         <div className="rounded-3xl border-2 border-amber-200 bg-amber-50/80 p-8 text-center shadow-soft">
           <h2 className="mb-4 text-2xl font-bold text-amber-900">Subscription Expired</h2>
           <p className="mb-2 text-amber-800">
-            {subscription?.days_remaining === 0
-              ? "Your free trial has ended."
-              : `Your subscription expires in ${subscription?.days_remaining || 0} days.`}
+            Your subscription has expired.
           </p>
           <p className="mb-6 text-sm text-amber-700">
             Subscribe now to continue accessing all features and get personalized startup recommendations.
