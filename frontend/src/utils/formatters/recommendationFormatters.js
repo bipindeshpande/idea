@@ -1006,61 +1006,93 @@ export function extractTimelineSlice(markdown = "", segmentIndex = 0) {
     }
   }
   
-  // Define patterns for each segment
-  // Format examples: "**Days 0–30**:", "**Days 30–60**:", "**Days 60–90**:"
-  // Or: "**30 Days:**", "**60 Days:**", "**90 Days:**"
-  const segmentPatterns = [
-    [/\*\*Days?\s*0[–-]\s*30\*\*:?/i, /\*\*30\s*Days?:\*\*/i],
-    [/\*\*Days?\s*30[–-]\s*60\*\*:?/i, /\*\*60\s*Days?:\*\*/i],
-    [/\*\*Days?\s*60[–-]\s*90\*\*:?/i, /\*\*90\s*Days?:\*\*/i],
+  // Split by lines for more reliable parsing
+  const lines = markdown.split(/\r?\n/);
+  const segments = [];
+  let currentSegment = null;
+  let currentSegmentIndex = -1;
+  
+  // Day range patterns - handle various formats
+  const dayPatterns = [
+    { index: 0, patterns: [
+      /\*\*Days?\s*0\s*[–\-\u2013\u2014]\s*30\s*\*\*:?/i,
+      /\*\*30\s*Days?:\*\*/i,
+      /\*\*Days?\s*0\s*[-–]\s*30\s*Days?:\*\*/i
+    ]},
+    { index: 1, patterns: [
+      /\*\*Days?\s*30\s*[–\-\u2013\u2014]\s*60\s*\*\*:?/i,
+      /\*\*60\s*Days?:\*\*/i,
+      /\*\*Days?\s*30\s*[-–]\s*60\s*Days?:\*\*/i
+    ]},
+    { index: 2, patterns: [
+      /\*\*Days?\s*60\s*[–\-\u2013\u2014]\s*90\s*\*\*:?/i,
+      /\*\*90\s*Days?:\*\*/i,
+      /\*\*Days?\s*60\s*[-–]\s*90\s*Days?:\*\*/i
+    ]}
   ];
   
-  const currentPatterns = segmentPatterns[segmentIndex] || segmentPatterns[0];
-  const nextPatterns = segmentIndex < 2 ? segmentPatterns[segmentIndex + 1] : null;
-  
-  // Find the start of the target segment
-  let startIndex = -1;
-  let startPattern = null;
-  
-  for (const pattern of currentPatterns) {
-    const match = markdown.match(pattern);
-    if (match && match.index !== undefined) {
-      startIndex = match.index;
-      startPattern = pattern;
-      break;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    
+    // Check if this line starts a new segment
+    for (const dayPattern of dayPatterns) {
+      for (const pattern of dayPattern.patterns) {
+        if (pattern.test(line)) {
+          // Save previous segment if exists
+          if (currentSegmentIndex >= 0 && currentSegment.length > 0) {
+            segments[currentSegmentIndex] = currentSegment.join("\n").trim();
+          }
+          
+          // Start new segment
+          currentSegmentIndex = dayPattern.index;
+          currentSegment = [];
+          
+          // Remove the day marker and add the rest of the line
+          const cleanedLine = line.replace(pattern, "").trim().replace(/^[:–\-\s]+/, "").trim();
+          if (cleanedLine) {
+            currentSegment.push(cleanedLine);
+          }
+          break;
+        }
+      }
+      if (currentSegmentIndex === dayPattern.index) break;
     }
-  }
-  
-  if (startIndex === -1) {
-    return "Define clear milestones for this period.";
-  }
-  
-  // Find the end of the segment (start of next segment or end of text)
-  let endIndex = markdown.length;
-  if (nextPatterns) {
-    for (const pattern of nextPatterns) {
-      const match = markdown.substring(startIndex + 1).match(pattern);
-      if (match && match.index !== undefined) {
-        endIndex = startIndex + 1 + match.index;
-        break;
+    
+    // If we're in a segment, add the line (unless it's another day marker)
+    if (currentSegmentIndex >= 0) {
+      // Check if this line is another day marker (different segment)
+      let isOtherMarker = false;
+      for (const dayPattern of dayPatterns) {
+        if (dayPattern.index === currentSegmentIndex) continue;
+        for (const pattern of dayPattern.patterns) {
+          if (pattern.test(line)) {
+            isOtherMarker = true;
+            break;
+          }
+        }
+        if (isOtherMarker) break;
+      }
+      
+      if (!isOtherMarker) {
+        currentSegment.push(line);
+      } else {
+        // This is the start of the next segment, save current and process this line in next iteration
+        segments[currentSegmentIndex] = currentSegment.join("\n").trim();
+        currentSegment = [];
+        currentSegmentIndex = -1;
+        i--; // Rewind to process this line again
       }
     }
   }
   
-  // Extract the segment content
-  let segmentContent = markdown.substring(startIndex, endIndex);
-  
-  // Remove the day marker from the beginning
-  for (const pattern of currentPatterns) {
-    segmentContent = segmentContent.replace(pattern, "").trim();
+  // Save the last segment
+  if (currentSegmentIndex >= 0 && currentSegment.length > 0) {
+    segments[currentSegmentIndex] = currentSegment.join("\n").trim();
   }
   
-  // Clean up: remove leading colons, dashes, or whitespace
-  segmentContent = segmentContent.replace(/^[:–\-\s]+/, "").trim();
-  
-  // If we have content, return it
-  if (segmentContent && segmentContent.length > 10) {
-    return segmentContent;
+  // Return the requested segment
+  if (segments[segmentIndex] && segments[segmentIndex].length > 10) {
+    return segments[segmentIndex];
   }
   
   return "Define clear milestones for this period.";

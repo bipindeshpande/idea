@@ -259,31 +259,45 @@ if (riskRowsList.length >= 2 && riskRowsList[0].severity === "MEDIUM" && riskRow
   testsFailed++;
 }
 
-// Test 3: 30/60/90 Roadmap - Day Range Format
+// Test 3: 30/60/90 Roadmap - Day Range Format (with bullet points)
 console.log("\n[TEST 3] 30/60/90 Roadmap - Day Range Format");
 const roadmapText = `#### 30/60/90 Day Roadmap
 
-**Days 0–30**: Validate core assumptions, build landing page, get first 10 signups
-**Days 30–60**: Build MVP, test with beta users, iterate based on feedback
-**Days 60–90**: Launch publicly, measure engagement, define paths for upselling`;
+**Days 0–30**: Validate core assumptions
+- Build landing page with clear value proposition
+- Run 10 customer interviews using validation questions
+- Collect 20+ waitlist sign-ups
+
+**Days 30–60**: Build MVP
+- Develop core features using no-code tools or minimal code
+- Onboard 5 beta users for feedback
+- Iterate based on usage data and feedback
+
+**Days 60–90**: Launch and iterate
+- Public launch with pricing in place
+- Focus on content marketing and community building
+- Aim for 20–30 paying customers`;
 
 const day0_30 = extractTimelineSlice(roadmapText, 0);
 const day30_60 = extractTimelineSlice(roadmapText, 1);
 const day60_90 = extractTimelineSlice(roadmapText, 2);
 
 if (day0_30.includes("Validate core assumptions") && 
+    day0_30.includes("Build landing page") &&
     day30_60.includes("Build MVP") && 
-    day60_90.includes("Launch publicly")) {
-  console.log("✅ PASS: Roadmap segments extracted correctly");
-  console.log(`   0-30: ${day0_30.substring(0, 50)}...`);
-  console.log(`   30-60: ${day30_60.substring(0, 50)}...`);
-  console.log(`   60-90: ${day60_90.substring(0, 50)}...`);
+    day30_60.includes("Develop core features") &&
+    day60_90.includes("Launch and iterate") &&
+    day60_90.includes("Public launch")) {
+  console.log("✅ PASS: Roadmap segments extracted correctly (with bullet points)");
+  console.log(`   0-30: ${day0_30.substring(0, 60)}...`);
+  console.log(`   30-60: ${day30_60.substring(0, 60)}...`);
+  console.log(`   60-90: ${day60_90.substring(0, 60)}...`);
   testsPassed++;
 } else {
   console.log("❌ FAIL: Roadmap segments not extracted correctly");
-  console.log("   0-30:", day0_30);
-  console.log("   30-60:", day30_60);
-  console.log("   60-90:", day60_90);
+  console.log("   0-30:", day0_30.substring(0, 100));
+  console.log("   30-60:", day30_60.substring(0, 100));
+  console.log("   60-90:", day60_90.substring(0, 100));
   testsFailed++;
 }
 
