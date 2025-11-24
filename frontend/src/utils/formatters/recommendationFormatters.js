@@ -1080,19 +1080,27 @@ export function extractTimelineSlice(markdown = "", segmentIndex = 0) {
   let currentSegmentIndex = -1;
   
   // Day range patterns - handle various formats
+  // Note: Handle em dash (–, \u2013), en dash (–, \u2014), and regular dash (-)
+  // The dash can be directly attached to numbers or have spaces
   const dayPatterns = [
     { index: 0, patterns: [
-      /\*\*Days?\s*0\s*[–\-\u2013\u2014]\s*30\s*\*\*:?/i,
+      /\*\*Days?\s*0\s*[–\-\u2013\u2014]\s*30\s*\*\*:?/i,  // **Days 0 – 30**: (with spaces)
+      /\*\*Days?\s*0[–\-\u2013\u2014]30\s*\*\*:?/i,  // **Days 0–30**: (no spaces, em dash)
+      /\*\*Days?\s*0-30\s*\*\*:?/i,  // **Days 0-30**: (no spaces, regular dash)
       /\*\*30\s*Days?:\*\*/i,
       /\*\*Days?\s*0\s*[-–]\s*30\s*Days?:\*\*/i
     ]},
     { index: 1, patterns: [
-      /\*\*Days?\s*30\s*[–\-\u2013\u2014]\s*60\s*\*\*:?/i,
+      /\*\*Days?\s*30\s*[–\-\u2013\u2014]\s*60\s*\*\*:?/i,  // **Days 30 – 60**: (with spaces)
+      /\*\*Days?\s*30[–\-\u2013\u2014]60\s*\*\*:?/i,  // **Days 30–60**: (no spaces, em dash)
+      /\*\*Days?\s*30-60\s*\*\*:?/i,  // **Days 30-60**: (no spaces, regular dash)
       /\*\*60\s*Days?:\*\*/i,
       /\*\*Days?\s*30\s*[-–]\s*60\s*Days?:\*\*/i
     ]},
     { index: 2, patterns: [
-      /\*\*Days?\s*60\s*[–\-\u2013\u2014]\s*90\s*\*\*:?/i,
+      /\*\*Days?\s*60\s*[–\-\u2013\u2014]\s*90\s*\*\*:?/i,  // **Days 60 – 90**: (with spaces)
+      /\*\*Days?\s*60[–\-\u2013\u2014]90\s*\*\*:?/i,  // **Days 60–90**: (no spaces, em dash)
+      /\*\*Days?\s*60-90\s*\*\*:?/i,  // **Days 60-90**: (no spaces, regular dash)
       /\*\*90\s*Days?:\*\*/i,
       /\*\*Days?\s*60\s*[-–]\s*90\s*Days?:\*\*/i
     ]}
