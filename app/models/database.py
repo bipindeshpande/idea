@@ -101,7 +101,33 @@ class User(db.Model):
                         db.session.commit()
                     except Exception:
                         db.session.rollback()
+                elif subscription_type in ["starter", "pro", "weekly"]:
+                    # For paid subscriptions without expiration, check if they have recent payments
+                    # If subscription_started_at exists, extend from there
+                    if self.subscription_started_at:
+                        # Default duration based on subscription type
+                        duration_days = {
+                            "starter": 30,
+                            "pro": 30,
+                            "weekly": 7,
+                        }.get(subscription_type, 30)
+                        self.subscription_expires_at = self.subscription_started_at + timedelta(days=duration_days)
+                    else:
+                        # No start date either - set expiration from now with default duration
+                        duration_days = {
+                            "starter": 30,
+                            "pro": 30,
+                            "weekly": 7,
+                        }.get(subscription_type, 30)
+                        self.subscription_expires_at = datetime.utcnow() + timedelta(days=duration_days)
+                        self.subscription_started_at = datetime.utcnow()
+                    
+                    try:
+                        db.session.commit()
+                    except Exception:
+                        db.session.rollback()
                 else:
+                    # Unknown subscription type without expiration - treat as inactive
                     return False
             
             # Subscription is active if expiration date is in the future

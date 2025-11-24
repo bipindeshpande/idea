@@ -81,7 +81,118 @@ export default function ValidationResult() {
   const scores = validation?.scores || {};
   const overallScore = validation?.overall_score || 0;
   const recommendations = validation?.recommendations || "";
-  const nextSteps = validation?.next_steps || "";
+  
+  // Normalize next_steps format - convert comma-separated to proper markdown list
+  const rawNextSteps = validation?.next_steps || "";
+  const nextSteps = useMemo(() => {
+    // Ensure rawNextSteps is a string - handle all edge cases
+    let nextStepsStr = "";
+    try {
+      if (rawNextSteps === null || rawNextSteps === undefined) {
+        nextStepsStr = "";
+      } else if (typeof rawNextSteps === 'string') {
+        nextStepsStr = rawNextSteps;
+      } else if (Array.isArray(rawNextSteps)) {
+        nextStepsStr = rawNextSteps.join("\n\n");
+      } else {
+        nextStepsStr = String(rawNextSteps);
+      }
+    } catch (e) {
+      // Fallback to empty string if conversion fails
+      nextStepsStr = "";
+    }
+    
+    // Final safety check - ensure it's a string
+    if (typeof nextStepsStr !== 'string') {
+      nextStepsStr = String(nextStepsStr || "");
+    }
+    
+    if (!nextStepsStr || nextStepsStr.length === 0) return "";
+    
+    // Check if it's comma-separated (common AI output format)
+    // Pattern: "1. **Title**: description,2. **Title**: description"
+    // Look for pattern where comma is followed by a number and period
+    // Additional safety check before calling .match()
+    if (typeof nextStepsStr.match === 'function' && nextStepsStr.match(/,\d+\./)) {
+      // Simple approach: split on ",1.", ",2.", etc. and reconstruct
+      // First, find all positions where ",1.", ",2.", etc. occur
+      // Match comma followed by number and period, with optional space
+      const splitPattern = /(,\d+\.\s*)/g;
+      const items = [];
+      let lastIndex = 0;
+      let match;
+      
+      // Find all matches
+      while ((match = splitPattern.exec(nextStepsStr)) !== null) {
+        // Extract the item before this match
+        if (match.index > lastIndex) {
+          const item = nextStepsStr.substring(lastIndex, match.index).trim();
+          if (item && item.match(/^\d+\./)) {
+            items.push(item);
+          }
+        }
+        lastIndex = match.index + match[0].length;
+      }
+      
+      // Add the last item (after the last match)
+      if (lastIndex < nextStepsStr.length) {
+        const lastItem = nextStepsStr.substring(lastIndex).trim();
+        if (lastItem && lastItem.match(/^\d+\./)) {
+          items.push(lastItem);
+        }
+      }
+      
+      // Also get the first item (before the first match)
+      // Reset regex to find first match
+      const firstMatch = /,\d+\./.exec(nextStepsStr);
+      if (firstMatch && firstMatch.index > 0) {
+        const firstItem = nextStepsStr.substring(0, firstMatch.index).trim();
+        if (firstItem && firstItem.match(/^\d+\./)) {
+          // Only add if not already in items (in case our logic missed it)
+          if (items.length === 0 || items[0] !== firstItem) {
+            items.unshift(firstItem);
+          }
+        }
+      } else if (items.length === 0 && 
+                 typeof nextStepsStr.match === 'function' && 
+                 nextStepsStr.match(/^\d+\./)) {
+        // If no comma matches found but string starts with a number, it's a single item
+        items.push(nextStepsStr.trim());
+      }
+      
+      // If we found items, join them with newlines
+      if (items.length > 0) {
+        const formatted = items.join("\n\n");
+        // Ensure it's a valid string
+        if (typeof formatted === 'string' && formatted.length > 0) {
+          return formatted;
+        }
+      }
+    }
+    
+    // Fallback: try a simpler split approach if the above didn't work
+    // Split on ",1.", ",2.", etc. more directly
+    // Additional safety check before calling string methods
+    if (typeof nextStepsStr.includes === 'function' && 
+        typeof nextStepsStr.match === 'function' &&
+        nextStepsStr.includes(',') && 
+        nextStepsStr.match(/\d+\./)) {
+      const simpleSplit = nextStepsStr.split(/(?=,\d+\.)/);
+      if (simpleSplit.length > 1) {
+        const cleaned = simpleSplit
+          .map(item => item.trim().replace(/^,\s*/, ''))
+          .filter(item => item && item.match(/^\d+\./))
+          .join("\n\n");
+        if (cleaned && cleaned.length > 0) {
+          return cleaned;
+        }
+      }
+    }
+    
+    // If it already looks like proper markdown, return as-is
+    // But ensure it's a string
+    return nextStepsStr;
+  }, [rawNextSteps]);
 
   // Generate final conclusion
   const finalConclusion = useMemo(() => 

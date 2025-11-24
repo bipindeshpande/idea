@@ -135,12 +135,26 @@ export default function RecommendationsReport() {
         import('jspdf')
       ]);
       
+      // Exclude buttons and interactive elements from PDF
+      const elementsToHide = reportRef.current.querySelectorAll('button, a, [role="button"], .no-print');
+      elementsToHide.forEach(el => el.style.display = 'none');
+      
       const canvas = await html2canvas(reportRef.current, { 
-        scale: 1.5, 
+        scale: 1.2, // Reduced from 1.5 to reduce file size
         backgroundColor: "#ffffff",
         useCORS: true,
-        logging: false
+        logging: false,
+        ignoreElements: (element) => {
+          // Exclude buttons, links, and interactive elements
+          return element.tagName === 'BUTTON' || 
+                 element.tagName === 'A' || 
+                 element.classList?.contains('no-print') ||
+                 element.getAttribute('role') === 'button';
+        }
       });
+      
+      // Restore elements after capture
+      elementsToHide.forEach(el => el.style.display = '');
       const imgData = canvas.toDataURL("image/png");
       const pdf = new jsPDF("p", "pt", "a4");
       const pdfWidth = pdf.internal.pageSize.getWidth();

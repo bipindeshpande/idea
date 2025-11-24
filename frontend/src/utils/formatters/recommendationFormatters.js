@@ -1326,48 +1326,33 @@ export function buildFinalConclusion(topIdeas = [], matrixRows = [], inputs = {}
   const timeCommitment = inputs.time_commitment || "your available time";
   const budgetRange = inputs.budget_range || "your budget";
 
+  // Build concise, one-page conclusion
+  const topReasons = topRecommendation.reasons.slice(0, 3).join(", ");
+  const isClearWinner = topRecommendation.score > (secondChoice?.score || 0) + 1;
+  
   let conclusion = `## Final Recommendation & Decision Rationale\n\n`;
   
-  conclusion += `Based on your profile (${goalType}, ${timeCommitment}, ${budgetRange}), here's our recommendation:\n\n`;
+  conclusion += `**Top Recommendation: ${topRecommendation.idea.title}**\n\n`;
+  conclusion += `This idea scores highest for your profile (${goalType}, ${timeCommitment}, ${budgetRange}) because: ${topReasons}. `;
   
-  conclusion += `### **Recommended: ${topRecommendation.idea.title}**\n\n`;
-  
-  conclusion += `**Why this idea:**\n`;
-  conclusion += `- ${topRecommendation.reasons.join("\n- ")}\n\n`;
-  
-  if (topRecommendation.score > secondChoice.score + 1) {
-    conclusion += `This idea stands out clearly from the alternatives. It aligns strongly with your ${goalType} goal and leverages your strengths effectively.\n\n`;
+  if (isClearWinner) {
+    conclusion += `It clearly stands out from alternatives, aligning strongly with your ${goalType} goal while leveraging your strengths.\n\n`;
   } else {
-    conclusion += `This idea is the top choice, though it's close to the second option. Both are viable, so consider your personal interest and risk tolerance.\n\n`;
+    conclusion += `While it's the top choice, ${secondChoice?.idea.title || "the second option"} is close—consider your personal interest and risk tolerance.\n\n`;
   }
 
   if (secondChoice && secondChoice.score > 0) {
-    conclusion += `### Alternative: ${secondChoice.idea.title}\n\n`;
-    conclusion += `**Consider this if:**\n`;
-    conclusion += `- ${secondChoice.reasons.join("\n- ")}\n\n`;
-    conclusion += `This is a solid backup option that may better fit if your priorities shift or if you want to explore a different angle.\n\n`;
+    const altReasons = secondChoice.reasons.slice(0, 2).join(", ");
+    conclusion += `**Alternative: ${secondChoice.idea.title}** — Consider if: ${altReasons}. `;
+    conclusion += `A solid backup if priorities shift.\n\n`;
   }
 
-  conclusion += `### Decision Framework\n\n`;
-  conclusion += `**Choose ${topRecommendation.idea.title} if:**\n`;
-  conclusion += `- You want the highest alignment with your stated goals\n`;
-  conclusion += `- You're ready to commit to ${timeCommitment}\n`;
-  conclusion += `- Your ${budgetRange} budget supports this path\n`;
-  conclusion += `- You're comfortable with the risk level\n\n`;
-
-  conclusion += `**Consider ${secondChoice?.idea.title || "the second option"} if:**\n`;
-  conclusion += `- You have stronger personal interest in that domain\n`;
-  conclusion += `- Market conditions favor that space\n`;
-  conclusion += `- You want to diversify or hedge your bets\n\n`;
-
-  conclusion += `### Next Steps\n\n`;
-  conclusion += `1. **Validate the top recommendation** using the validation questions provided\n`;
-  conclusion += `2. **Review the financial outlook** to ensure it fits your ${budgetRange} budget\n`;
-  conclusion += `3. **Check the risk radar** and prepare mitigation strategies\n`;
-  conclusion += `4. **Follow the 30/60/90 day roadmap** to start execution\n`;
-  conclusion += `5. **Revisit this decision** after 30 days of validation work\n\n`;
-
-  conclusion += `Remember: The best idea is the one you'll actually execute. If you're more excited about ${secondChoice?.idea.title || "another option"}, that enthusiasm can be worth more than perfect alignment scores.`;
+  conclusion += `**Decision Guide:** Choose ${topRecommendation.idea.title} for highest goal alignment and ${timeCommitment} fit. `;
+  conclusion += `Consider ${secondChoice?.idea.title || "the alternative"} if you have stronger interest in that domain or want to diversify.\n\n`;
+  
+  conclusion += `**Next Steps:** (1) Validate using the questions provided, (2) Review financial outlook for ${budgetRange} fit, (3) Check risk radar, (4) Follow the 30/60/90 roadmap, (5) Revisit after 30 days.\n\n`;
+  
+  conclusion += `*Remember: The best idea is one you'll execute. If you're more excited about ${secondChoice?.idea.title || "another option"}, that enthusiasm often outweighs perfect alignment scores.*`;
 
   return personalizeCopy(conclusion);
 }

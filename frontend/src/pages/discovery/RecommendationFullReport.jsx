@@ -391,12 +391,26 @@ export default function RecommendationFullReport() {
         import('jspdf')
       ]);
       
+      // Exclude buttons and interactive elements from PDF
+      const elementsToHide = pdfRef.current.querySelectorAll('button, a, [role="button"], .no-print');
+      elementsToHide.forEach(el => el.style.display = 'none');
+      
       const canvas = await html2canvas(pdfRef.current, { 
-        scale: 1.5, 
+        scale: 1.2, // Reduced from 1.5 to reduce file size
         backgroundColor: "#ffffff",
         useCORS: true,
-        logging: false
+        logging: false,
+        ignoreElements: (element) => {
+          // Exclude buttons, links, and interactive elements
+          return element.tagName === 'BUTTON' || 
+                 element.tagName === 'A' || 
+                 element.classList?.contains('no-print') ||
+                 element.getAttribute('role') === 'button';
+        }
       });
+      
+      // Restore elements after capture
+      elementsToHide.forEach(el => el.style.display = '');
       const imgData = canvas.toDataURL("image/png");
       const pdf = new jsPDF("p", "pt", "a4");
       const pdfWidth = pdf.internal.pageSize.getWidth();
@@ -454,7 +468,7 @@ export default function RecommendationFullReport() {
           type="button"
           onClick={handleDownloadPDF}
           disabled={downloading || (isSample ? false : !remainderMarkdown)}
-          className="rounded-xl border border-brand-300 bg-white px-4 py-2 text-sm font-medium text-brand-700 shadow-sm transition hover:border-brand-400 hover:text-brand-800 disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-400 whitespace-nowrap"
+          className="no-print rounded-xl border border-brand-300 bg-white px-4 py-2 text-sm font-medium text-brand-700 shadow-sm transition hover:border-brand-400 hover:text-brand-800 disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-400 whitespace-nowrap"
         >
           {downloading ? "Preparing PDF..." : "Download Complete Report PDF"}
         </button>
@@ -876,19 +890,19 @@ function SampleReportContent({ inputs }) {
   ];
 
   return (
-    <div className="grid gap-6">
-      <article className="rounded-3xl border border-slate-200 bg-white/95 p-8 shadow-soft">
-        <h1 className="text-3xl font-semibold text-slate-900">Full recommendation report</h1>
-        <p className="mt-2 text-sm text-slate-500">
+    <div className="grid gap-4">
+      <article className="rounded-2xl border border-slate-200 bg-white/95 p-5 shadow-soft">
+        <h1 className="text-2xl font-semibold text-slate-900">Full recommendation report</h1>
+        <p className="mt-1.5 text-sm text-slate-500">
           Review the matrix, financial outlook, risk radar, persona, validation plan, roadmap, and decision checklist so
           you can move forward confidently.
         </p>
       </article>
 
       {/* Recommendation Matrix */}
-      <article className="rounded-3xl border border-slate-200 bg-white/95 p-8 shadow-soft">
-        <h2 className="text-2xl font-semibold text-slate-900 mb-2">Recommendation Matrix</h2>
-        <p className="text-sm text-slate-600 mb-6">Compare how each idea aligns with your goals, capacity, and preferences.</p>
+      <article className="rounded-2xl border border-slate-200 bg-white/95 p-5 shadow-soft">
+        <h2 className="text-xl font-semibold text-slate-900 mb-1.5">Recommendation Matrix</h2>
+        <p className="text-sm text-slate-600 mb-4">Compare how each idea aligns with your goals, capacity, and preferences.</p>
         <div className="mt-4 overflow-x-auto rounded-2xl border border-slate-200">
           <table className="min-w-full divide-y divide-slate-200 text-sm">
             <thead className="bg-brand-500/10 text-left uppercase tracking-wide text-slate-600">
@@ -930,9 +944,9 @@ function SampleReportContent({ inputs }) {
       </article>
 
       {/* Financial Outlook */}
-      <article className="rounded-3xl border border-amber-100 bg-amber-50/80 p-8 shadow-soft">
-        <h2 className="text-2xl font-semibold text-slate-900">Financial outlook</h2>
-        <div className="mt-4 overflow-hidden rounded-2xl border border-amber-100 bg-white">
+      <article className="rounded-2xl border border-amber-100 bg-amber-50/80 p-5 shadow-soft">
+        <h2 className="text-xl font-semibold text-slate-900">Financial outlook</h2>
+        <div className="mt-3 overflow-hidden rounded-xl border border-amber-100 bg-white">
           <table className="min-w-full divide-y divide-amber-100 text-sm">
             <thead className="bg-amber-100/60 text-left uppercase tracking-wide text-amber-700">
               <tr>
@@ -957,9 +971,9 @@ function SampleReportContent({ inputs }) {
       </article>
 
       {/* Risk Radar */}
-      <article className="rounded-3xl border border-slate-200 bg-white/95 p-8 shadow-soft">
-        <h2 className="text-2xl font-semibold text-slate-900">Risk radar</h2>
-        <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200">
+      <article className="rounded-2xl border border-slate-200 bg-white/95 p-5 shadow-soft">
+        <h2 className="text-xl font-semibold text-slate-900">Risk radar</h2>
+        <div className="mt-3 overflow-hidden rounded-xl border border-slate-200">
           <table className="min-w-full divide-y divide-slate-200 text-sm">
             <thead className="bg-brand-500/10 text-left uppercase tracking-wide text-slate-500">
               <tr>
@@ -982,14 +996,14 @@ function SampleReportContent({ inputs }) {
       </article>
 
       {/* Validation Questions */}
-      <article className="rounded-3xl border border-slate-200 bg-white/95 p-8 shadow-soft">
-        <h2 className="text-2xl font-semibold text-slate-900 mb-2">Validation questions</h2>
-        <p className="text-sm text-slate-600 mb-6">
+      <article className="rounded-2xl border border-slate-200 bg-white/95 p-5 shadow-soft">
+        <h2 className="text-xl font-semibold text-slate-900 mb-1.5">Validation questions</h2>
+        <p className="text-sm text-slate-600 mb-4">
           Use these questions to validate your idea with potential customers. Each question includes guidance on what to listen for and how to act on the responses.
         </p>
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid gap-3 md:grid-cols-2">
           {sampleValidationQuestions.map((q, index) => (
-            <div key={index} className="rounded-2xl border border-slate-200 bg-white p-6">
+            <div key={index} className="rounded-xl border border-slate-200 bg-white p-4">
               <p className="font-semibold text-slate-900 mb-3">{q.question}</p>
               <div className="space-y-2 text-sm">
                 <p className="text-slate-600">
@@ -1005,33 +1019,33 @@ function SampleReportContent({ inputs }) {
       </article>
 
       {/* 30/60/90 Day Roadmap */}
-      <article className="rounded-3xl border border-slate-200 bg-white/95 p-8 shadow-soft">
-        <h2 className="text-2xl font-semibold text-slate-900 mb-6">30/60/90 Day Roadmap</h2>
-        <div className="grid gap-4 md:grid-cols-3">
-          <div className="rounded-2xl border border-brand-200 bg-brand-50 p-6">
-            <h3 className="text-lg font-semibold text-slate-900 mb-3">Days 0–30</h3>
-            <p className="text-sm font-semibold text-slate-700 mb-2">Validate core assumptions</p>
-            <ul className="space-y-2 text-sm text-slate-600">
+      <article className="rounded-2xl border border-slate-200 bg-white/95 p-5 shadow-soft">
+        <h2 className="text-xl font-semibold text-slate-900 mb-4">30/60/90 Day Roadmap</h2>
+        <div className="grid gap-3 md:grid-cols-3">
+          <div className="rounded-xl border border-brand-200 bg-brand-50 p-4">
+            <h3 className="text-base font-semibold text-slate-900 mb-2">Days 0–30</h3>
+            <p className="text-sm font-semibold text-slate-700 mb-1.5">Validate core assumptions</p>
+            <ul className="space-y-1.5 text-sm text-slate-600">
               <li>• Build landing page with clear value proposition</li>
               <li>• Run 10 customer interviews using validation questions</li>
               <li>• Collect 20+ waitlist sign-ups</li>
               <li>• Test pricing sensitivity ($29 vs $49/month)</li>
             </ul>
           </div>
-          <div className="rounded-2xl border border-aqua-200 bg-aqua-50 p-6">
-            <h3 className="text-lg font-semibold text-slate-900 mb-3">Days 30–60</h3>
-            <p className="text-sm font-semibold text-slate-700 mb-2">Build MVP</p>
-            <ul className="space-y-2 text-sm text-slate-600">
+          <div className="rounded-xl border border-aqua-200 bg-aqua-50 p-4">
+            <h3 className="text-base font-semibold text-slate-900 mb-2">Days 30–60</h3>
+            <p className="text-sm font-semibold text-slate-700 mb-1.5">Build MVP</p>
+            <ul className="space-y-1.5 text-sm text-slate-600">
               <li>• Develop core features using no-code tools or minimal code</li>
               <li>• Onboard 5 beta users for feedback</li>
               <li>• Iterate based on usage data and feedback</li>
               <li>• Set up basic analytics and tracking</li>
             </ul>
           </div>
-          <div className="rounded-2xl border border-coral-200 bg-coral-50 p-6">
-            <h3 className="text-lg font-semibold text-slate-900 mb-3">Days 60–90</h3>
-            <p className="text-sm font-semibold text-slate-700 mb-2">Launch and iterate</p>
-            <ul className="space-y-2 text-sm text-slate-600">
+          <div className="rounded-xl border border-coral-200 bg-coral-50 p-4">
+            <h3 className="text-base font-semibold text-slate-900 mb-2">Days 60–90</h3>
+            <p className="text-sm font-semibold text-slate-700 mb-1.5">Launch and iterate</p>
+            <ul className="space-y-1.5 text-sm text-slate-600">
               <li>• Public launch with pricing in place</li>
               <li>• Focus on content marketing and community building</li>
               <li>• Aim for 20–30 paying customers</li>
@@ -1042,10 +1056,10 @@ function SampleReportContent({ inputs }) {
       </article>
 
       {/* Decision Checklist */}
-      <article className="rounded-3xl border border-slate-200 bg-white/95 p-8 shadow-soft">
-        <h2 className="text-2xl font-semibold text-slate-900 mb-4">Decision Checklist</h2>
-        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6">
-          <ul className="space-y-3 text-sm text-slate-700">
+      <article className="rounded-2xl border border-slate-200 bg-white/95 p-5 shadow-soft">
+        <h2 className="text-xl font-semibold text-slate-900 mb-3">Decision Checklist</h2>
+        <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+          <ul className="space-y-2 text-sm text-slate-700">
             {sampleDecisionChecklist.map((item, index) => (
               <li key={index} className="flex items-start gap-3">
                 <span className="mt-0.5 text-brand-500">□</span>
@@ -1092,10 +1106,10 @@ function FullReportContent({ remainderMarkdown, inputs, topIdeas = [] }) {
     .map(([key, value]) => ({ heading: key, content: value }));
 
   return (
-    <div className="grid gap-6">
-      <article className="rounded-3xl border border-slate-200 bg-white/95 p-8 shadow-soft">
-        <h1 className="text-3xl font-semibold text-slate-900">Full recommendation report</h1>
-        <p className="mt-2 text-sm text-slate-500">
+    <div className="grid gap-4">
+      <article className="rounded-2xl border border-slate-200 bg-white/95 p-5 shadow-soft">
+        <h1 className="text-2xl font-semibold text-slate-900">Full recommendation report</h1>
+        <p className="mt-1.5 text-sm text-slate-500">
           Review the matrix, financial outlook, risk radar, persona, validation plan, roadmap, and decision checklist so
           you can move forward confidently.
         </p>
@@ -1103,9 +1117,9 @@ function FullReportContent({ remainderMarkdown, inputs, topIdeas = [] }) {
 
 
       {matrixRows.length > 0 && (
-        <article className="rounded-3xl border border-slate-200 bg-white/95 p-8 shadow-soft">
-          <h2 className="text-2xl font-semibold text-slate-900 mb-2">Recommendation Matrix</h2>
-          <p className="text-sm text-slate-600 mb-6">Compare how each idea aligns with your goals, capacity, and preferences.</p>
+        <article className="rounded-2xl border border-slate-200 bg-white/95 p-5 shadow-soft">
+          <h2 className="text-xl font-semibold text-slate-900 mb-1.5">Recommendation Matrix</h2>
+          <p className="text-sm text-slate-600 mb-4">Compare how each idea aligns with your goals, capacity, and preferences.</p>
           <div className="mt-4 overflow-x-auto rounded-2xl border border-slate-200">
             <table className="min-w-full divide-y divide-slate-200 text-sm">
               <thead className="bg-brand-500/10 text-left uppercase tracking-wide text-slate-600">
@@ -1152,9 +1166,9 @@ function FullReportContent({ remainderMarkdown, inputs, topIdeas = [] }) {
       )}
 
       {financialOutlook.length > 0 && (
-        <article className="rounded-3xl border border-amber-100 bg-amber-50/80 p-8 shadow-soft">
-          <h2 className="text-2xl font-semibold text-slate-900">Financial outlook</h2>
-          <div className="mt-4 overflow-hidden rounded-2xl border border-amber-100 bg-white">
+        <article className="rounded-2xl border border-amber-100 bg-amber-50/80 p-5 shadow-soft">
+          <h2 className="text-xl font-semibold text-slate-900">Financial outlook</h2>
+          <div className="mt-3 overflow-hidden rounded-xl border border-amber-100 bg-white">
             <table className="min-w-full divide-y divide-amber-100 text-sm">
               <thead className="bg-amber-100/60 text-left uppercase tracking-wide text-amber-700">
                 <tr>
@@ -1180,9 +1194,9 @@ function FullReportContent({ remainderMarkdown, inputs, topIdeas = [] }) {
       )}
 
       {riskRows.length > 0 && (
-        <article className="rounded-3xl border border-slate-200 bg-white/95 p-8 shadow-soft">
-          <h2 className="text-2xl font-semibold text-slate-900">Risk radar</h2>
-          <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200">
+        <article className="rounded-2xl border border-slate-200 bg-white/95 p-5 shadow-soft">
+          <h2 className="text-xl font-semibold text-slate-900">Risk radar</h2>
+          <div className="mt-3 overflow-hidden rounded-xl border border-slate-200">
             <table className="min-w-full divide-y divide-slate-200 text-sm">
               <thead className="bg-brand-500/10 text-left uppercase tracking-wide text-slate-500">
                 <tr>
@@ -1206,9 +1220,9 @@ function FullReportContent({ remainderMarkdown, inputs, topIdeas = [] }) {
       )}
 
       {sections["customer persona"] && (
-        <article className="rounded-3xl border border-violet-100 bg-gradient-to-br from-violet-50 via-white to-white p-8 shadow-soft">
-          <header className="space-y-1 mb-4">
-            <h2 className="text-2xl font-semibold text-slate-900">Customer persona</h2>
+        <article className="rounded-2xl border border-violet-100 bg-gradient-to-br from-violet-50 via-white to-white p-5 shadow-soft">
+          <header className="space-y-1 mb-3">
+            <h2 className="text-xl font-semibold text-slate-900">Customer persona</h2>
             <p className="text-sm text-slate-600">
               A detailed profile of your ideal customer—their demographics, pain points, goals, and buying behavior. Use this to tailor your messaging, product features, and marketing channels.
             </p>
@@ -1220,15 +1234,15 @@ function FullReportContent({ remainderMarkdown, inputs, topIdeas = [] }) {
       )}
 
       {validationQuestions.length > 0 && (
-        <article className="rounded-3xl border border-slate-200 bg-white/95 p-8 shadow-soft">
+        <article className="rounded-2xl border border-slate-200 bg-white/95 p-5 shadow-soft">
           <header className="space-y-1">
-            <h2 className="text-2xl font-semibold text-slate-900">Validation questions</h2>
+            <h2 className="text-xl font-semibold text-slate-900">Validation questions</h2>
             <p className="text-sm text-slate-500">
               Use these prompts in discovery conversations or lightweight surveys to confirm demand, buying triggers, and
               budget fit. Treat responses as go/no-go signals before committing more cycles.
             </p>
           </header>
-          <div className="mt-4 grid gap-4 md:grid-cols-2">
+          <div className="mt-3 grid gap-3 md:grid-cols-2">
             {validationQuestions.map(({ question, listenFor, actOn }, index) => (
               <div
                 key={index}
@@ -1249,12 +1263,12 @@ function FullReportContent({ remainderMarkdown, inputs, topIdeas = [] }) {
       )}
 
       {roadmapMarkdown && (
-        <article className="rounded-3xl border border-brand-100 bg-brand-50/70 p-8 shadow-soft">
-          <h2 className="text-2xl font-semibold text-slate-900">30/60/90 day roadmap</h2>
-          <p className="mt-2 text-sm text-slate-600">
+        <article className="rounded-2xl border border-brand-100 bg-brand-50/70 p-5 shadow-soft">
+          <h2 className="text-xl font-semibold text-slate-900">30/60/90 day roadmap</h2>
+          <p className="mt-1.5 text-sm text-slate-600">
             Split execution into focused sprints that move from validation to launch. Refresh these milestones as real-world feedback arrives.
           </p>
-          <div className="mt-5 grid gap-4 md:grid-cols-3">
+          <div className="mt-3 grid gap-3 md:grid-cols-3">
             {["0-30 Days", "30-60 Days", "60-90 Days"].map((window, index) => (
               <div key={window} className="rounded-2xl border border-brand-100 bg-white/95 p-4 shadow-inner">
                 <p className="text-xs font-semibold uppercase tracking-wide text-brand-600">{window}</p>
@@ -1270,9 +1284,9 @@ function FullReportContent({ remainderMarkdown, inputs, topIdeas = [] }) {
       )}
 
       {decisionChecklist.length > 0 && (
-        <article className="rounded-3xl border border-slate-200 bg-white/95 p-8 shadow-soft">
-          <h2 className="text-2xl font-semibold text-slate-900">Decision checklist</h2>
-          <ul className="mt-4 space-y-2 text-sm text-slate-700">
+        <article className="rounded-2xl border border-slate-200 bg-white/95 p-5 shadow-soft">
+          <h2 className="text-xl font-semibold text-slate-900">Decision checklist</h2>
+          <ul className="mt-3 space-y-2 text-sm text-slate-700">
             {decisionChecklist.map((item, index) => (
               <li key={index} className="flex gap-2">
                 <span className="mt-1 text-brand-500">•</span>
@@ -1292,24 +1306,24 @@ function FullReportContent({ remainderMarkdown, inputs, topIdeas = [] }) {
         );
         if (!conclusion) return null;
         return (
-          <article className="rounded-3xl border-2 border-brand-300 bg-gradient-to-br from-brand-50 to-white p-8 shadow-soft">
-            <div className="prose prose-slate max-w-none">
+          <article className="rounded-2xl border-2 border-brand-300 bg-gradient-to-br from-brand-50 to-white p-5 shadow-soft no-print">
+            <div className="prose prose-slate max-w-none prose-p:leading-normal prose-p:mb-1.5 prose-ul:space-y-1 prose-li:leading-normal prose-h2:mb-2 prose-h2:mt-3 prose-h3:mb-1.5 prose-h3:mt-2">
               <ReactMarkdown
                 components={{
                   h2: ({ node, ...props }) => (
-                    <h2 className="text-2xl font-bold text-slate-900 mb-4 mt-6" {...props} />
+                    <h2 className="text-xl font-bold text-slate-900 mb-2 mt-3" {...props} />
                   ),
                   h3: ({ node, ...props }) => (
-                    <h3 className="text-xl font-semibold text-slate-800 mb-3 mt-4" {...props} />
+                    <h3 className="text-lg font-semibold text-slate-800 mb-1.5 mt-2" {...props} />
                   ),
                   p: ({ node, ...props }) => (
-                    <p className="text-slate-700 leading-relaxed mb-3" {...props} />
+                    <p className="text-slate-700 leading-normal mb-1.5" {...props} />
                   ),
                   ul: ({ node, ...props }) => (
-                    <ul className="list-disc list-outside space-y-2 text-slate-700 mb-4 ml-6" {...props} />
+                    <ul className="list-disc list-outside space-y-1 text-slate-700 mb-2 ml-5" {...props} />
                   ),
                   li: ({ node, ...props }) => (
-                    <li className="leading-relaxed" {...props} />
+                    <li className="leading-normal" {...props} />
                   ),
                   strong: ({ node, ...props }) => (
                     <strong className="font-semibold text-slate-900" {...props} />
@@ -1324,9 +1338,9 @@ function FullReportContent({ remainderMarkdown, inputs, topIdeas = [] }) {
       })()}
 
       {otherSections.map((section) => (
-        <article key={section.heading} className="rounded-3xl border border-slate-200 bg-white/95 p-8 shadow-soft">
-          <h2 className="text-2xl font-semibold text-slate-900">{formatSectionHeading(section.heading)}</h2>
-          <div className="mt-4 prose prose-slate">
+        <article key={section.heading} className="rounded-2xl border border-slate-200 bg-white/95 p-5 shadow-soft">
+          <h2 className="text-xl font-semibold text-slate-900">{formatSectionHeading(section.heading)}</h2>
+          <div className="mt-3 prose prose-slate">
             <ReactMarkdown>{personalizeCopy(section.content)}</ReactMarkdown>
           </div>
         </article>

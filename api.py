@@ -364,17 +364,61 @@ def validate_idea() -> Any:
   category_answers = data.get("category_answers", {})
   idea_explanation = data.get("idea_explanation", "").strip()
   
-  if not idea_explanation:
-    return jsonify({"success": False, "error": "Idea explanation is required"}), 400
+  # Build explanation from category answers if idea_explanation is empty or very short
+  if not idea_explanation or len(idea_explanation) < 10:
+    explanation_parts = []
+    for key, value in category_answers.items():
+      if value:
+        explanation_parts.append(f"{key.replace('_', ' ').title()}: {value}")
+    if explanation_parts:
+      idea_explanation = "\n".join(explanation_parts)
+    elif not idea_explanation:
+      idea_explanation = "No detailed explanation provided."
+  
+  # Final check - ensure we have something to validate
+  if not idea_explanation or len(idea_explanation.strip()) < 5:
+    return jsonify({"success": False, "error": "Please provide category answers or idea explanation"}), 400
   
   try:
     client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
     
-    # Build context from category answers
+    # Get user's latest intake data from their most recent run
+    user_intake = {}
+    latest_run = UserRun.query.filter_by(user_id=user.id).order_by(UserRun.created_at.desc()).first()
+    if latest_run and latest_run.inputs:
+      try:
+        if isinstance(latest_run.inputs, str):
+          user_intake = json.loads(latest_run.inputs)
+        else:
+          user_intake = latest_run.inputs
+      except (json.JSONDecodeError, TypeError):
+        app.logger.warning(f"Failed to parse user intake data for user {user.id}")
+        user_intake = {}
+    
+    # Build context from category answers and user intake
     context_parts = []
+    
+    # Add user intake data if available
+    if user_intake:
+      intake_fields = {
+        "goal_type": "Goal Type",
+        "time_commitment": "Time Commitment",
+        "budget_range": "Budget Range",
+        "interest_area": "Interest Area",
+        "sub_interest_area": "Sub-Interest Area",
+        "work_style": "Work Style",
+        "skill_strength": "Skill Strength",
+        "experience_summary": "Experience Summary"
+      }
+      for key, label in intake_fields.items():
+        if user_intake.get(key):
+          context_parts.append(f"{label}: {user_intake[key]}")
+    
+    # Add category answers
     for key, value in category_answers.items():
       context_parts.append(f"{key.replace('_', ' ').title()}: {value}")
-    context = "\n".join(context_parts)
+    
+    context = "\n".join(context_parts) if context_parts else "No additional context provided."
     
     validation_prompt = f"""You are a critical, experienced startup advisor with a track record of identifying fatal flaws in startup ideas. Your role is to be brutally honest and rigorous in your assessment. Most ideas fail—your job is to identify why THIS idea might fail before the founder wastes time and money.
 
@@ -384,8 +428,9 @@ CRITICAL EVALUATION FRAMEWORK:
 - Give medium scores (5-7) for ideas with potential but significant gaps or risks.
 - Give low scores (0-4) for ideas with fundamental flaws, weak market signals, or execution risks.
 - Average scores should typically fall between 4-7 unless the idea is truly exceptional.
+- Consider the founder's profile (goal, time commitment, budget, skills) when assessing feasibility and fit.
 
-Context:
+Founder Profile & Context:
 {context}
 
 Idea Explanation:

@@ -1,7 +1,9 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useNavigate, Link } from "react-router-dom";
 import Seo from "../../components/common/Seo.jsx";
 import { useValidation } from "../../context/ValidationContext.jsx";
+import { useReports } from "../../context/ReportsContext.jsx";
+import { useAuth } from "../../context/AuthContext.jsx";
 import { validationQuestions } from "../../config/validationQuestions.js";
 import ValidationLoadingIndicator from "../../components/validation/ValidationLoadingIndicator.jsx";
 
@@ -11,8 +13,58 @@ const IDEA_EXPLANATION_QUESTIONS = validationQuestions.idea_explanation_question
 export default function IdeaValidator() {
   const navigate = useNavigate();
   const { validateIdea, loading, error, setError, setCategoryAnswers, setIdeaExplanation, categoryAnswers, ideaExplanation } = useValidation();
+  const { inputs, loadRunById } = useReports();
+  const { getAuthHeaders, isAuthenticated } = useAuth();
   const [ideaAnswers, setIdeaAnswers] = useState({});
+  const [ideaDetails, setIdeaDetails] = useState("");
   const [step, setStep] = useState(0);
+  const [loadingIntake, setLoadingIntake] = useState(true);
+  const [userIntake, setUserIntake] = useState(null);
+
+  // Load user's latest intake data
+  useEffect(() => {
+    const loadUserIntake = async () => {
+      if (!isAuthenticated) {
+        setLoadingIntake(false);
+        return;
+      }
+
+      // First try to use inputs from ReportsContext if available
+      if (inputs && Object.keys(inputs).length > 0) {
+        const hasValidData = inputs.goal_type || inputs.time_commitment || inputs.budget_range || inputs.interest_area;
+        if (hasValidData) {
+          setUserIntake(inputs);
+          setLoadingIntake(false);
+          return;
+        }
+      }
+
+      // Otherwise, fetch from API
+      try {
+        const response = await fetch("/api/user/activity", {
+          headers: getAuthHeaders(),
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success && data.activity && data.activity.runs && data.activity.runs.length > 0) {
+            const latestRun = data.activity.runs[0];
+            if (latestRun.inputs && Object.keys(latestRun.inputs).length > 0) {
+              setUserIntake(latestRun.inputs);
+            }
+          }
+        }
+      } catch (err) {
+        if (process.env.NODE_ENV === 'development') {
+          console.error("Failed to load user intake:", err);
+        }
+      } finally {
+        setLoadingIntake(false);
+      }
+    };
+
+    loadUserIntake();
+  }, [isAuthenticated, getAuthHeaders, inputs]);
 
   const handleCategoryAnswer = (questionId, answer) => {
     setCategoryAnswers((prev) => ({
@@ -47,9 +99,15 @@ export default function IdeaValidator() {
       }
       setError("");
       // Convert answers to explanation text
-      const explanationText = IDEA_EXPLANATION_QUESTIONS.map((q) => {
+      let explanationText = IDEA_EXPLANATION_QUESTIONS.map((q) => {
         return `${q.question}\n${ideaAnswers[q.id]}`;
       }).join("\n\n");
+      
+      // Add detailed description if provided (optional)
+      if (ideaDetails.trim()) {
+        explanationText += `\n\n## Detailed Description\n\n${ideaDetails.trim()}`;
+      }
+      
       setIdeaExplanation(explanationText);
       handleSubmit();
     }
@@ -165,39 +223,53 @@ export default function IdeaValidator() {
             Help us understand your idea by answering these questions.
           </p>
 
-          <div className="space-y-8">
+          <div className="space-y-6">
             {IDEA_EXPLANATION_QUESTIONS.map((question) => (
               <div key={question.id}>
-                <label className="mb-3 block text-lg font-semibold text-slate-900">
+                <label htmlFor={question.id} className="mb-2 block text-base font-semibold text-slate-900 dark:text-slate-100">
                   {question.question}
                 </label>
-                <div className="grid gap-3 sm:grid-cols-2">
+                <select
+                  id={question.id}
+                  value={ideaAnswers[question.id] || ""}
+                  onChange={(e) => handleIdeaAnswer(question.id, e.target.value)}
+                  className="w-full rounded-xl border border-slate-300/60 dark:border-slate-600/60 bg-white dark:bg-slate-800 px-4 py-3 text-sm font-medium text-slate-700 dark:text-slate-300 shadow-sm transition-all duration-200 focus:border-brand-400 dark:focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100 dark:focus:ring-brand-900"
+                >
+                  <option value="">Select an option...</option>
                   {question.options.map((option) => (
-                    <button
-                      key={option}
-                      type="button"
-                      onClick={() => handleIdeaAnswer(question.id, option)}
-                      className={`rounded-xl border-2 p-4 text-left text-sm font-medium transition-all duration-200 ${
-                        ideaAnswers[question.id] === option
-                          ? "border-brand-500 dark:border-brand-500 bg-gradient-to-br from-brand-50 to-brand-100/50 dark:from-brand-900/30 dark:to-brand-800/20 text-brand-700 dark:text-brand-300 shadow-md shadow-brand-500/10"
-                          : "border-slate-200/60 dark:border-slate-700/60 bg-white dark:bg-slate-800/50 text-slate-700 dark:text-slate-300 hover:border-brand-300 dark:hover:border-brand-600 hover:bg-brand-50/50 dark:hover:bg-brand-900/20 hover:shadow-sm"
-                      }`}
-                    >
+                    <option key={option} value={option}>
                       {option}
-                    </button>
+                    </option>
                   ))}
-                </div>
+                </select>
               </div>
             ))}
+            
+            <div>
+              <label htmlFor="ideaDetails" className="mb-2 block text-base font-semibold text-slate-900 dark:text-slate-100">
+                Provide details about your idea
+              </label>
+              <p className="mb-3 text-sm text-slate-600 dark:text-slate-400">
+                Describe your startup idea in detail. Include what problem it solves, how it works, who it's for, and why it's unique.
+              </p>
+              <textarea
+                id="ideaDetails"
+                value={ideaDetails}
+                onChange={(e) => setIdeaDetails(e.target.value)}
+                rows={6}
+                className="w-full rounded-xl border border-slate-300/60 dark:border-slate-600/60 bg-white dark:bg-slate-800 px-4 py-3 text-sm font-medium text-slate-700 dark:text-slate-300 shadow-sm transition-all duration-200 focus:border-brand-400 dark:focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100 dark:focus:ring-brand-900 resize-y"
+                placeholder="Describe your startup idea in detail. For example: What problem does it solve? How does it work? Who is it for? What makes it unique? What's your business model?"
+              />
+            </div>
           </div>
 
           {error && (
-            <div className="mb-6 rounded-xl border border-coral-200/60 dark:border-coral-800/60 bg-gradient-to-br from-coral-50 to-coral-100/50 dark:from-coral-900/30 dark:to-coral-800/20 p-4 text-sm font-semibold text-coral-800 dark:text-coral-300 shadow-sm">
+            <div className="mt-6 rounded-xl border border-coral-200/60 dark:border-coral-800/60 bg-gradient-to-br from-coral-50 to-coral-100/50 dark:from-coral-900/30 dark:to-coral-800/20 p-4 text-sm font-semibold text-coral-800 dark:text-coral-300 shadow-sm">
               {error}
             </div>
           )}
 
-          <div className="flex items-center justify-between">
+          <div className="mt-8 flex items-center justify-between">
             <button
               type="button"
               onClick={handleBack}

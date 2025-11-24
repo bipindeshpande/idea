@@ -116,8 +116,12 @@ const defaultValidationQuestions = {
   ],
 };
 
-// Merge JSON data with defaults (JSON takes precedence)
+// Merge JSON data with defaults (JSON takes precedence, but only if it has content)
 export const validationQuestions = {
-  category_questions: validationQuestionsData?.category_questions || defaultValidationQuestions.category_questions,
-  idea_explanation_questions: validationQuestionsData?.idea_explanation_questions || defaultValidationQuestions.idea_explanation_questions,
+  category_questions: (validationQuestionsData?.category_questions && validationQuestionsData.category_questions.length > 0) 
+    ? validationQuestionsData.category_questions 
+    : defaultValidationQuestions.category_questions,
+  idea_explanation_questions: (validationQuestionsData?.idea_explanation_questions && validationQuestionsData.idea_explanation_questions.length > 0)
+    ? validationQuestionsData.idea_explanation_questions
+    : defaultValidationQuestions.idea_explanation_questions,
 };
