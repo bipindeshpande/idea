@@ -61,7 +61,9 @@ export default function RecommendationsReport() {
     try {
       return trimFromHeading(reports?.personalized_recommendations ?? "", "### Comprehensive Recommendation Report");
     } catch (err) {
-      console.error("Error trimming markdown:", err);
+      if (process.env.NODE_ENV === 'development') {
+        console.error("Error trimming markdown:", err);
+      }
       return reports?.personalized_recommendations ?? "";
     }
   }, [reports]);
@@ -93,7 +95,9 @@ export default function RecommendationsReport() {
     try {
       return splitFullReportSections(markdown);
     } catch (err) {
-      console.error("Error splitting sections:", err);
+      if (process.env.NODE_ENV === 'development') {
+        console.error("Error splitting sections:", err);
+      }
       return {};
     }
   }, [markdown]);
@@ -102,7 +106,9 @@ export default function RecommendationsReport() {
     try {
       return parseRecommendationMatrix(sections["recommendation matrix"] || "");
     } catch (err) {
-      console.error("Error parsing matrix:", err);
+      if (process.env.NODE_ENV === 'development') {
+        console.error("Error parsing matrix:", err);
+      }
       return [];
     }
   }, [sections]);
@@ -111,7 +117,9 @@ export default function RecommendationsReport() {
     try {
       return buildFinalConclusion(topIdeas, matrixRows, inputs || {});
     } catch (err) {
-      console.error("Error building conclusion:", err);
+      if (process.env.NODE_ENV === 'development') {
+        console.error("Error building conclusion:", err);
+      }
       return null;
     }
   }, [topIdeas, matrixRows, inputs]);
