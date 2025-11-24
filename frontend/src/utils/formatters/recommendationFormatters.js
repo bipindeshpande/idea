@@ -1076,17 +1076,19 @@ export function extractTimelineSlice(markdown = "", segmentIndex = 0) {
   // Split by lines for more reliable parsing
   const lines = markdown.split(/\r?\n/);
   const segments = [];
-  let currentSegment = null;
+  let currentSegment = [];
   let currentSegmentIndex = -1;
   
   // Day range patterns - handle various formats
   // Note: Handle em dash (–, \u2013), en dash (–, \u2014), and regular dash (-)
   // The dash can be directly attached to numbers or have spaces
+  // Also handle cases where "Days" might be singular or plural
   const dayPatterns = [
     { index: 0, patterns: [
       /\*\*Days?\s*0\s*[–\-\u2013\u2014]\s*30\s*\*\*:?/i,  // **Days 0 – 30**: (with spaces)
       /\*\*Days?\s*0[–\-\u2013\u2014]30\s*\*\*:?/i,  // **Days 0–30**: (no spaces, em dash)
       /\*\*Days?\s*0-30\s*\*\*:?/i,  // **Days 0-30**: (no spaces, regular dash)
+      /\*\*Days?\s*0\s*to\s*30\s*\*\*:?/i,  // **Days 0 to 30**:
       /\*\*30\s*Days?:\*\*/i,
       /\*\*Days?\s*0\s*[-–]\s*30\s*Days?:\*\*/i
     ]},
@@ -1094,6 +1096,7 @@ export function extractTimelineSlice(markdown = "", segmentIndex = 0) {
       /\*\*Days?\s*30\s*[–\-\u2013\u2014]\s*60\s*\*\*:?/i,  // **Days 30 – 60**: (with spaces)
       /\*\*Days?\s*30[–\-\u2013\u2014]60\s*\*\*:?/i,  // **Days 30–60**: (no spaces, em dash)
       /\*\*Days?\s*30-60\s*\*\*:?/i,  // **Days 30-60**: (no spaces, regular dash)
+      /\*\*Days?\s*30\s*to\s*60\s*\*\*:?/i,  // **Days 30 to 60**:
       /\*\*60\s*Days?:\*\*/i,
       /\*\*Days?\s*30\s*[-–]\s*60\s*Days?:\*\*/i
     ]},
@@ -1101,6 +1104,7 @@ export function extractTimelineSlice(markdown = "", segmentIndex = 0) {
       /\*\*Days?\s*60\s*[–\-\u2013\u2014]\s*90\s*\*\*:?/i,  // **Days 60 – 90**: (with spaces)
       /\*\*Days?\s*60[–\-\u2013\u2014]90\s*\*\*:?/i,  // **Days 60–90**: (no spaces, em dash)
       /\*\*Days?\s*60-90\s*\*\*:?/i,  // **Days 60-90**: (no spaces, regular dash)
+      /\*\*Days?\s*60\s*to\s*90\s*\*\*:?/i,  // **Days 60 to 90**:
       /\*\*90\s*Days?:\*\*/i,
       /\*\*Days?\s*60\s*[-–]\s*90\s*Days?:\*\*/i
     ]}
