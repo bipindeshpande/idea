@@ -79,25 +79,38 @@ class User(db.Model):
         
         Free tier users should always have access (no expiration).
         """
-        # Free tier users always have access
-        if self.subscription_type == "free":
-            # If expiration is not set for free tier, set it far in the future
+        try:
+            # Free tier users always have access
+            subscription_type = self.subscription_type or "free"
+            if subscription_type == "free":
+                # If expiration is not set for free tier, set it far in the future
+                if not self.subscription_expires_at:
+                    self.subscription_expires_at = datetime.utcnow() + timedelta(days=365*10)  # 10 years
+                    self.payment_status = "active"
+                    try:
+                        db.session.commit()
+                    except Exception:
+                        db.session.rollback()
+                return True
+            
             if not self.subscription_expires_at:
-                self.subscription_expires_at = datetime.utcnow() + timedelta(days=365*10)  # 10 years
-                self.payment_status = "active"
-                db.session.commit()
-            return True
-        
-        if not self.subscription_expires_at:
-            # For free trials, set expiration if not set
-            if self.subscription_type == "free_trial" and self.subscription_started_at:
-                self.subscription_expires_at = self.subscription_started_at + timedelta(days=3)
-                db.session.commit()
-            else:
-                return False
-        
-        # Subscription is active if expiration date is in the future
-        return datetime.utcnow() < self.subscription_expires_at
+                # For free trials, set expiration if not set
+                if subscription_type == "free_trial" and self.subscription_started_at:
+                    self.subscription_expires_at = self.subscription_started_at + timedelta(days=3)
+                    try:
+                        db.session.commit()
+                    except Exception:
+                        db.session.rollback()
+                else:
+                    return False
+            
+            # Subscription is active if expiration date is in the future
+            return datetime.utcnow() < self.subscription_expires_at
+        except Exception as e:
+            # Log error but don't crash - default to False for safety
+            import logging
+            logging.error(f"Error checking subscription status for user {self.id}: {e}")
+            return False
     
     def days_remaining(self) -> int:
         """Get days remaining in subscription."""
@@ -321,8 +334,17 @@ class UserSession(db.Model):
     user_agent = db.Column(db.String(255), nullable=True)
     
     def is_valid(self) -> bool:
-        """Check if session is still valid."""
-        return datetime.utcnow() < self.expires_at
+        """Check if session is still valid (not expired and not inactive)."""
+        if datetime.utcnow() >= self.expires_at:
+            return False
+        
+        # Check for inactivity timeout (30 minutes)
+        if self.last_activity:
+            time_since_activity = datetime.utcnow() - self.last_activity
+            if time_since_activity > timedelta(minutes=30):
+                return False
+        
+        return True
     
     def refresh(self, duration_hours: int = 24 * 7):  # 7 days default
         """Refresh session expiration."""
@@ -355,6 +377,58 @@ class UserValidation(db.Model):
     validation_result = db.Column(db.Text)  # JSON string
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class Admin(db.Model):
+    """Admin user model."""
+    __tablename__ = "admins"
+    
+    id = db.Column(db.Integer, primary_key=True)
+    email = db.Column(db.String(255), unique=True, nullable=False, index=True)
+    password_hash = db.Column(db.String(255), nullable=False)
+    mfa_secret = db.Column(db.String(255), nullable=True)  # TOTP secret
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    def set_password(self, password: str):
+        """Set admin password."""
+        self.password_hash = generate_password_hash(password)
+        self.updated_at = datetime.utcnow()
+    
+    def check_password(self, password: str) -> bool:
+        """Check admin password."""
+        return check_password_hash(self.password_hash, password)
+    
+    @staticmethod
+    def get_or_create_admin(email: str, default_password: str = None) -> "Admin":
+        """Get or create admin user."""
+        admin = Admin.query.filter_by(email=email).first()
+        if not admin:
+            admin = Admin(email=email)
+            if default_password:
+                admin.set_password(default_password)
+            else:
+                # Generate random password if none provided
+                admin.set_password(secrets.token_urlsafe(32))
+            db.session.add(admin)
+            db.session.commit()
+        return admin
+
+
+class AdminResetToken(db.Model):
+    """Admin password reset token model."""
+    __tablename__ = "admin_reset_tokens"
+    
+    id = db.Column(db.Integer, primary_key=True)
+    token = db.Column(db.String(255), unique=True, nullable=False, index=True)
+    email = db.Column(db.String(255), nullable=False)
+    expires_at = db.Column(db.DateTime, nullable=False)
+    used = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    def is_valid(self) -> bool:
+        """Check if token is still valid."""
+        return not self.used and datetime.utcnow() < self.expires_at
 
 
 class Payment(db.Model):

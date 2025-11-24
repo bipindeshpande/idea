@@ -62,6 +62,18 @@ def get_current_session() -> Optional[UserSession]:
     if not session or not session.is_valid():
         return None
     
+    # Check for inactivity timeout (30 minutes)
+    INACTIVITY_TIMEOUT_MINUTES = 30
+    if session.last_activity:
+        time_since_activity = datetime.utcnow() - session.last_activity
+        if time_since_activity > timedelta(minutes=INACTIVITY_TIMEOUT_MINUTES):
+            # Session expired due to inactivity
+            db.session.delete(session)
+            db.session.commit()
+            return None
+    
+    # Update last activity timestamp
+    session.last_activity = datetime.utcnow()
     session.refresh()
     db.session.commit()
     return session
@@ -91,11 +103,23 @@ def require_auth(f):
 
 def check_admin_auth() -> bool:
     """Check if request has valid admin authentication."""
+    from app.models.database import Admin
     import os
-    ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "admin2024")
+    
     auth_header = request.headers.get("Authorization", "")
-    if auth_header.startswith("Bearer "):
-        token = auth_header.replace("Bearer ", "")
-        return token == ADMIN_PASSWORD
-    return False
+    if not auth_header.startswith("Bearer "):
+        return False
+    
+    token = auth_header.replace("Bearer ", "")
+    
+    # Check against database first
+    admin_email = os.environ.get("ADMIN_EMAIL", "").strip().lower()
+    if admin_email:
+        admin = Admin.query.filter_by(email=admin_email).first()
+        if admin and admin.check_password(token):
+            return True
+    
+    # Fallback to environment variable for backward compatibility
+    ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "admin2024")
+    return token == ADMIN_PASSWORD
 

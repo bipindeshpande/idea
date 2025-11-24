@@ -109,13 +109,13 @@ export default function PricingPage() {
 
   const colorClasses = {
     brand: {
-      border: "border-brand-300",
-      bg: "bg-brand-50",
+      border: "border-brand-300 dark:border-brand-700",
+      bg: "bg-brand-50 dark:bg-brand-900/30",
       button: "bg-gradient-to-r from-brand-500 to-brand-600 hover:from-brand-600 hover:to-brand-700",
     },
     coral: {
-      border: "border-coral-300",
-      bg: "bg-coral-50",
+      border: "border-coral-300 dark:border-coral-700",
+      bg: "bg-coral-50 dark:bg-coral-900/30",
       button: "bg-gradient-to-r from-coral-500 to-coral-600 hover:from-coral-600 hover:to-coral-700",
     },
   };

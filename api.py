@@ -34,9 +34,10 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from sqlalchemy import func
 
 from startup_idea_crew.crew import StartupIdeaCrew
-from app.models.database import db, User, UserSession, UserRun, UserValidation, Payment, SubscriptionCancellation
+from app.models.database import db, User, UserSession, UserRun, UserValidation, Payment, SubscriptionCancellation, Admin, AdminResetToken
 from app.services.email_service import email_service
 from app.services.email_templates import (
+    admin_password_reset_email,
     validation_ready_email,
     trial_ending_email,
     subscription_expiring_email,
@@ -474,6 +475,9 @@ Provide a detailed validation in the following JSON format:
   - What evidence is missing
   - What assumptions need validation
   - What would need to change for this to succeed
+  - Specific, actionable steps to improve each weak area
+  - Concrete examples of what success looks like
+  - Resources, frameworks, or tools that could help
   - Honest assessment of whether this idea is worth pursuing
   Be constructive but don't sugarcoat. If the idea has fundamental issues, say so clearly.>",
   "next_steps": "<Provide 3-5 specific, actionable next steps in markdown format. Each step should be:
@@ -594,7 +598,7 @@ REMEMBER:
 # Admin authentication imported from app.utils
 
 
-@app.post("/admin/save-validation-questions")
+@app.post("/api/admin/save-validation-questions")
 @limiter.limit("10 per hour")  # Max 10 config updates per hour per IP
 def save_validation_questions() -> Any:
   """Save validation questions configuration (admin only)."""
@@ -619,7 +623,7 @@ def save_validation_questions() -> Any:
     return jsonify({"success": False, "error": str(exc)}), 500
 
 
-@app.post("/admin/save-intake-fields")
+@app.post("/api/admin/save-intake-fields")
 @limiter.limit("10 per hour")  # Max 10 config updates per hour per IP
 def save_intake_fields() -> Any:
   """Save intake form fields configuration (admin only)."""
@@ -640,18 +644,20 @@ def save_intake_fields() -> Any:
       "screen_title": data.get("screen_title", "Tell Us About You"),
       "description": data.get("description", ""),
       "fields": fields,
+      "output_object": "basicProfile.json",
     }
     
     with open(output_file, "w", encoding="utf-8") as f:
       json.dump(config_data, f, indent=2, ensure_ascii=False)
     
+    app.logger.info(f"Intake fields saved to {output_file}")
     return jsonify({"success": True, "message": "Intake fields saved"})
   except Exception as exc:
     app.logger.exception("Failed to save intake fields: %s", exc)
     return jsonify({"success": False, "error": str(exc)}), 500
 
 
-@app.get("/admin/stats")
+@app.get("/api/admin/stats")
 @limiter.limit("30 per hour")  # Max 30 admin API calls per hour per IP
 def get_admin_stats() -> Any:
   """Get admin statistics (admin only)."""
@@ -673,6 +679,9 @@ def get_admin_stats() -> Any:
     ).count()
     free_trial_users = User.query.filter_by(subscription_type="free_trial").count()
     weekly_subscribers = User.query.filter_by(subscription_type="weekly").count()
+    starter_subscribers = User.query.filter_by(subscription_type="starter").count()
+    pro_subscribers = User.query.filter_by(subscription_type="pro").count()
+    # Legacy monthly subscribers (for backward compatibility)
     monthly_subscribers = User.query.filter_by(subscription_type="monthly").count()
     
     stats = {
@@ -684,7 +693,9 @@ def get_admin_stats() -> Any:
       "active_subscriptions": active_subscriptions,
       "free_trial_users": free_trial_users,
       "weekly_subscribers": weekly_subscribers,
-      "monthly_subscribers": monthly_subscribers,
+      "starter_subscribers": starter_subscribers,
+      "pro_subscribers": pro_subscribers,
+      "monthly_subscribers": monthly_subscribers,  # Legacy, for backward compatibility
     }
     
     return jsonify({"success": True, "stats": stats})
@@ -808,9 +819,408 @@ def update_user_subscription(user_id: int) -> Any:
         return jsonify({"success": False, "error": str(exc)}), 500
 
 
+@app.post("/api/admin/login")
+@limiter.limit("10 per hour")  # Max 10 login attempts per hour per IP
+def admin_login() -> Any:
+    """Verify admin password."""
+    data: Dict[str, Any] = request.get_json(force=True, silent=True) or {}
+    password = data.get("password", "").strip()
+    
+    if not password:
+        return jsonify({"success": False, "error": "Password is required"}), 400
+    
+    # Get admin email from environment
+    admin_email = os.environ.get("ADMIN_EMAIL", "").strip().lower()
+    
+    if not admin_email:
+        # Fallback to environment variable check
+        ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "admin2024")
+        if password == ADMIN_PASSWORD:
+            return jsonify({"success": True})
+        return jsonify({"success": False, "error": "Incorrect password"}), 401
+    
+    # Check against database
+    admin = Admin.query.filter_by(email=admin_email).first()
+    if admin and admin.check_password(password):
+        return jsonify({"success": True})
+    
+    # Fallback to environment variable
+    ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "admin2024")
+    if password == ADMIN_PASSWORD:
+        return jsonify({"success": True})
+    
+    return jsonify({"success": False, "error": "Incorrect password"}), 401
+
+
+@app.get("/api/admin/mfa-setup")
+@limiter.limit("5 per hour")  # Max 5 setup requests per hour per IP
+def admin_mfa_setup() -> Any:
+    """Get MFA setup information (secret and QR code data)."""
+    if not check_admin_auth():
+        return jsonify({"success": False, "error": "Unauthorized"}), 401
+    
+    # Get admin email from environment
+    admin_email = os.environ.get("ADMIN_EMAIL", "").strip().lower()
+    
+    # Get MFA secret from admin record or environment
+    mfa_secret = None
+    if admin_email:
+        admin = Admin.query.filter_by(email=admin_email).first()
+        if admin and admin.mfa_secret:
+            mfa_secret = admin.mfa_secret
+    
+    # Fallback to environment variable or default
+    if not mfa_secret:
+        mfa_secret = os.environ.get("ADMIN_MFA_SECRET", "JBSWY3DPEHPK3PXP")
+    
+    # Generate QR code URI for authenticator apps
+    try:
+        import pyotp
+        totp_uri = pyotp.totp.TOTP(mfa_secret).provisioning_uri(
+            name=admin_email or "Admin",
+            issuer_name="Startup Idea Advisor"
+        )
+        return jsonify({
+            "success": True,
+            "secret": mfa_secret,
+            "qr_uri": totp_uri,
+            "manual_entry_key": mfa_secret,
+        })
+    except ImportError:
+        # If pyotp is not installed, return secret only
+        return jsonify({
+            "success": True,
+            "secret": mfa_secret,
+            "manual_entry_key": mfa_secret,
+            "warning": "pyotp not installed. Install with: pip install pyotp for QR code generation"
+        })
+
+
+@app.post("/api/admin/verify-mfa")
+@limiter.limit("20 per hour")  # Max 20 MFA verifications per hour per IP
+def admin_verify_mfa() -> Any:
+    """Verify MFA code for admin."""
+    data: Dict[str, Any] = request.get_json(force=True, silent=True) or {}
+    mfa_code = data.get("mfa_code", "").strip()
+    
+    if not mfa_code:
+        return jsonify({"success": False, "error": "MFA code is required"}), 400
+    
+    # Development mode: Hardcoded MFA code
+    # TODO: Replace with proper TOTP validation for production
+    HARDCODED_MFA_CODE = "2538"
+    
+    if mfa_code == HARDCODED_MFA_CODE:
+        return jsonify({"success": True, "message": "MFA code verified"})
+    
+    # Production mode: TOTP validation (commented out for now)
+    # Uncomment this section when ready for production:
+    """
+    # Get admin email from environment
+    admin_email = os.environ.get("ADMIN_EMAIL", "").strip().lower()
+    
+    # Get MFA secret from admin record or environment
+    mfa_secret = None
+    if admin_email:
+        admin = Admin.query.filter_by(email=admin_email).first()
+        if admin and admin.mfa_secret:
+            mfa_secret = admin.mfa_secret
+    
+    # Fallback to environment variable or default
+    if not mfa_secret:
+        mfa_secret = os.environ.get("ADMIN_MFA_SECRET", "JBSWY3DPEHPK3PXP")
+    
+    # Verify TOTP code
+    try:
+        import pyotp
+        totp = pyotp.TOTP(mfa_secret)
+        # Allow current and adjacent time windows for clock skew tolerance
+        is_valid = totp.verify(mfa_code, valid_window=1)
+        
+        if is_valid:
+            return jsonify({"success": True, "message": "MFA code verified"})
+        else:
+            return jsonify({"success": False, "error": "Invalid MFA code. Please check the code from your authenticator app."}), 401
+    except ImportError:
+        app.logger.error("pyotp not installed. Cannot verify TOTP codes.")
+        return jsonify({"success": False, "error": "MFA verification not configured"}), 500
+    except Exception as e:
+        app.logger.error(f"MFA verification error: {e}")
+        return jsonify({"success": False, "error": "MFA verification failed"}), 500
+    """
+    
+    return jsonify({"success": False, "error": "Invalid MFA code"}), 401
+
+
+@app.post("/api/admin/forgot-password")
+@limiter.limit("3 per hour")  # Max 3 password reset requests per hour per IP
+def admin_forgot_password() -> Any:
+    """Request admin password reset."""
+    data: Dict[str, Any] = request.get_json(force=True, silent=True) or {}
+    email = data.get("email", "").strip().lower()
+    
+    if not email:
+        return jsonify({"success": False, "error": "Email is required"}), 400
+    
+    # Get admin email from environment
+    admin_email = os.environ.get("ADMIN_EMAIL", "").strip().lower()
+    
+    if not admin_email:
+        return jsonify({"success": False, "error": "Admin email not configured"}), 500
+    
+    # Verify email matches admin email
+    if email != admin_email:
+        # Don't reveal if email exists
+        return jsonify({"success": True, "message": "If email exists, reset link sent"})
+    
+    # Generate reset token
+    token = secrets.token_urlsafe(32)
+    expires_at = datetime.utcnow() + timedelta(hours=1)  # Token expires in 1 hour
+    
+    # Delete any existing unused tokens for this email
+    AdminResetToken.query.filter_by(email=email, used=False).delete()
+    
+    # Create new reset token
+    reset_token = AdminResetToken(
+        token=token,
+        email=email,
+        expires_at=expires_at,
+    )
+    db.session.add(reset_token)
+    db.session.commit()
+    
+    # Send email with reset link
+    reset_link = f"{os.environ.get('FRONTEND_URL', 'https://ideabunch.com')}/admin/reset-password?token={token}"
+    
+    try:
+        html_content, text_content = admin_password_reset_email(email, reset_link)
+        email_service.send_email(
+            to_email=email,
+            subject="Admin Password Reset - Startup Idea Advisor",
+            html_content=html_content,
+            text_content=text_content,
+        )
+        app.logger.info(f"Admin password reset email sent to {email}")
+    except Exception as e:
+        app.logger.warning(f"Failed to send admin password reset email to {email}: {e}")
+        # Still return success to avoid revealing if email exists
+    
+    return jsonify({
+        "success": True,
+        "message": "If email exists, reset link sent",
+        # Only include reset_link in DEBUG mode for development
+        "reset_link": reset_link if os.environ.get("DEBUG") else None,
+    })
+
+
+@app.post("/api/admin/reset-password")
+@limiter.limit("5 per hour")  # Max 5 password resets per hour per IP
+def admin_reset_password() -> Any:
+    """Reset admin password with token."""
+    data: Dict[str, Any] = request.get_json(force=True, silent=True) or {}
+    token = data.get("token", "").strip()
+    new_password = data.get("password", "").strip()
+    
+    if not token or not new_password:
+        return jsonify({"success": False, "error": "Token and password are required"}), 400
+    
+    if len(new_password) < 8:
+        return jsonify({"success": False, "error": "Password must be at least 8 characters"}), 400
+    
+    # Find reset token
+    reset_token = AdminResetToken.query.filter_by(token=token).first()
+    
+    if not reset_token or not reset_token.is_valid():
+        return jsonify({"success": False, "error": "Invalid or expired reset token"}), 400
+    
+    # Mark token as used
+    reset_token.used = True
+    
+    # Get or create admin user
+    admin = Admin.get_or_create_admin(reset_token.email)
+    
+    # Update admin password
+    admin.set_password(new_password)
+    db.session.commit()
+    
+    app.logger.info(f"Admin password reset successful for {reset_token.email}")
+    
+    return jsonify({
+        "success": True,
+        "message": "Password reset successfully. You can now login with your new password."
+    })
+
+
+@app.get("/api/admin/reports/export")
+@limiter.limit("10 per hour")  # Max 10 report exports per hour per IP
+def export_report() -> Any:
+    """Export reports as CSV (admin only)."""
+    if not check_admin_auth():
+        return jsonify({"success": False, "error": "Unauthorized"}), 401
+    
+    from flask import Response
+    import csv
+    from io import StringIO
+    
+    report_type = request.args.get("type", "full")
+    
+    try:
+        output = StringIO()
+        writer = csv.writer(output)
+        
+        if report_type == "users":
+            writer.writerow(["ID", "Email", "Subscription Type", "Payment Status", "Days Remaining", "Created At", "Subscription Started", "Subscription Expires"])
+            users = User.query.all()
+            for user in users:
+                writer.writerow([
+                    user.id,
+                    user.email,
+                    user.subscription_type or "free",
+                    user.payment_status or "inactive",
+                    user.days_remaining(),
+                    user.created_at.isoformat() if user.created_at else "",
+                    user.subscription_started_at.isoformat() if user.subscription_started_at else "",
+                    user.subscription_expires_at.isoformat() if user.subscription_expires_at else "",
+                ])
+        
+        elif report_type == "payments":
+            writer.writerow(["ID", "User Email", "Amount", "Currency", "Subscription Type", "Status", "Stripe Payment Intent ID", "Created At", "Completed At"])
+            payments = Payment.query.order_by(Payment.created_at.desc()).all()
+            for payment in payments:
+                writer.writerow([
+                    payment.id,
+                    payment.user.email if payment.user else "N/A",
+                    payment.amount,
+                    payment.currency,
+                    payment.subscription_type,
+                    payment.status,
+                    payment.stripe_payment_intent_id or "",
+                    payment.created_at.isoformat() if payment.created_at else "",
+                    payment.completed_at.isoformat() if payment.completed_at else "",
+                ])
+        
+        elif report_type == "activity":
+            writer.writerow(["Type", "ID", "User Email", "Run/Validation ID", "Created At"])
+            runs = UserRun.query.order_by(UserRun.created_at.desc()).all()
+            for run in runs:
+                writer.writerow([
+                    "Run",
+                    run.id,
+                    run.user.email if run.user else "N/A",
+                    run.run_id,
+                    run.created_at.isoformat() if run.created_at else "",
+                ])
+            validations = UserValidation.query.order_by(UserValidation.created_at.desc()).all()
+            for validation in validations:
+                writer.writerow([
+                    "Validation",
+                    validation.id,
+                    validation.user.email if validation.user else "N/A",
+                    validation.validation_id,
+                    validation.created_at.isoformat() if validation.created_at else "",
+                ])
+        
+        elif report_type == "subscriptions":
+            writer.writerow(["User Email", "Subscription Type", "Status", "Started At", "Expires At", "Days Remaining", "Monthly Validations Used", "Monthly Discoveries Used"])
+            users = User.query.filter(User.subscription_type.in_(["starter", "pro", "weekly"])).all()
+            for user in users:
+                writer.writerow([
+                    user.email,
+                    user.subscription_type,
+                    "active" if user.is_subscription_active() else "expired",
+                    user.subscription_started_at.isoformat() if user.subscription_started_at else "",
+                    user.subscription_expires_at.isoformat() if user.subscription_expires_at else "",
+                    user.days_remaining(),
+                    user.monthly_validations_used,
+                    user.monthly_discoveries_used,
+                ])
+        
+        elif report_type == "revenue":
+            writer.writerow(["Period", "Total Revenue", "Payment Count", "Average Payment", "Subscription Type Breakdown"])
+            # Group by month
+            from sqlalchemy import func, extract
+            payments = Payment.query.filter_by(status="completed").all()
+            revenue_by_month = {}
+            for payment in payments:
+                if payment.created_at:
+                    month_key = payment.created_at.strftime("%Y-%m")
+                    if month_key not in revenue_by_month:
+                        revenue_by_month[month_key] = {"revenue": 0, "count": 0, "types": {}}
+                    revenue_by_month[month_key]["revenue"] += payment.amount
+                    revenue_by_month[month_key]["count"] += 1
+                    sub_type = payment.subscription_type or "unknown"
+                    revenue_by_month[month_key]["types"][sub_type] = revenue_by_month[month_key]["types"].get(sub_type, 0) + payment.amount
+            
+            for month, data in sorted(revenue_by_month.items()):
+                avg = data["revenue"] / data["count"] if data["count"] > 0 else 0
+                types_str = ", ".join([f"{k}: ${v:.2f}" for k, v in data["types"].items()])
+                writer.writerow([
+                    month,
+                    f"${data['revenue']:.2f}",
+                    data["count"],
+                    f"${avg:.2f}",
+                    types_str,
+                ])
+        
+        else:  # full report
+            writer.writerow(["Report Type", "Data"])
+            # Users
+            writer.writerow(["USERS", ""])
+            writer.writerow(["ID", "Email", "Subscription Type", "Payment Status", "Days Remaining", "Created At"])
+            users = User.query.all()
+            for user in users:
+                writer.writerow([
+                    user.id,
+                    user.email,
+                    user.subscription_type or "free",
+                    user.payment_status or "inactive",
+                    user.days_remaining(),
+                    user.created_at.isoformat() if user.created_at else "",
+                ])
+            writer.writerow([])
+            # Payments
+            writer.writerow(["PAYMENTS", ""])
+            writer.writerow(["ID", "User Email", "Amount", "Currency", "Subscription Type", "Status", "Created At"])
+            payments = Payment.query.order_by(Payment.created_at.desc()).all()
+            for payment in payments:
+                writer.writerow([
+                    payment.id,
+                    payment.user.email if payment.user else "N/A",
+                    payment.amount,
+                    payment.currency,
+                    payment.subscription_type,
+                    payment.status,
+                    payment.created_at.isoformat() if payment.created_at else "",
+                ])
+        
+        output.seek(0)
+        return Response(
+            output.getvalue(),
+            mimetype="text/csv",
+            headers={"Content-Disposition": f"attachment; filename={report_type}_report_{datetime.utcnow().strftime('%Y%m%d')}.csv"}
+        )
+    except Exception as exc:
+        app.logger.exception("Failed to export report: %s", exc)
+        return jsonify({"success": False, "error": str(exc)}), 500
+
+
 # Initialize database tables
 with app.app_context():
     db.create_all()
+    
+    # Initialize admin user if ADMIN_EMAIL is set
+    admin_email = os.environ.get("ADMIN_EMAIL", "").strip().lower()
+    if admin_email:
+        default_password = os.environ.get("ADMIN_PASSWORD", "admin2024")
+        admin = Admin.get_or_create_admin(admin_email, default_password)
+        
+        # Set MFA secret if not already set
+        mfa_secret = os.environ.get("ADMIN_MFA_SECRET", "JBSWY3DPEHPK3PXP")
+        if not admin.mfa_secret:
+            admin.mfa_secret = mfa_secret
+            db.session.commit()
+        
+        app.logger.info(f"Admin user initialized: {admin_email}")
 
 
 # Authentication & User Management Endpoints
@@ -1082,35 +1492,42 @@ def change_password() -> Any:
 @limiter.limit("30 per hour")  # Max 30 status checks per hour per IP
 def get_subscription_status() -> Any:
     """Get current subscription status."""
-    session = get_current_session()
-    if not session:
-        return jsonify({"success": False, "error": "Not authenticated"}), 401
-    
-    user = session.user
-    is_active = user.is_subscription_active()
-    days_remaining = user.days_remaining()
-    
-    # Get payment history
-    payments = Payment.query.filter_by(user_id=user.id, status="completed").order_by(Payment.created_at.desc()).limit(10).all()
-    payment_history = [{
-        "id": p.id,
-        "amount": p.amount,
-        "subscription_type": p.subscription_type,
-        "created_at": p.created_at.isoformat() if p.created_at else None,
-    } for p in payments]
-    
-    return jsonify({
-        "success": True,
-        "subscription": {
-            "type": user.subscription_type,
-            "status": user.payment_status,
-            "is_active": is_active,
-            "days_remaining": days_remaining,
-            "expires_at": user.subscription_expires_at.isoformat() if user.subscription_expires_at else None,
-            "started_at": user.subscription_started_at.isoformat() if user.subscription_started_at else None,
-        },
-        "payment_history": payment_history,
-    })
+    try:
+        session = get_current_session()
+        if not session:
+            return jsonify({"success": False, "error": "Not authenticated"}), 401
+        
+        user = session.user
+        if not user:
+            return jsonify({"success": False, "error": "User not found"}), 404
+        
+        is_active = user.is_subscription_active()
+        days_remaining = user.days_remaining()
+        
+        # Get payment history
+        payments = Payment.query.filter_by(user_id=user.id, status="completed").order_by(Payment.created_at.desc()).limit(10).all()
+        payment_history = [{
+            "id": p.id,
+            "amount": p.amount,
+            "subscription_type": p.subscription_type,
+            "created_at": p.created_at.isoformat() if p.created_at else None,
+        } for p in payments]
+        
+        return jsonify({
+            "success": True,
+            "subscription": {
+                "type": user.subscription_type or "free",
+                "status": user.payment_status or "active",
+                "is_active": is_active,
+                "days_remaining": days_remaining,
+                "expires_at": user.subscription_expires_at.isoformat() if user.subscription_expires_at else None,
+                "started_at": user.subscription_started_at.isoformat() if user.subscription_started_at else None,
+            },
+            "payment_history": payment_history,
+        })
+    except Exception as e:
+        app.logger.exception("Error getting subscription status: %s", e)
+        return jsonify({"success": False, "error": "Failed to load subscription status"}), 500
 
 
 @app.post("/api/subscription/cancel")
@@ -1241,7 +1658,8 @@ def change_subscription_plan() -> Any:
     data: Dict[str, Any] = request.get_json(force=True, silent=True) or {}
     new_subscription_type = data.get("subscription_type", "").strip()
     
-    if new_subscription_type not in ["weekly", "monthly"]:
+    # Valid subscription types: starter, pro, weekly
+    if new_subscription_type not in ["starter", "pro", "weekly"]:
         return jsonify({"success": False, "error": "Invalid subscription type"}), 400
     
     user = session.user
@@ -1257,7 +1675,12 @@ def change_subscription_plan() -> Any:
     try:
         # Calculate prorated amount or immediate switch
         # For simplicity, we'll extend current subscription with new duration
-        duration_days = {"weekly": 7, "monthly": 30}[new_subscription_type]
+        duration_days_map = {
+            "starter": 30,
+            "pro": 30,
+            "weekly": 7,
+        }
+        duration_days = duration_days_map[new_subscription_type]
         
         # If user has time remaining, extend from current expiration
         # Otherwise, start from now
@@ -1362,7 +1785,7 @@ def get_user_activity() -> Any:
 
 @app.get("/api/user/run/<run_id>")
 @require_auth
-@limiter.limit("30 per hour")  # Max 30 run fetches per hour per IP
+@limiter.limit("200 per hour")  # Max 200 run fetches per hour per IP (increased to prevent 429 errors)
 def get_user_run(run_id: str) -> Any:
     """Get a specific user's run data including inputs and reports."""
     session = get_current_session()
@@ -1442,22 +1865,25 @@ def create_payment_intent() -> Any:
         return jsonify({"success": False, "error": "Not authenticated"}), 401
     
     data: Dict[str, Any] = request.get_json(force=True, silent=True) or {}
-    subscription_type = data.get("subscription_type", "").strip()  # weekly or monthly
+    subscription_type = data.get("subscription_type", "").strip()
     
-    if subscription_type not in ["weekly", "monthly"]:
+    # Valid subscription types: starter, pro, weekly
+    if subscription_type not in ["starter", "pro", "weekly"]:
         return jsonify({"success": False, "error": "Invalid subscription type"}), 400
     
     user = session.user
     
     # Amounts in cents
     amounts = {
-        "weekly": 500,  # $5.00
-        "monthly": 1500,  # $15.00
+        "starter": 700,   # $7.00/month
+        "pro": 1500,      # $15.00/month
+        "weekly": 500,    # $5.00/week
     }
     
     duration_days = {
-        "weekly": 7,
-        "monthly": 30,
+        "starter": 30,    # 30 days
+        "pro": 30,        # 30 days
+        "weekly": 7,      # 7 days
     }
     
     try:
@@ -1557,7 +1983,17 @@ def confirm_payment() -> Any:
         if existing_payment:
             return jsonify({"success": False, "error": "Payment already processed"}), 400
         
-        duration_days = {"weekly": 7, "monthly": 30}[subscription_type]
+        # Duration mapping for all subscription types
+        duration_days_map = {
+            "starter": 30,
+            "pro": 30,
+            "weekly": 7,
+        }
+        
+        if subscription_type not in duration_days_map:
+            return jsonify({"success": False, "error": "Invalid subscription type"}), 400
+        
+        duration_days = duration_days_map[subscription_type]
         
         # Activate subscription
         user.activate_subscription(subscription_type, duration_days)
@@ -1647,7 +2083,12 @@ def stripe_webhook() -> Any:
                 user = payment.user
                 if user.payment_status != 'active':
                     subscription_type = payment.subscription_type
-                    duration_days = 7 if subscription_type == 'weekly' else 30
+                    duration_days_map = {
+                        "starter": 30,
+                        "pro": 30,
+                        "weekly": 7,
+                    }
+                    duration_days = duration_days_map.get(subscription_type, 30)
                     user.activate_subscription(subscription_type, duration_days)
                     
                     # Send activation email
@@ -1752,7 +2193,7 @@ def check_expiring_subscriptions() -> Any:
         
         # Check paid subscriptions expiring in 3 days
         paid_expiring = User.query.filter(
-            User.subscription_type.in_(["weekly", "monthly"]),
+            User.subscription_type.in_(["starter", "pro", "weekly"]),
             User.payment_status == "active",
             User.subscription_expires_at <= now + timedelta(days=3),
             User.subscription_expires_at > now,

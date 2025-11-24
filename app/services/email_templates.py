@@ -222,6 +222,38 @@ Thank you for your support!
     return get_base_template(content), text_content
 
 
+def admin_password_reset_email(admin_email: str, reset_link: str) -> tuple[str, str]:
+    """Email template for admin password reset."""
+    name = admin_email.split("@")[0] if "@" in admin_email else "Admin"
+    
+    content = f"""
+    <h2 style="color: #333; margin-top: 0;">Hi {name},</h2>
+    <p>You requested to reset your admin password for Startup Idea Advisor.</p>
+    <p>Click the button below to reset your password. This link will expire in 1 hour.</p>
+    <div style="text-align: center; margin: 30px 0;">
+        <a href="{reset_link}" 
+           style="background: #667eea; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold;">
+            Reset Admin Password
+        </a>
+    </div>
+    <p style="color: #666; font-size: 14px;">If you didn't request this, please ignore this email. Your password will remain unchanged.</p>
+    <p style="color: #999; font-size: 12px; margin-top: 20px;">Or copy and paste this link into your browser:<br>{reset_link}</p>
+    """
+    
+    text_content = f"""
+Hi {name},
+
+You requested to reset your admin password for Startup Idea Advisor.
+
+Click this link to reset your password (expires in 1 hour):
+{reset_link}
+
+If you didn't request this, please ignore this email.
+"""
+    
+    return get_base_template(content), text_content
+
+
 def password_reset_email(user_name: str, reset_link: str) -> tuple[str, str]:
     """Email template for password reset."""
     name = user_name.split("@")[0] if "@" in user_name else user_name

@@ -226,16 +226,27 @@ export function buildExecutionSteps(
       .replace(/{{focus}}/g, focus)
       .replace(/{{categoryPlan}}/g, focusSpecificPlan(focus));
     
-    // Add idea-specific context to make steps more unique
+    // Add idea-specific context to make steps more unique (only for first step to avoid duplication)
     let enhancedStep = filled;
-    if (ideaSpecificPrefix && templateIndex < 3) {
+    // Only add prefix if it's the first template AND the filled template doesn't already contain the prefix text
+    const prefixFirstWord = ideaSpecificPrefix ? ideaSpecificPrefix.toLowerCase().split(' ')[0] : '';
+    const filledLower = filled.toLowerCase();
+    const alreadyHasPrefix = prefixFirstWord && filledLower.includes(prefixFirstWord) && filledLower.includes('service delivery');
+    
+    if (ideaSpecificPrefix && templateIndex === 0 && !alreadyHasPrefix) {
       enhancedStep = `${ideaSpecificPrefix} for ${normalizedTitle}. ${filled}`;
     }
     
     const cleaned = personalizeCopy(enhancedStep);
     const fingerprint = cleaned.toLowerCase();
-    if (!seen.has(fingerprint)) {
+    
+    // Check for duplicates - both full text and core content (without prefix)
+    const coreContent = cleaned.replace(/^[^.]*\.\s*/i, '').toLowerCase().trim();
+    const isDuplicate = seen.has(fingerprint) || seen.has(coreContent);
+    
+    if (!isDuplicate) {
       seen.add(fingerprint);
+      seen.add(coreContent);
       steps.push(cleaned);
     }
     templateIndex += 1;
@@ -477,33 +488,159 @@ function formatCurrency(amount) {
 }
 
 export function parseRiskRows(sectionText = "") {
+  if (!sectionText) return [];
+  
+  // First, check if this is a markdown table format
+  const tableRows = sectionText.match(/\|.*\|/g);
+  if (tableRows && tableRows.length >= 2) {
+    // Skip header row and separator row
+    const dataRows = tableRows.slice(2);
+    const results = [];
+    
+    for (const row of dataRows) {
+      const cells = row.split("|").map(cell => cell.trim()).filter(cell => cell);
+      
+      if (cells.length >= 3) {
+        // Table format: [Risk Category, Risk Description, Mitigation Strategies]
+        const riskCategory = cells[0] || "";
+        const riskDescription = cells[1] || "";
+        const mitigation = cells[2] || "";
+        
+        // Combine category and description for the risk text
+        let riskText = riskCategory;
+        if (riskDescription && riskDescription !== riskCategory) {
+          riskText = riskCategory ? `${riskCategory}: ${riskDescription}` : riskDescription;
+        }
+        
+        // Try to extract severity from the risk text or description
+        let severity = "MEDIUM";
+        const severityMatch =
+          (riskText + " " + riskDescription).match(/\b(severe|critical|extreme|high)\b/i) ||
+          (riskText + " " + riskDescription).match(/\b(medium|moderate)\b/i) ||
+          (riskText + " " + riskDescription).match(/\b(low|minor)\b/i);
+        if (severityMatch) {
+          const severityText = severityMatch[0].toLowerCase();
+          if (severityText.match(/\b(severe|critical|extreme|high)\b/i)) {
+            severity = "HIGH";
+          } else if (severityText.match(/\b(low|minor)\b/i)) {
+            severity = "LOW";
+          }
+        }
+        
+        results.push({
+          risk: personalizeCopy(riskText.replace(/\*\*/g, "").trim()),
+          severity,
+          mitigation: personalizeCopy(mitigation.replace(/\*\*/g, "").trim() || "Create a mitigation experiment to reduce this risk within the next sprint."),
+        });
+      } else if (cells.length === 2) {
+        // Two-column format: [Risk, Mitigation]
+        const riskText = cells[0] || "";
+        const mitigation = cells[1] || "";
+        
+        // Try to extract severity
+        let severity = "MEDIUM";
+        const severityMatch =
+          riskText.match(/\b(severe|critical|extreme|high)\b/i) ||
+          riskText.match(/\b(medium|moderate)\b/i) ||
+          riskText.match(/\b(low|minor)\b/i);
+        if (severityMatch) {
+          const severityText = severityMatch[0].toLowerCase();
+          if (severityText.match(/\b(severe|critical|extreme|high)\b/i)) {
+            severity = "HIGH";
+          } else if (severityText.match(/\b(low|minor)\b/i)) {
+            severity = "LOW";
+          }
+        }
+        
+        results.push({
+          risk: personalizeCopy(riskText.replace(/\*\*/g, "").trim()),
+          severity,
+          mitigation: personalizeCopy(mitigation.replace(/\*\*/g, "").trim() || "Create a mitigation experiment to reduce this risk within the next sprint."),
+        });
+      }
+    }
+    
+    if (results.length > 0) {
+      return results;
+    }
+  }
+  
+  // Fall back to list format parsing
   const items = extractListFromText(sectionText);
   return items.map((item) => {
-    const severityMatch =
-      item.match(/\b(severe|critical|extreme|high)\b/i) ||
-      item.match(/\b(medium|moderate)\b/i) ||
-      item.match(/\b(low|minor)\b/i);
-    const severity = severityMatch ? severityMatch[0].toUpperCase() : "MEDIUM";
-
-    const mitigationMatch = item.match(/mitigation[:\-]?\s*(.+)$/i);
-    let mitigation = mitigationMatch ? mitigationMatch[1].trim() : "";
-
-    let riskText = item;
-    if (mitigationMatch) {
-      riskText = item.slice(0, mitigationMatch.index).trim().replace(/[—–-]\s*$/u, "");
-    } else if (item.includes("—") || item.includes("–")) {
-      const split = item.split(/[—–]/u);
-      riskText = split[0].trim();
-      mitigation = split.slice(1).join("—").trim();
-    } else if (item.includes("-")) {
-      const split = item.split("-");
-      riskText = split[0].trim();
-      mitigation = split.slice(1).join("-").trim();
+    // Clean up the item - remove markdown bold markers
+    let cleaned = item.replace(/\*\*/g, "").trim();
+    
+    // Try to parse format: "Risk Name (Severity severity): Mitigation"
+    // Example: "Market saturation (Medium severity): Focus on a specific niche"
+    const severityInParensMatch = cleaned.match(/\(([^)]*severity[^)]*)\)/i);
+    let severity = "MEDIUM";
+    let riskText = cleaned;
+    let mitigation = "";
+    
+    if (severityInParensMatch) {
+      // Extract severity from parentheses
+      const severityText = severityInParensMatch[1];
+      if (severityText.match(/\b(severe|critical|extreme|high)\b/i)) {
+        severity = "HIGH";
+      } else if (severityText.match(/\b(medium|moderate)\b/i)) {
+        severity = "MEDIUM";
+      } else if (severityText.match(/\b(low|minor)\b/i)) {
+        severity = "LOW";
+      }
+      
+      // Split on the severity parentheses to get risk and mitigation
+      const parts = cleaned.split(/\([^)]*severity[^)]*\)/i);
+      if (parts.length >= 2) {
+        riskText = parts[0].trim();
+        mitigation = parts.slice(1).join(":").replace(/^:\s*/, "").trim();
+      }
+    } else {
+      // Try to find severity in the text without parentheses
+      const severityMatch =
+        cleaned.match(/\b(severe|critical|extreme|high)\b/i) ||
+        cleaned.match(/\b(medium|moderate)\b/i) ||
+        cleaned.match(/\b(low|minor)\b/i);
+      severity = severityMatch ? severityMatch[0].toUpperCase() : "MEDIUM";
+      
+      // Try to find mitigation with colon separator
+      const colonIndex = cleaned.indexOf(":");
+      if (colonIndex > 0) {
+        riskText = cleaned.slice(0, colonIndex).trim();
+        mitigation = cleaned.slice(colonIndex + 1).trim();
+      } else {
+        // Try em dash or regular dash
+        if (cleaned.includes("—") || cleaned.includes("–")) {
+          const split = cleaned.split(/[—–]/u);
+          riskText = split[0].trim();
+          mitigation = split.slice(1).join("—").trim();
+        } else if (cleaned.includes(" - ")) {
+          const split = cleaned.split(" - ");
+          riskText = split[0].trim();
+          mitigation = split.slice(1).join(" - ").trim();
+        } else {
+          // Try mitigation keyword
+          const mitigationMatch = cleaned.match(/mitigation[:\-]?\s*(.+)$/i);
+          if (mitigationMatch) {
+            riskText = cleaned.slice(0, mitigationMatch.index).trim().replace(/[—–-]\s*$/u, "");
+            mitigation = mitigationMatch[1].trim();
+          } else {
+            riskText = cleaned;
+          }
+        }
+      }
     }
-
-    if (!mitigation) {
+    
+    // Clean up risk text - remove any remaining markdown or extra formatting
+    riskText = riskText.replace(/^\*\*|\*\*$/g, "").replace(/^[-•]\s*/, "").trim();
+    
+    // If no mitigation found, provide default
+    if (!mitigation || mitigation.length === 0) {
       mitigation = "Create a mitigation experiment to reduce this risk within the next sprint.";
     }
+    
+    // Clean up mitigation text
+    mitigation = mitigation.replace(/^:\s*/, "").trim();
 
     return {
       risk: personalizeCopy(riskText),
@@ -828,22 +965,82 @@ function sanitizeMatrixNotes(notes = "") {
 }
 
 export function extractTimelineSlice(markdown = "", segmentIndex = 0) {
-  if (!markdown) return "Add specific milestones for this window.";
+  if (!markdown) return "Define clear milestones for this period.";
+  
+  // First, try to parse as markdown table
   const rows = markdown.match(/\|.*\|/g);
   if (rows && rows.length >= 3) {
-    const headers = rows.slice(1); // skip header row
-    const target = headers[segmentIndex];
+    const dataRows = rows.slice(2); // skip header and separator
+    const target = dataRows[segmentIndex];
     if (target) {
-      const cells = target.split("|").map((cell) => cell.trim());
-      if (cells.length >= 3) {
-        return cells[2] || "Define clear milestones for this period.";
+      const cells = target.split("|").map((cell) => cell.trim()).filter(cell => cell);
+      if (cells.length >= 2) {
+        // Usually the content is in the last cell
+        const content = cells[cells.length - 1] || cells[1];
+        if (content && content !== "Define clear milestones for this period." && content.length > 10) {
+          return content;
+        }
       }
     }
   }
-  const sections = markdown.split(/###\s+/).filter(Boolean);
-  if (sections[segmentIndex]) {
-    return sections[segmentIndex].replace(/^[0-9\-]+\s*Days?:?\s*/i, "").trim();
+  
+  // Define patterns for each segment
+  // Format examples: "**Days 0–30**:", "**Days 30–60**:", "**Days 60–90**:"
+  // Or: "**30 Days:**", "**60 Days:**", "**90 Days:**"
+  const segmentPatterns = [
+    [/\*\*Days?\s*0[–-]\s*30\*\*:?/i, /\*\*30\s*Days?:\*\*/i],
+    [/\*\*Days?\s*30[–-]\s*60\*\*:?/i, /\*\*60\s*Days?:\*\*/i],
+    [/\*\*Days?\s*60[–-]\s*90\*\*:?/i, /\*\*90\s*Days?:\*\*/i],
+  ];
+  
+  const currentPatterns = segmentPatterns[segmentIndex] || segmentPatterns[0];
+  const nextPatterns = segmentIndex < 2 ? segmentPatterns[segmentIndex + 1] : null;
+  
+  // Find the start of the target segment
+  let startIndex = -1;
+  let startPattern = null;
+  
+  for (const pattern of currentPatterns) {
+    const match = markdown.match(pattern);
+    if (match && match.index !== undefined) {
+      startIndex = match.index;
+      startPattern = pattern;
+      break;
+    }
   }
+  
+  if (startIndex === -1) {
+    return "Define clear milestones for this period.";
+  }
+  
+  // Find the end of the segment (start of next segment or end of text)
+  let endIndex = markdown.length;
+  if (nextPatterns) {
+    for (const pattern of nextPatterns) {
+      const match = markdown.substring(startIndex + 1).match(pattern);
+      if (match && match.index !== undefined) {
+        endIndex = startIndex + 1 + match.index;
+        break;
+      }
+    }
+  }
+  
+  // Extract the segment content
+  let segmentContent = markdown.substring(startIndex, endIndex);
+  
+  // Remove the day marker from the beginning
+  for (const pattern of currentPatterns) {
+    segmentContent = segmentContent.replace(pattern, "").trim();
+  }
+  
+  // Clean up: remove leading colons, dashes, or whitespace
+  segmentContent = segmentContent.replace(/^[:–\-\s]+/, "").trim();
+  
+  // If we have content, return it
+  if (segmentContent && segmentContent.length > 10) {
+    return segmentContent;
+  }
+  
   return "Define clear milestones for this period.";
 }
 

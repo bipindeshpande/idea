@@ -8,6 +8,50 @@ export function AuthProvider({ children }) {
   const [sessionToken, setSessionToken] = useState(localStorage.getItem(SESSION_TOKEN_KEY));
   const [loading, setLoading] = useState(true);
   const [subscription, setSubscription] = useState(null);
+  const [lastActivity, setLastActivity] = useState(Date.now());
+
+  // Track user activity for inactivity timeout
+  useEffect(() => {
+    if (!sessionToken) return;
+
+    const INACTIVITY_TIMEOUT = 30 * 60 * 1000; // 30 minutes in milliseconds
+    let inactivityTimer;
+
+    const updateActivity = () => {
+      setLastActivity(Date.now());
+    };
+
+    const events = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart', 'click'];
+    events.forEach(event => {
+      document.addEventListener(event, updateActivity, true);
+    });
+
+    const checkInactivity = () => {
+      const timeSinceActivity = Date.now() - lastActivity;
+      if (timeSinceActivity >= INACTIVITY_TIMEOUT) {
+        // Session expired due to inactivity
+        localStorage.removeItem(SESSION_TOKEN_KEY);
+        setSessionToken(null);
+        setUser(null);
+        setSubscription(null);
+        // Clean up event listeners
+        events.forEach(event => {
+          document.removeEventListener(event, updateActivity, true);
+        });
+        return;
+      }
+      inactivityTimer = setTimeout(checkInactivity, 60000); // Check every minute
+    };
+
+    inactivityTimer = setTimeout(checkInactivity, 60000);
+
+    return () => {
+      clearTimeout(inactivityTimer);
+      events.forEach(event => {
+        document.removeEventListener(event, updateActivity, true);
+      });
+    };
+  }, [sessionToken, lastActivity]);
 
   // Load user on mount
   useEffect(() => {

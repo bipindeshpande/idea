@@ -4,6 +4,7 @@ import ReactMarkdown from "react-markdown";
 import Seo from "../../components/common/Seo.jsx";
 import { useValidation } from "../../context/ValidationContext.jsx";
 import { useReports } from "../../context/ReportsContext.jsx";
+import { useAuth } from "../../context/AuthContext.jsx";
 import { mapValidationToIntake, getExperienceSummaryFromValidation } from "../../utils/mappers/validationToIntakeMapper.js";
 import { buildValidationConclusion } from "../../utils/formatters/validationConclusion.js";
 
@@ -40,6 +41,8 @@ export default function ValidationResult() {
   const navigate = useNavigate();
   const { currentValidation, loadValidationById, categoryAnswers, ideaExplanation } = useValidation();
   const { setInputs } = useReports();
+  const { subscription } = useAuth();
+  const isPro = subscription?.subscription_type === "pro" || subscription?.subscription_type === "weekly";
 
   useEffect(() => {
     const validationId = searchParams.get("id");
@@ -120,57 +123,6 @@ export default function ValidationResult() {
         >
           Validate Another Idea
         </Link>
-      </div>
-
-      {/* Executive Summary */}
-      <div className="mb-6 rounded-3xl border-2 border-brand-200 bg-gradient-to-br from-brand-50 to-white p-6 shadow-soft">
-        <h2 className="mb-4 text-2xl font-bold text-slate-900">Executive Summary</h2>
-        <div className="grid gap-6 md:grid-cols-2">
-          <div className="text-center">
-            <p className="text-sm font-semibold uppercase tracking-wide text-brand-700">Overall Score</p>
-            <div className="mt-4 inline-flex items-baseline gap-2">
-              <span className="text-6xl font-bold text-brand-700">{overallScore}</span>
-              <span className="text-2xl font-medium text-slate-500">/ 10</span>
-            </div>
-            <p className="mt-4 text-lg text-slate-700">
-              {overallScore >= 8
-                ? "Excellent! Your idea shows strong potential."
-                : overallScore >= 6
-                ? "Good potential with some areas to strengthen."
-                : "Consider refining key aspects before moving forward."}
-            </p>
-          </div>
-          <div>
-            <h3 className="mb-3 text-lg font-semibold text-slate-900">Key Strengths</h3>
-            <ul className="space-y-2 text-sm text-slate-700">
-              {Object.entries(scores)
-                .filter(([_, score]) => score >= 7)
-                .slice(0, 3)
-                .map(([key, score]) => (
-                  <li key={key} className="flex items-center gap-2">
-                    <span className="text-emerald-600">✓</span>
-                    <span>{key.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())} ({score}/10)</span>
-                  </li>
-                ))}
-              {Object.entries(scores).filter(([_, score]) => score >= 7).length === 0 && (
-                <li className="text-slate-500">Focus on improving all areas</li>
-              )}
-            </ul>
-            <h3 className="mb-3 mt-4 text-lg font-semibold text-slate-900">Areas to Improve</h3>
-            <ul className="space-y-2 text-sm text-slate-700">
-              {Object.entries(scores)
-                .filter(([_, score]) => score < 6)
-                .sort(([_, a], [__, b]) => a - b)
-                .slice(0, 3)
-                .map(([key, score]) => (
-                  <li key={key} className="flex items-center gap-2">
-                    <span className="text-amber-600">⚠</span>
-                    <span>{key.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())} ({score}/10)</span>
-                  </li>
-                ))}
-            </ul>
-          </div>
-        </div>
       </div>
 
       {/* Parameter Scores Grid */}
@@ -327,6 +279,52 @@ export default function ValidationResult() {
             >
               {nextSteps}
             </ReactMarkdown>
+          </div>
+        </div>
+      )}
+
+      {/* Value Highlights - What You Get */}
+      {!isPro && (
+        <div className="mb-6 rounded-3xl border-2 border-brand-300 bg-gradient-to-br from-brand-50 via-white to-brand-50/50 p-6 shadow-soft">
+          <div className="mb-4 flex items-center gap-3">
+            <h2 className="text-xl font-bold text-slate-900">💡 Get Even Better Outcomes</h2>
+          </div>
+          <p className="mb-4 text-slate-700">
+            You're getting comprehensive validation analysis. Here's how Pro users get even more value:
+          </p>
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="rounded-xl border border-brand-200 bg-white p-4">
+              <h3 className="mb-2 font-semibold text-brand-700">Unlimited Validations</h3>
+              <p className="text-sm text-slate-600">
+                Validate multiple ideas and compare them side-by-side to find your best opportunity.
+              </p>
+            </div>
+            <div className="rounded-xl border border-brand-200 bg-white p-4">
+              <h3 className="mb-2 font-semibold text-brand-700">Deeper Market Research</h3>
+              <p className="text-sm text-slate-600">
+                Get more detailed competitive analysis, market sizing, and customer research insights.
+              </p>
+            </div>
+            <div className="rounded-xl border border-brand-200 bg-white p-4">
+              <h3 className="mb-2 font-semibold text-brand-700">Priority Processing</h3>
+              <p className="text-sm text-slate-600">
+                Get your results faster with priority AI processing, so you can move forward quickly.
+              </p>
+            </div>
+            <div className="rounded-xl border border-brand-200 bg-white p-4">
+              <h3 className="mb-2 font-semibold text-brand-700">Export & Share</h3>
+              <p className="text-sm text-slate-600">
+                Download professional PDF reports and share insights with your team or investors.
+              </p>
+            </div>
+          </div>
+          <div className="mt-6 text-center">
+            <Link
+              to="/pricing"
+              className="inline-block rounded-xl bg-gradient-to-r from-brand-500 to-brand-600 px-6 py-3 text-sm font-semibold text-white shadow-md transition hover:from-brand-600 hover:to-brand-700"
+            >
+              Explore Pro Features
+            </Link>
           </div>
         </div>
       )}

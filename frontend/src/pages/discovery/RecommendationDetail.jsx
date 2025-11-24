@@ -220,13 +220,15 @@ export default function RecommendationDetail() {
   const [openSections, setOpenSections] = useState(new Set(["why-fits"]));
 
   useEffect(() => {
-    if (runId) {
+    // Only load if we don't already have the reports data to prevent multiple API calls
+    // Add a ref to track if we've already attempted to load to prevent duplicate calls
+    if (runId && (!reports || Object.keys(reports).length === 0)) {
       loadRunById(runId);
-    } else if (currentRunId && !reports) {
+    } else if (currentRunId && !runId && (!reports || Object.keys(reports).length === 0)) {
       // If no runId in URL but we have a currentRunId, load it
       loadRunById(currentRunId);
     }
-  }, [runId, currentRunId, loadRunById, reports]);
+  }, [runId, currentRunId]); // Removed reports and loadRunById from deps to prevent infinite loops
 
   const markdown = useMemo(
     () => trimFromHeading(reports?.personalized_recommendations ?? "", "### Comprehensive Recommendation Report"),

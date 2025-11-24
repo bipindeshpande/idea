@@ -1,19 +1,13 @@
-// Import from JSON file (updated by admin panel)
-// Fallback to default values if JSON file doesn't exist or is invalid
-import intakeScreenData from "./intakeScreen.json";
-
-// Default fallback data
-const defaultIntakeScreen = {
-  screen_id: "idea_finder_input",
-  screen_title: "Tell Us About You",
-  description:
-    "These inputs help the AI recommend startup ideas that match your background, goals, and capacity.",
-  fields: [
+{
+  "screen_id": "idea_finder_input",
+  "screen_title": "Tell me more",
+  "description": "These inputs help the AI recommend startup ideas that match your background, goals, and capacity.",
+  "fields": [
     {
-      id: "goal_type",
-      label: "Goal Type",
-      type: "picklist",
-      options: [
+      "id": "goal_type",
+      "label": "Goal Type",
+      "type": "picklist",
+      "options": [
         "Extra Income",
         "Replace Full-Time Job",
         "Passive Income",
@@ -22,35 +16,41 @@ const defaultIntakeScreen = {
         "Tech-Driven Venture",
         "Consulting / Knowledge Business",
         "Experimental / Learning Project",
+        "New Option"
       ],
-      required: true,
+      "required": true
     },
     {
-      id: "time_commitment",
-      label: "Time Commitment (per week)",
-      type: "picklist",
-      options: ["<5 hrs/week", "5–10 hrs/week", "10–20 hrs/week", "Full-time"],
-      required: true,
+      "id": "time_commitment",
+      "label": "Time Commitment (per week)",
+      "type": "picklist",
+      "options": [
+        "<5 hrs/week",
+        "5–10 hrs/week",
+        "10–20 hrs/week",
+        "Full-time"
+      ],
+      "required": true
     },
     {
-      id: "budget_range",
-      label: "Budget Range",
-      type: "picklist",
-      options: [
+      "id": "budget_range",
+      "label": "Budget Range",
+      "type": "picklist",
+      "options": [
         "Free / Sweat-equity only",
         "< $1 K",
         "Up to $5 K",
         "Up to $10 K",
         "Up to $20 K",
-        "$20 K and Above",
+        "$20 K and Above"
       ],
-      required: true,
+      "required": true
     },
     {
-      id: "interest_area",
-      label: "Interest Area",
-      type: "picklist",
-      options: [
+      "id": "interest_area",
+      "label": "Interest Area",
+      "type": "picklist",
+      "options": [
         "AI / Automation",
         "Consulting & Professional Services",
         "Education / EdTech",
@@ -60,22 +60,22 @@ const defaultIntakeScreen = {
         "Content / Media / Creator Economy",
         "Sustainability / Green Tech",
         "Lifestyle / Travel / Food",
-        "Other (Custom)",
+        "Other (Custom)"
       ],
-      required: true,
-      sub_field: {
-        id: "sub_interest_area",
-        label: "Sub-Interest Area",
-        type: "picklist",
-        required: true,
-        options_by_parent: {
+      "required": true,
+      "sub_field": {
+        "id": "sub_interest_area",
+        "label": "Sub-Interest Area",
+        "type": "picklist",
+        "required": true,
+        "options_by_parent": {
           "AI / Automation": [
             "Chatbots",
             "Workflow Automation",
             "Predictive Analytics",
             "Image/Video AI",
             "Generative Text Tools",
-            "AI Agents",
+            "AI Agents"
           ],
           "Consulting & Professional Services": [
             "Business Strategy",
@@ -83,7 +83,7 @@ const defaultIntakeScreen = {
             "IT Advisory",
             "Digital Transformation",
             "Change Management",
-            "Agile Coaching",
+            "Agile Coaching"
           ],
           "Education / EdTech": [
             "Online Courses",
@@ -91,7 +91,7 @@ const defaultIntakeScreen = {
             "Skill Assessment Tools",
             "Gamified Learning",
             "Tutoring Marketplaces",
-            "AI Learning Assistants",
+            "AI Learning Assistants"
           ],
           "Healthcare / Wellness": [
             "Mental Health",
@@ -99,7 +99,7 @@ const defaultIntakeScreen = {
             "Fitness Tech",
             "Patient Engagement",
             "Preventive Care",
-            "Wearables",
+            "Wearables"
           ],
           "Finance / Investment": [
             "Personal Finance",
@@ -107,7 +107,7 @@ const defaultIntakeScreen = {
             "Crypto Tools",
             "Small-Biz Finance",
             "Tax Automation",
-            "Wealth Coaching",
+            "Wealth Coaching"
           ],
           "E-commerce / Retail": [
             "D2C Brand",
@@ -115,7 +115,7 @@ const defaultIntakeScreen = {
             "Print-on-Demand",
             "Product Discovery",
             "Subscription Boxes",
-            "B2B Wholesale",
+            "B2B Wholesale"
           ],
           "Content / Media / Creator Economy": [
             "Newsletters",
@@ -123,7 +123,7 @@ const defaultIntakeScreen = {
             "Short-Form Video",
             "AI-Generated Content",
             "Niche Blogging",
-            "Educational Media",
+            "Educational Media"
           ],
           "Sustainability / Green Tech": [
             "Recycling Tech",
@@ -131,7 +131,7 @@ const defaultIntakeScreen = {
             "Waste Management",
             "Sustainable Fashion",
             "Carbon Tracking",
-            "Eco Products",
+            "Eco Products"
           ],
           "Lifestyle / Travel / Food": [
             "Local Experiences",
@@ -139,24 +139,32 @@ const defaultIntakeScreen = {
             "Food Delivery",
             "Recipe Automation",
             "Culture Exchange",
-            "Digital Nomad Tools",
+            "Digital Nomad Tools"
           ],
-          "Other (Custom)": ["Custom Sub-Area Text Field"],
-        },
-      },
+          "Other (Custom)": [
+            "Custom Sub-Area Text Field"
+          ]
+        }
+      }
     },
     {
-      id: "work_style",
-      label: "Preferred Work Style",
-      type: "picklist",
-      options: ["Solo", "Small Team", "Community-Based", "Remote Only", "Requires Physical Presence"],
-      required: false,
+      "id": "work_style",
+      "label": "Preferred Work Style",
+      "type": "picklist",
+      "options": [
+        "Solo",
+        "Small Team",
+        "Community-Based",
+        "Remote Only",
+        "Requires Physical Presence"
+      ],
+      "required": false
     },
     {
-      id: "skill_strength",
-      label: "Primary Skill Strength",
-      type: "picklist",
-      options: [
+      "id": "skill_strength",
+      "label": "Primary Skill Strength",
+      "type": "picklist",
+      "options": [
         "Technical / Automation",
         "Analytical / Strategic",
         "Creative / Design",
@@ -164,31 +172,17 @@ const defaultIntakeScreen = {
         "Communication / Community",
         "Financial / Analytical",
         "Research / Insight-Driven",
-        "Other / Mixed",
+        "Other / Mixed"
       ],
-      required: true,
+      "required": true
     },
     {
-      id: "experience_summary",
-      label: "Experience Summary",
-      type: "short_text",
-      placeholder: "e.g., 15 yrs project management in IT",
-      required: false,
-      max_length: 120,
-    },
-  ],
-  output_object: "basicProfile.json",
-};
-
-// Merge JSON data with defaults (JSON takes precedence)
-export const intakeScreen = {
-  screen_id: intakeScreenData?.screen_id || defaultIntakeScreen.screen_id,
-  screen_title: intakeScreenData?.screen_title || defaultIntakeScreen.screen_title,
-  description: intakeScreenData?.description || defaultIntakeScreen.description,
-  fields: intakeScreenData?.fields || defaultIntakeScreen.fields,
-  output_object: intakeScreenData?.output_object || defaultIntakeScreen.output_object,
-};
-
-export const REQUIRED_FIELDS = intakeScreen.fields
-  .filter((field) => field.required)
-  .map((field) => field.id);
+      "id": "experience_summary",
+      "label": "Experience Summary",
+      "type": "short_text",
+      "placeholder": "e.g., 15 yrs project management in IT",
+      "required": false,
+      "max_length": 120
+    }
+  ]
+}

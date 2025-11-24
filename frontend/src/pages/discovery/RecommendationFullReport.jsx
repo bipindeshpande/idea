@@ -249,13 +249,14 @@ export default function RecommendationFullReport() {
     // Only try to load if not in sample mode
     if (isSample) return;
     
-    if (runId) {
+    // Only load if we don't already have the reports data to prevent multiple API calls
+    if (runId && (!reports || Object.keys(reports).length === 0)) {
       loadRunById(runId);
-    } else if (currentRunId) {
+    } else if (currentRunId && !runId && (!reports || Object.keys(reports).length === 0)) {
       // If no runId in URL but we have a currentRunId, load it
       loadRunById(currentRunId);
     }
-  }, [runId, loadRunById, isSample, currentRunId]);
+  }, [runId, currentRunId, isSample]); // Removed reports and loadRunById from deps to prevent infinite loops
 
   // Use sample data if in sample mode
   const effectiveReports = isSample
@@ -1054,7 +1055,7 @@ function SampleReportContent({ inputs }) {
   );
 }
 
-function FullReportContent({ remainderMarkdown, inputs }) {
+function FullReportContent({ remainderMarkdown, inputs, topIdeas = [] }) {
   const sections = useMemo(() => splitFullReportSections(remainderMarkdown), [remainderMarkdown]);
 
   const profileSummary = useMemo(() => buildConciseProfileSummary(inputs), [inputs]);

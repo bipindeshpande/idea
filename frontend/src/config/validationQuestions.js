@@ -1,4 +1,9 @@
-export const validationQuestions = {
+// Import from JSON file (updated by admin panel)
+// Fallback to default values if JSON file doesn't exist or is invalid
+import validationQuestionsData from "./validationQuestions.json";
+
+// Default fallback data
+const defaultValidationQuestions = {
   category_questions: [
     {
       id: "industry",
@@ -111,3 +116,8 @@ export const validationQuestions = {
   ],
 };
 
+// Merge JSON data with defaults (JSON takes precedence)
+export const validationQuestions = {
+  category_questions: validationQuestionsData?.category_questions || defaultValidationQuestions.category_questions,
+  idea_explanation_questions: validationQuestionsData?.idea_explanation_questions || defaultValidationQuestions.idea_explanation_questions,
+};

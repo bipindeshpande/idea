@@ -4,6 +4,7 @@ import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
 import Seo from "../../components/common/Seo.jsx";
 import { useReports } from "../../context/ReportsContext.jsx";
+import { useAuth } from "../../context/AuthContext.jsx";
 import { trimFromHeading, parseTopIdeas } from "../../utils/markdown/markdown.js";
 import { personalizeCopy, buildFinalConclusion, parseRecommendationMatrix, splitFullReportSections } from "../../utils/formatters/recommendationFormatters.js";
 import ReactMarkdown from "react-markdown";
@@ -14,32 +15,39 @@ function useQuery() {
 
 export default function RecommendationsReport() {
   const { reports, loadRunById, currentRunId, inputs } = useReports();
+  const { subscription } = useAuth();
   const query = useQuery();
   const runId = query.get("id");
   const reportRef = useRef(null);
   const [downloading, setDownloading] = useState(false);
   const [error, setError] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const isPro = subscription && (subscription.subscription_type === "pro" || subscription.subscription_type === "weekly");
 
   useEffect(() => {
     setIsLoading(true);
+    setError(null);
     if (runId) {
       const loadData = async () => {
         try {
           const result = await loadRunById(runId);
-          if (!result && runId.startsWith('run_')) {
-            // If it's an API run and not found, try to load from API
-            console.log("Run not found in localStorage, may need to load from API");
+          if (!result) {
+            console.warn("Run not found:", runId);
+            setError(`Report not found. The report ID "${runId}" may be invalid or may have been deleted.`);
           }
         } catch (err) {
           console.error("Failed to load run:", err);
-          setError("Failed to load report data. Please try again.");
+          setError(err.message || "Failed to load report data. Please try again.");
         } finally {
           setIsLoading(false);
         }
       };
       loadData();
     } else {
+      // No runId provided - check if we have current reports
+      if (!reports || !reports.personalized_recommendations) {
+        setError("No report ID provided. Please select a report from your dashboard.");
+      }
       setIsLoading(false);
     }
   }, [runId, loadRunById]);
@@ -203,20 +211,6 @@ export default function RecommendationsReport() {
     );
   }
 
-  // Debug: Log current state
-  useEffect(() => {
-    console.log("RecommendationsReport rendered:", {
-      hasReports: !!reports,
-      hasPersonalizedRecommendations: !!reports?.personalized_recommendations,
-      markdownLength: markdown?.length || 0,
-      topIdeasCount: topIdeas.length,
-      isLoading,
-      error,
-      runId,
-      currentRunId,
-    });
-  }, [reports, markdown, topIdeas, isLoading, error, runId, currentRunId]);
-
   return (
     <section className="grid gap-6">
       <Seo
@@ -315,89 +309,6 @@ export default function RecommendationsReport() {
 
         {topIdeas.length > 0 && (
           <>
-            {/* Executive Summary */}
-            <div className="mb-4 rounded-3xl border-2 border-brand-200 bg-gradient-to-br from-brand-50 to-white p-6 shadow-soft">
-              <h2 className="mb-4 text-2xl font-bold text-slate-900">Executive Summary</h2>
-              <div className="grid gap-6 md:grid-cols-2">
-                <div>
-                  <h3 className="mb-3 text-lg font-semibold text-slate-900">Top Recommendations</h3>
-                  <ul className="space-y-2 text-sm text-slate-700">
-                    {topIdeas.slice(0, 3).map((idea, idx) => (
-                      <li key={idx} className="flex items-start gap-2">
-                        <span className="mt-1 text-brand-600 font-bold">#{idx + 1}</span>
-                        <span className="font-medium">{idea.title}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-                <div>
-                  <h3 className="mb-3 text-lg font-semibold text-slate-900">Quick Insights</h3>
-                  <ul className="space-y-2 text-sm text-slate-700">
-                    <li className="flex items-center gap-2">
-                      <span className="text-emerald-600">✓</span>
-                      <span>Ideas tailored to your profile and constraints</span>
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <span className="text-emerald-600">✓</span>
-                      <span>Financial outlook and risk assessment included</span>
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <span className="text-emerald-600">✓</span>
-                      <span>Actionable roadmaps for each idea</span>
-                    </li>
-                  </ul>
-                </div>
-              </div>
-            </div>
-
-            {/* Next Steps */}
-            <div className="mb-4 rounded-3xl border-2 border-emerald-200 bg-gradient-to-br from-emerald-50 to-white p-6 shadow-soft">
-              <div className="mb-4 flex items-center gap-3">
-                <h2 className="text-2xl font-bold text-slate-900">🚀 Your Next Steps</h2>
-                <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">Start Here</span>
-              </div>
-              <p className="mb-6 text-slate-600">
-                Follow these specific steps to move forward with your startup ideas.
-              </p>
-              <ol className="ml-6 space-y-4 text-slate-700">
-                <li className="flex items-start gap-3">
-                  <span className="mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-500 text-xs font-bold text-white">1</span>
-                  <div>
-                    <strong className="font-semibold text-slate-900">Review all 3 recommendations</strong>
-                    <p className="mt-1 text-sm text-slate-600">Click "View details" on each idea to see the full analysis, financial outlook, and execution roadmap.</p>
-                  </div>
-                </li>
-                <li className="flex items-start gap-3">
-                  <span className="mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-500 text-xs font-bold text-white">2</span>
-                  <div>
-                    <strong className="font-semibold text-slate-900">Validate your top choice</strong>
-                    <p className="mt-1 text-sm text-slate-600">Use our validation tool to get detailed feedback on your selected idea across 10 key parameters.</p>
-                  </div>
-                </li>
-                <li className="flex items-start gap-3">
-                  <span className="mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-500 text-xs font-bold text-white">3</span>
-                  <div>
-                    <strong className="font-semibold text-slate-900">Talk to potential customers</strong>
-                    <p className="mt-1 text-sm text-slate-600">Reach out to 10 people in your target market this week. Use the customer validation questions from the detailed reports.</p>
-                  </div>
-                </li>
-                <li className="flex items-start gap-3">
-                  <span className="mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-500 text-xs font-bold text-white">4</span>
-                  <div>
-                    <strong className="font-semibold text-slate-900">Create a simple prototype or landing page</strong>
-                    <p className="mt-1 text-sm text-slate-600">Within 30 days, build a minimal version to test interest. Use tools like Carrd, Webflow, or no-code platforms.</p>
-                  </div>
-                </li>
-                <li className="flex items-start gap-3">
-                  <span className="mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-500 text-xs font-bold text-white">5</span>
-                  <div>
-                    <strong className="font-semibold text-slate-900">Download templates and resources</strong>
-                    <p className="mt-1 text-sm text-slate-600">Access our business plan template, pitch deck template, and email templates from the Resources section.</p>
-                  </div>
-                </li>
-              </ol>
-            </div>
-
             <div className="rounded-3xl border border-slate-200 bg-white/95 p-6 shadow-soft">
               <h2 className="text-xl font-semibold text-slate-900">
                 Top Startup Ideas
@@ -448,6 +359,54 @@ export default function RecommendationsReport() {
               </table>
             </div>
           </div>
+
+            {/* Next Steps */}
+            <div className="mb-4 rounded-3xl border-2 border-emerald-200 bg-gradient-to-br from-emerald-50 to-white p-6 shadow-soft">
+              <div className="mb-4 flex items-center gap-3">
+                <h2 className="text-2xl font-bold text-slate-900">🚀 Your Next Steps</h2>
+                <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">Start Here</span>
+              </div>
+              <p className="mb-6 text-slate-600">
+                Follow these specific steps to move forward with your startup ideas.
+              </p>
+              <ol className="ml-6 space-y-4 text-slate-700">
+                <li className="flex items-start gap-3">
+                  <span className="mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-500 text-xs font-bold text-white">1</span>
+                  <div>
+                    <strong className="font-semibold text-slate-900">Review all 3 recommendations</strong>
+                    <p className="mt-1 text-sm text-slate-600">Click "View details" on each idea to see the full analysis, financial outlook, and execution roadmap.</p>
+                  </div>
+                </li>
+                <li className="flex items-start gap-3">
+                  <span className="mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-500 text-xs font-bold text-white">2</span>
+                  <div>
+                    <strong className="font-semibold text-slate-900">Validate your top choice</strong>
+                    <p className="mt-1 text-sm text-slate-600">Use our validation tool to get detailed feedback on your selected idea across 10 key parameters.</p>
+                  </div>
+                </li>
+                <li className="flex items-start gap-3">
+                  <span className="mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-500 text-xs font-bold text-white">3</span>
+                  <div>
+                    <strong className="font-semibold text-slate-900">Talk to potential customers</strong>
+                    <p className="mt-1 text-sm text-slate-600">Reach out to 10 people in your target market this week. Use the customer validation questions from the detailed reports.</p>
+                  </div>
+                </li>
+                <li className="flex items-start gap-3">
+                  <span className="mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-500 text-xs font-bold text-white">4</span>
+                  <div>
+                    <strong className="font-semibold text-slate-900">Create a simple prototype or landing page</strong>
+                    <p className="mt-1 text-sm text-slate-600">Within 30 days, build a minimal version to test interest. Use tools like Carrd, Webflow, or no-code platforms.</p>
+                  </div>
+                </li>
+                <li className="flex items-start gap-3">
+                  <span className="mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-500 text-xs font-bold text-white">5</span>
+                  <div>
+                    <strong className="font-semibold text-slate-900">Download templates and resources</strong>
+                    <p className="mt-1 text-sm text-slate-600">Access our business plan template, pitch deck template, and email templates from the Resources section.</p>
+                  </div>
+                </li>
+              </ol>
+            </div>
 
             {/* Final Conclusion */}
             {finalConclusion && (

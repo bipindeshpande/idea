@@ -44,6 +44,8 @@ import ResetPasswordPage from "./pages/auth/ResetPassword.jsx";
 
 // Admin pages - lazy load
 const AdminPage = lazy(() => import("./pages/admin/Admin.jsx"));
+const AdminForgotPasswordPage = lazy(() => import("./pages/admin/AdminForgotPassword.jsx"));
+const AdminResetPasswordPage = lazy(() => import("./pages/admin/AdminResetPassword.jsx"));
 
 // Components
 import Footer from "./components/common/Footer.jsx";
@@ -477,14 +479,19 @@ function Navigation() {
 
 export default function App() {
   const { reports, loading } = useReports();
+  const { pathname } = useLocation();
   const hasReports = Boolean(
     reports?.profile_analysis || reports?.personalized_recommendations
   );
 
+  // Check if current route is an admin route
+  const isAdminRoute = pathname.startsWith("/admin");
+
   return (
     <div className="min-h-screen bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-slate-100 transition-colors duration-300">
-      <Navigation />
-      <main className="mx-auto max-w-6xl px-6 py-10 bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-slate-100">
+      {/* Don't show navigation for admin routes */}
+      {!isAdminRoute && <Navigation />}
+      <main className={isAdminRoute ? "min-h-screen bg-slate-100 dark:bg-slate-900" : "mx-auto max-w-6xl px-6 py-10 bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-slate-100"}>
         <Routes>
             <Route path="/" element={<LandingPage />} />
             <Route path="/register" element={<RegisterPage />} />
@@ -541,12 +548,35 @@ export default function App() {
                 </ProtectedRoute>
               }
             />
+            {/* Admin routes - completely separate, no navigation links visible to regular users */}
             <Route 
               path="/admin" 
               element={
-                <Suspense fallback={<LoadingIndicator simple={true} message="Loading admin panel..." />}>
-                  <AdminPage />
-                </Suspense>
+                <AdminRouteWrapper>
+                  <Suspense fallback={<LoadingIndicator simple={true} message="Loading admin panel..." />}>
+                    <AdminPage />
+                  </Suspense>
+                </AdminRouteWrapper>
+              } 
+            />
+            <Route 
+              path="/admin/forgot-password" 
+              element={
+                <AdminRouteWrapper>
+                  <Suspense fallback={<LoadingIndicator simple={true} message="Loading..." />}>
+                    <AdminForgotPasswordPage />
+                  </Suspense>
+                </AdminRouteWrapper>
+              } 
+            />
+            <Route 
+              path="/admin/reset-password" 
+              element={
+                <AdminRouteWrapper>
+                  <Suspense fallback={<LoadingIndicator simple={true} message="Loading..." />}>
+                    <AdminResetPasswordPage />
+                  </Suspense>
+                </AdminRouteWrapper>
               } 
             />
             <Route path="/privacy" element={<PrivacyPage />} />
@@ -587,9 +617,9 @@ export default function App() {
             />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
-        {loading && <LoadingIndicator />}
+        {loading && !isAdminRoute && <LoadingIndicator />}
       </main>
-      <Footer />
+      {!isAdminRoute && <Footer />}
     </div>
   );
 }
@@ -609,6 +639,16 @@ function SampleReportRoute({ children }) {
     <ProtectedRoute>
       {children}
     </ProtectedRoute>
+  );
+}
+
+function AdminRouteWrapper({ children }) {
+  // Admin routes are completely isolated - no navigation, no header/footer
+  // This wrapper ensures admin pages are separate from the main app
+  return (
+    <div className="min-h-screen bg-slate-100 dark:bg-slate-900">
+      {children}
+    </div>
   );
 }
 
