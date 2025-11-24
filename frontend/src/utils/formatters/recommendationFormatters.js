@@ -1117,6 +1117,7 @@ export function extractTimelineSlice(markdown = "", segmentIndex = 0) {
   
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
+    let lineProcessed = false;
     
     // Check if this line starts a new segment
     for (const dayPattern of dayPatterns) {
@@ -1136,36 +1137,21 @@ export function extractTimelineSlice(markdown = "", segmentIndex = 0) {
           if (cleanedLine) {
             currentSegment.push(cleanedLine);
           }
+          lineProcessed = true;
+          
+          // Debug logging
+          if (process.env.NODE_ENV === 'development') {
+            console.log(`[extractTimelineSlice] Found pattern for segment ${dayPattern.index} in line:`, line.substring(0, 80));
+          }
           break;
         }
       }
-      if (currentSegmentIndex === dayPattern.index) break;
+      if (lineProcessed) break;
     }
     
-    // If we're in a segment, add the line (unless it's another day marker)
-    if (currentSegmentIndex >= 0) {
-      // Check if this line is another day marker (different segment)
-      let isOtherMarker = false;
-      for (const dayPattern of dayPatterns) {
-        if (dayPattern.index === currentSegmentIndex) continue;
-        for (const pattern of dayPattern.patterns) {
-          if (pattern.test(line)) {
-            isOtherMarker = true;
-            break;
-          }
-        }
-        if (isOtherMarker) break;
-      }
-      
-      if (!isOtherMarker) {
-        currentSegment.push(line);
-      } else {
-        // This is the start of the next segment, save current and process this line in next iteration
-        segments[currentSegmentIndex] = currentSegment.join("\n").trim();
-        currentSegment = [];
-        currentSegmentIndex = -1;
-        i--; // Rewind to process this line again
-      }
+    // If we're in a segment and line wasn't processed as a day marker, add it to current segment
+    if (currentSegmentIndex >= 0 && !lineProcessed) {
+      currentSegment.push(line);
     }
   }
   
