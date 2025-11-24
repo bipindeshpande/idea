@@ -37,6 +37,78 @@ function ScoreBadge({ score, parameter }) {
   );
 }
 
+function ParameterCard({ parameter, score, details }) {
+  const getScoreInfo = (score) => {
+    if (score >= 8) {
+      return {
+        bgGradient: "from-emerald-50 to-emerald-100/50",
+        borderColor: "border-emerald-200",
+        progressColor: "bg-emerald-500",
+        labelColor: "text-emerald-700",
+        label: "Strong",
+        icon: "✓"
+      };
+    }
+    if (score >= 6) {
+      return {
+        bgGradient: "from-amber-50 to-amber-100/50",
+        borderColor: "border-amber-200",
+        progressColor: "bg-amber-500",
+        labelColor: "text-amber-700",
+        label: "Good",
+        icon: "→"
+      };
+    }
+    return {
+      bgGradient: "from-coral-50 to-coral-100/50",
+      borderColor: "border-coral-200",
+      progressColor: "bg-coral-500",
+      labelColor: "text-coral-700",
+      label: "Needs Work",
+      icon: "!"
+    };
+  };
+
+  const scoreInfo = getScoreInfo(score);
+  const percentage = (score / 10) * 100;
+
+  return (
+    <div className={`group relative overflow-hidden rounded-2xl border-2 ${scoreInfo.borderColor} bg-gradient-to-br ${scoreInfo.bgGradient} p-5 shadow-sm transition-all duration-300 hover:shadow-md hover:-translate-y-1`}>
+      {/* Score indicator in top right */}
+      <div className="absolute top-3 right-3">
+        <div className={`flex h-12 w-12 items-center justify-center rounded-full ${scoreInfo.progressColor} text-lg font-bold text-white shadow-sm`}>
+          {score}
+        </div>
+      </div>
+
+      {/* Parameter name */}
+      <div className="mb-4 pr-16">
+        <h3 className="text-base font-bold text-slate-900 leading-tight">{parameter}</h3>
+        <div className="mt-1 flex items-center gap-2">
+          <span className={`text-xs font-semibold ${scoreInfo.labelColor}`}>{scoreInfo.label}</span>
+          <span className="text-xs text-slate-500">•</span>
+          <span className="text-xs text-slate-500">{score}/10</span>
+        </div>
+      </div>
+
+      {/* Progress bar */}
+      <div className="mb-3 h-2 overflow-hidden rounded-full bg-white/60">
+        <div
+          className={`h-full ${scoreInfo.progressColor} transition-all duration-500 ease-out`}
+          style={{ width: `${percentage}%` }}
+        />
+      </div>
+
+      {/* Details */}
+      {details && (
+        <div className="mt-3 rounded-lg bg-white/60 p-3">
+          <p className="text-xs leading-relaxed text-slate-700">{details}</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function ValidationResult() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -617,12 +689,22 @@ export default function ValidationResult() {
       {/* Tab Content: Validation Results */}
       {activeTab === "results" && (
         <div className="space-y-6">
-          {/* Parameter Scores Grid */}
+          {/* Parameter Scores - Visual Display */}
           <div className="mb-8">
-            <h2 className="mb-6 text-2xl font-semibold text-slate-900">Validation Parameters</h2>
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {VALIDATION_PARAMETERS.map((parameter) => {
-                // Try multiple key formats to find the score
+            <div className="mb-6 flex items-center justify-between">
+              <div>
+                <h2 className="text-2xl font-semibold text-slate-900">Validation Parameters</h2>
+                <p className="mt-1 text-sm text-slate-600">Your idea evaluated across 10 key dimensions</p>
+              </div>
+              <div className="rounded-xl border-2 border-brand-200 bg-gradient-to-br from-brand-50 to-brand-100/50 px-4 py-2 text-center">
+                <div className="text-2xl font-bold text-brand-700">{overallScore.toFixed(1)}</div>
+                <div className="text-xs font-semibold text-brand-600">Overall Score</div>
+              </div>
+            </div>
+
+            {/* Group parameters by score range for better visual organization */}
+            {(() => {
+              const groupedParams = VALIDATION_PARAMETERS.map((parameter) => {
                 const keyVariations = [
                   parameter.toLowerCase().replace(/\s+/g, "_"),
                   parameter.toLowerCase().replace(/\s+/g, "-"),
@@ -635,23 +717,77 @@ export default function ValidationResult() {
                     break;
                   }
                 }
-                
-                return (
-                  <div
-                    key={parameter}
-                    className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"
-                  >
-                    <div className="mb-4 flex items-center justify-between">
-                      <h3 className="text-sm font-semibold text-slate-900">{parameter}</h3>
-                      <ScoreBadge score={score} parameter={parameter} />
+                return { parameter, score, details: validation.details?.[parameter] };
+              }).sort((a, b) => b.score - a.score); // Sort by score descending
+
+              const strongParams = groupedParams.filter(p => p.score >= 8);
+              const goodParams = groupedParams.filter(p => p.score >= 6 && p.score < 8);
+              const needsWorkParams = groupedParams.filter(p => p.score < 6);
+
+              return (
+                <div className="space-y-6">
+                  {/* Strong Parameters (8-10) */}
+                  {strongParams.length > 0 && (
+                    <div>
+                      <div className="mb-3 flex items-center gap-2">
+                        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-500 text-sm font-bold text-white">✓</div>
+                        <h3 className="text-lg font-semibold text-slate-900">Strong Areas ({strongParams.length})</h3>
+                      </div>
+                      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                        {strongParams.map(({ parameter, score, details }) => (
+                          <ParameterCard
+                            key={parameter}
+                            parameter={parameter}
+                            score={score}
+                            details={details}
+                          />
+                        ))}
+                      </div>
                     </div>
-                    {validation.details?.[parameter] && (
-                      <p className="text-xs text-slate-600">{validation.details[parameter]}</p>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
+                  )}
+
+                  {/* Good Parameters (6-7.9) */}
+                  {goodParams.length > 0 && (
+                    <div>
+                      <div className="mb-3 flex items-center gap-2">
+                        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-amber-500 text-sm font-bold text-white">→</div>
+                        <h3 className="text-lg font-semibold text-slate-900">Good Areas ({goodParams.length})</h3>
+                      </div>
+                      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                        {goodParams.map(({ parameter, score, details }) => (
+                          <ParameterCard
+                            key={parameter}
+                            parameter={parameter}
+                            score={score}
+                            details={details}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Needs Work Parameters (<6) */}
+                  {needsWorkParams.length > 0 && (
+                    <div>
+                      <div className="mb-3 flex items-center gap-2">
+                        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-coral-500 text-sm font-bold text-white">!</div>
+                        <h3 className="text-lg font-semibold text-slate-900">Areas to Strengthen ({needsWorkParams.length})</h3>
+                      </div>
+                      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                        {needsWorkParams.map(({ parameter, score, details }) => (
+                          <ParameterCard
+                            key={parameter}
+                            parameter={parameter}
+                            score={score}
+                            details={details}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
           </div>
         </div>
       )}
