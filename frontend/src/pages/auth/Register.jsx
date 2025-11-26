@@ -106,7 +106,7 @@ export default function Register() {
           </div>
 
           {error && (
-            <div className="rounded-xl border border-coral-200/60 dark:border-coral-800/60 bg-gradient-to-br from-coral-50 to-coral-100/50 dark:from-coral-900/30 dark:to-coral-800/20 p-4 text-sm font-semibold text-coral-800 dark:text-coral-300 shadow-sm">
+            <div className="rounded-xl border border-semantic-error-200 dark:border-semantic-error-800 bg-gradient-to-br from-semantic-error-50 to-semantic-error-100/50 dark:from-semantic-error-900/30 dark:to-semantic-error-800/20 p-4 text-sm font-semibold text-semantic-error-800 dark:text-semantic-error-300 shadow-sm">
               {error}
             </div>
           )}

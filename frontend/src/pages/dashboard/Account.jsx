@@ -290,14 +290,14 @@ export default function AccountPage() {
       </div>
 
       {error && (
-        <div className="mb-6 rounded-xl border border-coral-200 dark:border-coral-800 bg-coral-50 dark:bg-coral-900/30 p-4">
-          <p className="text-sm text-coral-800 dark:text-coral-300">{error}</p>
+        <div className="mb-6 rounded-xl border border-semantic-error-200 dark:border-semantic-error-800 bg-semantic-error-50 dark:bg-semantic-error-900/30 p-4">
+          <p className="text-sm text-semantic-error-800 dark:text-semantic-error-300">{error}</p>
         </div>
       )}
 
       {success && (
-        <div className="mb-6 rounded-xl border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-900/30 p-4">
-          <p className="text-sm text-emerald-800 dark:text-emerald-300">{success}</p>
+        <div className="mb-6 rounded-xl border border-semantic-success-200 dark:border-semantic-success-800 bg-semantic-success-50 dark:bg-semantic-success-900/30 p-4">
+          <p className="text-sm text-semantic-success-800 dark:text-semantic-success-300">{success}</p>
         </div>
       )}
 
@@ -339,14 +339,14 @@ export default function AccountPage() {
         <h2 className="mb-6 text-2xl font-semibold text-slate-900 dark:text-slate-50">Change Password</h2>
         
         {passwordError && (
-          <div className="mb-4 rounded-xl border border-coral-200 dark:border-coral-800 bg-coral-50 dark:bg-coral-900/30 p-4">
-            <p className="text-sm text-coral-800 dark:text-coral-300">{passwordError}</p>
+          <div className="mb-4 rounded-xl border border-semantic-error-200 dark:border-semantic-error-800 bg-semantic-error-50 dark:bg-semantic-error-900/30 p-4">
+            <p className="text-sm text-semantic-error-800 dark:text-semantic-error-300">{passwordError}</p>
           </div>
         )}
 
         {passwordSuccess && (
-          <div className="mb-4 rounded-xl border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-900/30 p-4">
-            <p className="text-sm text-emerald-800 dark:text-emerald-300">{passwordSuccess}</p>
+          <div className="mb-4 rounded-xl border border-semantic-success-200 dark:border-semantic-success-800 bg-semantic-success-50 dark:bg-semantic-success-900/30 p-4">
+            <p className="text-sm text-semantic-success-800 dark:text-semantic-success-300">{passwordSuccess}</p>
           </div>
         )}
 
@@ -632,8 +632,8 @@ export default function AccountPage() {
             </div>
 
             {error && (
-              <div className="mb-4 rounded-xl border border-coral-200 dark:border-coral-800 bg-coral-50 dark:bg-coral-900/30 p-3">
-                <p className="text-sm text-coral-800 dark:text-coral-300">{error}</p>
+              <div className="mb-4 rounded-xl border border-semantic-error-200 dark:border-semantic-error-800 bg-semantic-error-50 dark:bg-semantic-error-900/30 p-3">
+                <p className="text-sm text-semantic-error-800 dark:text-semantic-error-300">{error}</p>
               </div>
             )}
 

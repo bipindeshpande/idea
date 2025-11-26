@@ -123,17 +123,17 @@ function CheckoutForm({ subscriptionType, onSuccess, onCancel }) {
         />
       </div>
       {error && (
-        <div className="rounded-xl border border-coral-200 bg-coral-50 p-4">
+        <div className="rounded-xl border border-semantic-error-200 dark:border-semantic-error-800 bg-semantic-error-50 dark:bg-semantic-error-900/30 p-4">
           <div className="flex items-start gap-3">
-            <svg className="h-5 w-5 flex-shrink-0 text-coral-600 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg className="h-5 w-5 flex-shrink-0 text-semantic-error-600 dark:text-semantic-error-400 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
             <div className="flex-1">
-              <p className="text-sm font-semibold text-coral-800">Payment Error</p>
-              <p className="mt-1 text-sm text-coral-700">{error}</p>
-              <p className="mt-2 text-xs text-coral-600">
+              <p className="text-sm font-semibold text-semantic-error-800 dark:text-semantic-error-300">Payment Error</p>
+              <p className="mt-1 text-sm text-semantic-error-700 dark:text-semantic-error-300">{error}</p>
+              <p className="mt-2 text-xs text-semantic-error-600 dark:text-semantic-error-400">
                 Need help? Contact us at{" "}
-                <a href="mailto:hello@startupideaadvisor.com" className="underline hover:text-coral-800">
+                <a href="mailto:hello@startupideaadvisor.com" className="underline hover:text-semantic-error-800 dark:hover:text-semantic-error-300">
                   hello@startupideaadvisor.com
                 </a>
               </p>

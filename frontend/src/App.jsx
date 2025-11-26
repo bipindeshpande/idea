@@ -34,8 +34,8 @@ import FrameworksPage from "./pages/resources/Frameworks.jsx";
 // Dashboard pages
 import DashboardPage from "./pages/dashboard/Dashboard.jsx";
 import CompareSessionsPage from "./pages/dashboard/CompareSessions.jsx";
-import AnalyticsPage from "./pages/dashboard/Analytics.jsx";
 // Lazy load heavy pages
+const AnalyticsPage = lazy(() => import("./pages/dashboard/Analytics.jsx"));
 const AccountPage = lazy(() => import("./pages/dashboard/Account.jsx"));
 
 // Auth pages
@@ -360,7 +360,7 @@ function Navigation() {
               ))}
             </div>
               <div className="space-y-2">
-                <p className="text-xs uppercase tracking-wide text-slate-400 dark:text-slate-500">Learn</p>
+                <p className="text-xs uppercase tracking-wide text-slate-400 dark:text-slate-400">Learn</p>
               {learnNavLinks.map(({ label, to }) => (
                 <NavLink key={to} to={to} className={mobileLinkClass} onClick={closeAllMenus}>
                   {label}
@@ -369,7 +369,7 @@ function Navigation() {
             </div>
             {hasReports && (
               <div className="space-y-2">
-                <p className="text-xs uppercase tracking-wide text-slate-400 dark:text-slate-500">Reports</p>
+                <p className="text-xs uppercase tracking-wide text-slate-400 dark:text-slate-400">Reports</p>
                 {reportNavLinks.map(({ label, to }) => (
                   <NavLink key={to} to={to} className={mobileLinkClass} onClick={closeAllMenus}>
                     {label}
@@ -600,9 +600,9 @@ export default function App() {
             <Route
               path="/results/profile"
               element={
-                <ProtectedRoute>
+                <SampleReportRoute>
                   <ProfileReport />
-                </ProtectedRoute>
+                </SampleReportRoute>
               }
             />
             <Route

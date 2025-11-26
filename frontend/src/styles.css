@@ -5,16 +5,16 @@
 body {
   font-family: "Plus Jakarta Sans", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
     sans-serif;
-  background: radial-gradient(circle at top, #f6f7fb, #f8f5ef 42%, #ffffff 100%);
+  background: #f8fafc; /* slate-50 - simpler, cleaner, better consistency */
   min-height: 100vh;
-  color: #111827;
-  transition: background-color 0.3s ease, color 0.3s ease, background-image 0.3s ease;
+  color: #1e293b; /* slate-800 - better contrast than #111827 */
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 .dark body,
 body.dark {
-  background: radial-gradient(circle at top, #0f172a, #1e293b 42%, #0f172a 100%);
-  color: #f1f5f9;
+  background: #0f172a; /* slate-900 */
+  color: #f1f5f9; /* slate-100 - better contrast */
 }
 
 a {

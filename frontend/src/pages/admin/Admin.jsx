@@ -168,7 +168,7 @@ export default function Admin() {
                   />
                 </div>
                 {error && (
-                  <div className="mb-4 rounded-xl border border-coral-200 dark:border-coral-700 bg-coral-50 dark:bg-coral-900/30 p-3 text-sm text-coral-800 dark:text-coral-200">
+                  <div className="mb-4 rounded-xl border border-semantic-error-200 dark:border-semantic-error-800 bg-semantic-error-50 dark:bg-semantic-error-900/30 p-3 text-sm text-semantic-error-800 dark:text-semantic-error-300">
                     {error}
                   </div>
                 )}
@@ -208,7 +208,7 @@ export default function Admin() {
                   </p>
                 </div>
                 {error && (
-                  <div className="mb-4 rounded-xl border border-coral-200 dark:border-coral-700 bg-coral-50 dark:bg-coral-900/30 p-3 text-sm text-coral-800 dark:text-coral-200">
+                  <div className="mb-4 rounded-xl border border-semantic-error-200 dark:border-semantic-error-800 bg-semantic-error-50 dark:bg-semantic-error-900/30 p-3 text-sm text-semantic-error-800 dark:text-semantic-error-300">
                     {error}
                   </div>
                 )}
@@ -871,9 +871,9 @@ function AdminStats() {
 
   if (error) {
     return (
-      <div className="rounded-3xl border border-coral-200 dark:border-coral-700 bg-coral-50 dark:bg-coral-900/30 p-8 shadow-soft">
-        <p className="text-coral-800 dark:text-coral-200 font-semibold">Error loading statistics</p>
-        <p className="mt-2 text-sm text-coral-700 dark:text-coral-300">{error}</p>
+      <div className="rounded-3xl border border-semantic-error-200 dark:border-semantic-error-800 bg-semantic-error-50 dark:bg-semantic-error-900/30 p-8 shadow-soft">
+        <p className="text-semantic-error-800 dark:text-semantic-error-300 font-semibold">Error loading statistics</p>
+        <p className="mt-2 text-sm text-semantic-error-700 dark:text-semantic-error-300">{error}</p>
       </div>
     );
   }
@@ -1377,12 +1377,12 @@ function AdminDashboard() {
 
   if (error) {
     return (
-      <div className="rounded-3xl border border-coral-200 dark:border-coral-700 bg-coral-50 dark:bg-coral-900/30 p-8 shadow-soft">
-        <p className="text-coral-800 dark:text-coral-200 font-semibold">Error loading dashboard</p>
-        <p className="mt-2 text-sm text-coral-700 dark:text-coral-300">{error}</p>
+      <div className="rounded-3xl border border-semantic-error-200 dark:border-semantic-error-800 bg-semantic-error-50 dark:bg-semantic-error-900/30 p-8 shadow-soft">
+        <p className="text-semantic-error-800 dark:text-semantic-error-300 font-semibold">Error loading dashboard</p>
+        <p className="mt-2 text-sm text-semantic-error-700 dark:text-semantic-error-300">{error}</p>
         <button
           onClick={loadDashboardData}
-          className="mt-4 rounded-xl bg-coral-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-coral-700"
+          className="mt-4 rounded-xl bg-semantic-error-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-semantic-error-700"
         >
           Retry
         </button>

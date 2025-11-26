@@ -49,7 +49,7 @@ export default function ForgotPassword() {
 
         {success ? (
           <div className="space-y-4">
-            <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">
+            <div className="rounded-xl border border-semantic-success-200 dark:border-semantic-success-800 bg-semantic-success-50 dark:bg-semantic-success-900/30 p-4 text-sm text-semantic-success-800 dark:text-semantic-success-300">
               <p className="font-semibold">Reset link sent!</p>
               <p className="mt-2">
                 If an account exists with that email, we've sent a password reset link. Check your inbox.
@@ -93,7 +93,7 @@ export default function ForgotPassword() {
             </div>
 
             {error && (
-              <div className="rounded-xl border border-coral-200 bg-coral-50 p-3 text-sm text-coral-800">
+              <div className="rounded-xl border border-semantic-error-200 dark:border-semantic-error-800 bg-semantic-error-50 dark:bg-semantic-error-900/30 p-3 text-sm text-semantic-error-800 dark:text-semantic-error-300">
                 {error}
               </div>
             )}

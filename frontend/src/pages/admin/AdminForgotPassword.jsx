@@ -45,8 +45,8 @@ export default function AdminForgotPassword() {
         
         {success ? (
           <div className="space-y-4">
-            <div className="rounded-xl border border-emerald-200 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-900/30 p-4">
-              <p className="text-sm text-emerald-800 dark:text-emerald-200">
+            <div className="rounded-xl border border-semantic-success-200 dark:border-semantic-success-800 bg-semantic-success-50 dark:bg-semantic-success-900/30 p-4">
+              <p className="text-sm text-semantic-success-800 dark:text-semantic-success-300">
                 If the email address exists in our system, we've sent a password reset link to <strong>{email}</strong>.
               </p>
               <p className="mt-2 text-xs text-emerald-700 dark:text-emerald-300">
@@ -78,7 +78,7 @@ export default function AdminForgotPassword() {
               />
             </div>
             {error && (
-              <div className="mb-4 rounded-xl border border-coral-200 dark:border-coral-700 bg-coral-50 dark:bg-coral-900/30 p-3 text-sm text-coral-800 dark:text-coral-200">
+              <div className="mb-4 rounded-xl border border-semantic-error-200 dark:border-semantic-error-800 bg-semantic-error-50 dark:bg-semantic-error-900/30 p-3 text-sm text-semantic-error-800 dark:text-semantic-error-300">
                 {error}
               </div>
             )}

@@ -66,8 +66,8 @@ export default function AdminResetPassword() {
       <section className="mx-auto max-w-md px-6 py-12">
         <Seo title="Admin Reset Password | Startup Idea Advisor" description="Admin password reset" path="/admin/reset-password" />
         <div className="rounded-3xl border border-slate-200 dark:border-slate-700 bg-white/95 dark:bg-slate-800/95 p-8 shadow-soft">
-          <div className="rounded-xl border border-coral-200 dark:border-coral-700 bg-coral-50 dark:bg-coral-900/30 p-4">
-            <p className="text-sm text-coral-800 dark:text-coral-200">
+          <div className="rounded-xl border border-semantic-error-200 dark:border-semantic-error-800 bg-semantic-error-50 dark:bg-semantic-error-900/30 p-4">
+            <p className="text-sm text-semantic-error-800 dark:text-semantic-error-300">
               Invalid reset token. Please request a new password reset.
             </p>
           </div>
@@ -90,8 +90,8 @@ export default function AdminResetPassword() {
         
         {success ? (
           <div className="space-y-4">
-            <div className="rounded-xl border border-emerald-200 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-900/30 p-4">
-              <p className="text-sm text-emerald-800 dark:text-emerald-200">
+            <div className="rounded-xl border border-semantic-success-200 dark:border-semantic-success-800 bg-semantic-success-50 dark:bg-semantic-success-900/30 p-4">
+              <p className="text-sm text-semantic-success-800 dark:text-semantic-success-300">
                 Password reset successfully! Redirecting to login page...
               </p>
             </div>
@@ -138,7 +138,7 @@ export default function AdminResetPassword() {
               />
             </div>
             {error && (
-              <div className="mb-4 rounded-xl border border-coral-200 dark:border-coral-700 bg-coral-50 dark:bg-coral-900/30 p-3 text-sm text-coral-800 dark:text-coral-200">
+              <div className="mb-4 rounded-xl border border-semantic-error-200 dark:border-semantic-error-800 bg-semantic-error-50 dark:bg-semantic-error-900/30 p-3 text-sm text-semantic-error-800 dark:text-semantic-error-300">
                 {error}
               </div>
             )}

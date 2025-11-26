@@ -151,8 +151,8 @@ export default function ManageSubscriptionPage() {
       </div>
 
       {error && (
-        <div className="mb-6 rounded-xl border border-coral-200 bg-coral-50 p-4">
-          <p className="text-sm text-coral-800">{error}</p>
+        <div className="mb-6 rounded-xl border border-semantic-error-200 dark:border-semantic-error-800 bg-semantic-error-50 dark:bg-semantic-error-900/30 p-4">
+          <p className="text-sm text-semantic-error-800 dark:text-semantic-error-300">{error}</p>
         </div>
       )}
 
