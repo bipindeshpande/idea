@@ -20,7 +20,7 @@ class User(db.Model):
     is_active = db.Column(db.Boolean, default=True)
     
     # Subscription fields
-    subscription_type = db.Column(db.String(50), default="free")  # free, starter, pro, weekly, monthly (legacy)
+    subscription_type = db.Column(db.String(50), default="free")  # free, starter, pro, annual, monthly (legacy)
     subscription_started_at = db.Column(db.DateTime, default=datetime.utcnow)
     subscription_expires_at = db.Column(db.DateTime)
     payment_status = db.Column(db.String(50), default="trial")  # trial, active, expired, cancelled
@@ -102,7 +102,7 @@ class User(db.Model):
                     except Exception as e:
                         db.session.rollback()
                         app.logger.error(f"Failed to set free_trial expiration: {e}")
-                elif subscription_type in ["starter", "pro", "weekly"]:
+                elif subscription_type in ["starter", "pro", "annual"]:
                     # For paid subscriptions without expiration, check if they have recent payments
                     # If subscription_started_at exists, extend from there
                     if self.subscription_started_at:
@@ -110,7 +110,7 @@ class User(db.Model):
                         duration_days = {
                             "starter": 30,
                             "pro": 30,
-                            "weekly": 7,
+                            "annual": 365,
                         }.get(subscription_type, 30)
                         self.subscription_expires_at = self.subscription_started_at + timedelta(days=duration_days)
                     else:
@@ -118,7 +118,7 @@ class User(db.Model):
                         duration_days = {
                             "starter": 30,
                             "pro": 30,
-                            "weekly": 7,
+                            "annual": 365,
                         }.get(subscription_type, 30)
                         self.subscription_expires_at = datetime.utcnow() + timedelta(days=duration_days)
                         self.subscription_started_at = datetime.utcnow()
@@ -170,8 +170,8 @@ class User(db.Model):
         self.subscription_started_at = datetime.utcnow()
         self.subscription_expires_at = datetime.utcnow() + timedelta(days=duration_days)
         
-        # Set usage reset date for monthly plans (starter, pro)
-        if subscription_type in ["starter", "pro"]:
+        # Set usage reset date for monthly plans (starter, pro, annual)
+        if subscription_type in ["starter", "pro", "annual"]:
             from datetime import date
             # Set reset date to first of next month
             today = date.today()
@@ -185,7 +185,7 @@ class User(db.Model):
     
     def check_and_reset_monthly_usage(self):
         """Check if monthly usage needs to be reset and reset if needed."""
-        if self.subscription_type in ["starter", "pro"] and self.usage_reset_date:
+        if self.subscription_type in ["starter", "pro", "annual"] and self.usage_reset_date:
             from datetime import date
             if date.today() >= self.usage_reset_date:
                 # Reset monthly counters
@@ -213,7 +213,7 @@ class User(db.Model):
         self.check_and_reset_monthly_usage()
         
         # Usage limits by subscription type
-        if subscription_type in ["pro", "weekly"]:
+        if subscription_type in ["pro", "annual"]:
             return True, ""  # Unlimited
         
         if subscription_type == "free":
@@ -222,8 +222,8 @@ class User(db.Model):
             return True, ""
         
         if subscription_type == "starter":
-            if self.monthly_validations_used >= 10:
-                return False, "You've reached your monthly limit of 10 validations. Upgrade to Pro for unlimited access."
+            if self.monthly_validations_used >= 20:
+                return False, "You've reached your monthly limit of 20 validations. Upgrade to Pro for unlimited access."
             return True, ""
         
         return False, "Invalid subscription type."
@@ -242,7 +242,7 @@ class User(db.Model):
         self.check_and_reset_monthly_usage()
         
         # Usage limits by subscription type
-        if subscription_type in ["pro", "weekly"]:
+        if subscription_type in ["pro", "annual"]:
             return True, ""  # Unlimited
         
         if subscription_type == "free":
@@ -251,8 +251,8 @@ class User(db.Model):
             return True, ""
         
         if subscription_type == "starter":
-            if self.monthly_discoveries_used >= 5:
-                return False, "You've reached your monthly limit of 5 discoveries. Upgrade to Pro for unlimited access."
+            if self.monthly_discoveries_used >= 10:
+                return False, "You've reached your monthly limit of 10 discoveries. Upgrade to Pro for unlimited access."
             return True, ""
         
         return False, "Invalid subscription type."
@@ -324,17 +324,17 @@ class User(db.Model):
                 "subscription_type": "starter",
                 "validations": {
                     "used": self.monthly_validations_used,
-                    "limit": 10,
-                    "remaining": max(0, 10 - self.monthly_validations_used),
+                    "limit": 20,
+                    "remaining": max(0, 20 - self.monthly_validations_used),
                 },
                 "discoveries": {
                     "used": self.monthly_discoveries_used,
-                    "limit": 5,
-                    "remaining": max(0, 5 - self.monthly_discoveries_used),
+                    "limit": 10,
+                    "remaining": max(0, 10 - self.monthly_discoveries_used),
                 },
                 "reset_date": self.usage_reset_date.isoformat() if self.usage_reset_date else None,
             }
-        elif subscription_type in ["pro", "weekly"]:
+        elif subscription_type in ["pro", "annual"]:
             return {
                 "subscription_type": subscription_type,
                 "validations": {

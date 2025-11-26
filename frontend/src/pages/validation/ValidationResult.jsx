@@ -115,7 +115,9 @@ export default function ValidationResult() {
   const { currentValidation, loadValidationById, categoryAnswers, ideaExplanation } = useValidation();
   const { setInputs } = useReports();
   const { subscription } = useAuth();
-  const isPro = subscription?.subscription_type === "pro" || subscription?.subscription_type === "weekly";
+  const isPro = subscription?.subscription_type === "pro" || subscription?.subscription_type === "annual";
+  const isFree = !subscription || subscription?.subscription_type === "free";
+  const isStarter = subscription?.subscription_type === "starter";
   const [activeTab, setActiveTab] = useState("input"); // Default to "input" tab
 
   useEffect(() => {
@@ -124,7 +126,7 @@ export default function ValidationResult() {
       // Check if we need to load a different validation
       // Load if: no current validation OR current validation ID doesn't match URL ID
       if (!currentValidation || currentValidation.id !== validationId) {
-        loadValidationById(validationId);
+      loadValidationById(validationId);
       }
     }
   }, [searchParams, currentValidation, loadValidationById]);
@@ -690,7 +692,7 @@ export default function ValidationResult() {
       {activeTab === "results" && (
         <div className="space-y-6">
           {/* Parameter Scores - Visual Display */}
-          <div className="mb-8">
+      <div className="mb-8">
             <div className="mb-6 flex items-center justify-between">
               <div>
                 <h2 className="text-2xl font-semibold text-slate-900">Validation Parameters</h2>
@@ -705,26 +707,26 @@ export default function ValidationResult() {
             {/* Group parameters by score range for better visual organization */}
             {(() => {
               const groupedParams = VALIDATION_PARAMETERS.map((parameter) => {
-                const keyVariations = [
-                  parameter.toLowerCase().replace(/\s+/g, "_"),
-                  parameter.toLowerCase().replace(/\s+/g, "-"),
-                  parameter,
-                ];
-                let score = 0;
-                for (const key of keyVariations) {
-                  if (scores[key] !== undefined) {
-                    score = scores[key];
-                    break;
-                  }
-                }
+            const keyVariations = [
+              parameter.toLowerCase().replace(/\s+/g, "_"),
+              parameter.toLowerCase().replace(/\s+/g, "-"),
+              parameter,
+            ];
+            let score = 0;
+            for (const key of keyVariations) {
+              if (scores[key] !== undefined) {
+                score = scores[key];
+                break;
+              }
+            }
                 return { parameter, score, details: validation.details?.[parameter] };
               }).sort((a, b) => b.score - a.score); // Sort by score descending
 
               const strongParams = groupedParams.filter(p => p.score >= 8);
               const goodParams = groupedParams.filter(p => p.score >= 6 && p.score < 8);
               const needsWorkParams = groupedParams.filter(p => p.score < 6);
-
-              return (
+            
+            return (
                 <div className="space-y-6">
                   {/* Strong Parameters (8-10) */}
                   {strongParams.length > 0 && (
@@ -776,7 +778,7 @@ export default function ValidationResult() {
                       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                         {needsWorkParams.map(({ parameter, score, details }) => (
                           <ParameterCard
-                            key={parameter}
+                key={parameter}
                             parameter={parameter}
                             score={score}
                             details={details}
@@ -788,7 +790,7 @@ export default function ValidationResult() {
                 </div>
               );
             })()}
-          </div>
+              </div>
         </div>
       )}
 
@@ -809,7 +811,7 @@ export default function ValidationResult() {
                     );
                   }
                   return (
-                    <p className="text-slate-700 leading-relaxed mb-4" {...props} />
+                  <p className="text-slate-700 leading-relaxed mb-4" {...props} />
                   );
                 },
                 ul: ({ node, ...props }) => (
@@ -883,6 +885,101 @@ export default function ValidationResult() {
       {/* Tab Content: Next Steps */}
       {activeTab === "nextsteps" && (
         <div className="space-y-6">
+          {/* What's Next Section - Score-based recommendations */}
+          <div className="rounded-3xl border-2 border-brand-300 bg-gradient-to-br from-brand-50 to-white p-6 shadow-soft">
+            <h2 className="mb-4 text-2xl font-bold text-slate-900">📋 What's Next?</h2>
+            {overallScore >= 7 ? (
+              <div className="space-y-4">
+                <div className="rounded-xl border-2 border-emerald-200 bg-emerald-50/50 p-4">
+                  <h3 className="mb-2 text-lg font-semibold text-emerald-900">🎉 Strong Potential Detected!</h3>
+                  <p className="mb-3 text-sm text-emerald-800">
+                    Your idea shows strong potential with a score of {overallScore.toFixed(1)}/10. Here's your recommended path forward:
+                  </p>
+                  <ul className="ml-4 list-disc space-y-2 text-sm text-emerald-800">
+                    <li>Create an MVP roadmap - Break down your idea into minimum viable features</li>
+                    <li>Validate with real customers - Conduct user interviews and gather feedback</li>
+                    <li>Build a landing page - Test demand before full development</li>
+                    <li>Consider funding options - Prepare pitch deck if seeking investment</li>
+                    <li>Set up legal structure - Choose business entity (LLC, Corp, etc.)</li>
+                  </ul>
+                </div>
+              </div>
+            ) : overallScore >= 5 ? (
+              <div className="space-y-4">
+                <div className="rounded-xl border-2 border-amber-200 bg-amber-50/50 p-4">
+                  <h3 className="mb-2 text-lg font-semibold text-amber-900">⚡ Good Potential, Needs Work</h3>
+                  <p className="mb-3 text-sm text-amber-800">
+                    Your idea has potential with a score of {overallScore.toFixed(1)}/10, but there are areas to strengthen:
+                  </p>
+                  <ul className="ml-4 list-disc space-y-2 text-sm text-amber-800">
+                    <li>Address weak areas - Focus on parameters scoring below 6</li>
+                    <li>Refine your value proposition - Make it clearer and more compelling</li>
+                    <li>Conduct market research - Validate assumptions with real data</li>
+                    <li>Improve problem-solution fit - Ensure you're solving a real pain point</li>
+                    <li>Re-validate after changes - Use our re-validation feature to track improvements</li>
+                  </ul>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="rounded-xl border-2 border-coral-200 bg-coral-50/50 p-4">
+                  <h3 className="mb-2 text-lg font-semibold text-coral-900">🔍 Consider Pivoting or Addressing Key Issues</h3>
+                  <p className="mb-3 text-sm text-coral-800">
+                    Your idea scored {overallScore.toFixed(1)}/10. Consider these actions:
+                  </p>
+                  <ul className="ml-4 list-disc space-y-2 text-sm text-coral-800">
+                    <li>Identify critical gaps - Review parameters scoring below 5</li>
+                    <li>Pivot or refine - Consider adjusting your idea based on feedback</li>
+                    <li>Address fundamental issues - Market fit, problem clarity, or business model</li>
+                    <li>Research competitors - Understand why similar ideas succeeded or failed</li>
+                    <li>Re-validate after major changes - Test improvements systematically</li>
+                  </ul>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Benchmarking Section */}
+          <div className="rounded-3xl border-2 border-slate-200 bg-gradient-to-br from-slate-50 to-white p-6 shadow-soft">
+            <h2 className="mb-4 text-2xl font-bold text-slate-900">📊 How Your Idea Compares</h2>
+            <div className="space-y-4">
+              {overallScore >= 8 ? (
+                <div className="rounded-xl border-2 border-emerald-200 bg-emerald-50/50 p-4">
+                  <p className="text-sm text-emerald-800">
+                    <strong>Top 15%</strong> - Your idea scores higher than 85% of validated ideas. This indicates exceptional potential.
+                  </p>
+                </div>
+              ) : overallScore >= 7 ? (
+                <div className="rounded-xl border-2 border-emerald-200 bg-emerald-50/50 p-4">
+                  <p className="text-sm text-emerald-800">
+                    <strong>Top 30%</strong> - Your idea scores higher than 70% of validated ideas. Strong potential with room for improvement.
+                  </p>
+                </div>
+              ) : overallScore >= 6 ? (
+                <div className="rounded-xl border-2 border-amber-200 bg-amber-50/50 p-4">
+                  <p className="text-sm text-amber-800">
+                    <strong>Above Average</strong> - Your idea scores higher than 50% of validated ideas. Good foundation with clear improvement areas.
+                  </p>
+                </div>
+              ) : overallScore >= 5 ? (
+                <div className="rounded-xl border-2 border-amber-200 bg-amber-50/50 p-4">
+                  <p className="text-sm text-amber-800">
+                    <strong>Average</strong> - Your idea is in the middle range. Average score for validated ideas is 5.5/10. Focus on strengthening weak areas.
+                  </p>
+                </div>
+              ) : (
+                <div className="rounded-xl border-2 border-coral-200 bg-coral-50/50 p-4">
+                  <p className="text-sm text-coral-800">
+                    <strong>Below Average</strong> - Your idea scores below 50% of validated ideas. Consider significant refinements or pivoting.
+                  </p>
+                </div>
+              )}
+              <p className="mt-3 text-xs text-slate-500">
+                * Comparison based on anonymized aggregated data from all validated ideas on our platform.
+              </p>
+            </div>
+          </div>
+
           {nextSteps && (
             <div className="rounded-3xl border-2 border-emerald-200 bg-gradient-to-br from-emerald-50 to-white p-6 shadow-soft">
               <div className="mb-4 flex items-center gap-3">
@@ -921,42 +1018,42 @@ export default function ValidationResult() {
           {/* Additional Actions */}
           <div className="rounded-3xl border border-brand-200 bg-brand-50/80 p-6 shadow-soft">
             <h2 className="mb-4 text-xl font-semibold text-slate-900">Additional Actions</h2>
-            <div className="grid gap-4 md:grid-cols-2">
-              <button
-                onClick={() => {
-                  // Map validation answers to intake form fields
-                  const mappedFields = mapValidationToIntake(categoryAnswers);
-                  const experienceSummary = getExperienceSummaryFromValidation(categoryAnswers, ideaExplanation);
-                  
-                  // Set the mapped inputs
-                  setInputs({
-                    ...mappedFields,
-                    experience_summary: experienceSummary,
-                  });
-                  
-                  // Navigate to advisor page and scroll to form
-                  navigate("/advisor#intake-form");
-                }}
-                className="rounded-2xl border border-brand-300 bg-white p-6 text-center transition hover:border-brand-400 hover:bg-brand-50"
-              >
-                <div className="mb-2 text-2xl">💡</div>
-                <h3 className="mb-2 font-semibold text-slate-900">Discover Related Ideas</h3>
-                <p className="text-sm text-slate-600">
-                  Get personalized startup ideas based on your profile and interests
-                </p>
-              </button>
-              <Link
-                to="/validate-idea"
-                className="rounded-2xl border border-coral-300 bg-white p-6 text-center transition hover:border-coral-400 hover:bg-coral-50"
-              >
-                <div className="mb-2 text-2xl">🔄</div>
-                <h3 className="mb-2 font-semibold text-slate-900">Refine & Re-validate</h3>
-                <p className="text-sm text-slate-600">
-                  Update your idea based on feedback and validate again
-                </p>
-              </Link>
-            </div>
-          </div>
+        <div className="grid gap-4 md:grid-cols-2">
+          <button
+            onClick={() => {
+              // Map validation answers to intake form fields
+              const mappedFields = mapValidationToIntake(categoryAnswers);
+              const experienceSummary = getExperienceSummaryFromValidation(categoryAnswers, ideaExplanation);
+              
+              // Set the mapped inputs
+              setInputs({
+                ...mappedFields,
+                experience_summary: experienceSummary,
+              });
+              
+              // Navigate to advisor page and scroll to form
+              navigate("/advisor#intake-form");
+            }}
+            className="rounded-2xl border border-brand-300 bg-white p-6 text-center transition hover:border-brand-400 hover:bg-brand-50"
+          >
+            <div className="mb-2 text-2xl">💡</div>
+            <h3 className="mb-2 font-semibold text-slate-900">Discover Related Ideas</h3>
+            <p className="text-sm text-slate-600">
+              Get personalized startup ideas based on your profile and interests
+            </p>
+          </button>
+          <Link
+            to="/validate-idea"
+            className="rounded-2xl border border-coral-300 bg-white p-6 text-center transition hover:border-coral-400 hover:bg-coral-50"
+          >
+            <div className="mb-2 text-2xl">🔄</div>
+            <h3 className="mb-2 font-semibold text-slate-900">Refine & Re-validate</h3>
+            <p className="text-sm text-slate-600">
+              Update your idea based on feedback and validate again
+            </p>
+          </Link>
+        </div>
+      </div>
         </div>
       )}
     </section>

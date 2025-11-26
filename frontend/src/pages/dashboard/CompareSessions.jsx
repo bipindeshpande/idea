@@ -56,24 +56,42 @@ export default function CompareSessionsPage() {
 
     setComparing(true);
     try {
+      const requestBody = {
+        run_ids: Array.from(selectedRuns),
+        validation_ids: Array.from(selectedValidations),
+      };
+      
+      if (process.env.NODE_ENV === 'development') {
+        console.log("Comparing sessions:", requestBody);
+      }
+
       const response = await fetch("/api/user/compare-sessions", {
         method: "POST",
         headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
-        body: JSON.stringify({
-          run_ids: Array.from(selectedRuns),
-          validation_ids: Array.from(selectedValidations),
-        }),
+        body: JSON.stringify(requestBody),
       });
+      
       if (response.ok) {
         const data = await response.json();
+        if (process.env.NODE_ENV === 'development') {
+          console.log("Comparison response:", data);
+        }
+        
         if (data.success) {
-          setComparisonData(data.comparison);
+          if (data.comparison) {
+            setComparisonData(data.comparison);
+            // Scroll to results
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          } else {
+            alert("Comparison completed but no data was returned. Please try again.");
+          }
         } else {
           alert(data.error || "Failed to compare sessions. Please try again.");
         }
       } else {
         const errorData = await response.json().catch(() => ({ error: "Unknown error" }));
-        alert(errorData.error || "Failed to compare sessions. Please try again.");
+        console.error("Comparison error:", errorData);
+        alert(errorData.error || `Failed to compare sessions (${response.status}). Please try again.`);
       }
     } catch (error) {
       console.error("Failed to compare sessions:", error);
@@ -140,6 +158,17 @@ export default function CompareSessionsPage() {
 
       {!comparisonData ? (
         <div className="space-y-6">
+          {/* Compare Button at Top */}
+          <div className="flex justify-center">
+            <button
+              onClick={handleCompare}
+              disabled={comparing || (selectedRuns.size === 0 && selectedValidations.size === 0)}
+              className="rounded-xl bg-gradient-to-r from-brand-500 to-brand-600 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-brand-500/25 transition-all duration-200 hover:from-brand-600 hover:to-brand-700 hover:shadow-xl hover:shadow-brand-500/30 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {comparing ? "Comparing..." : `Compare ${selectedRuns.size + selectedValidations.size} Session(s)`}
+            </button>
+          </div>
+
           {/* Idea Discovery Runs */}
           <section className="rounded-2xl border border-slate-200/60 dark:border-slate-700/60 bg-white/95 dark:bg-slate-800/95 p-6 shadow-lg">
             <h2 className="mb-4 text-xl font-bold text-slate-900 dark:text-slate-50">Idea Discovery Runs</h2>
@@ -213,12 +242,12 @@ export default function CompareSessionsPage() {
             )}
           </section>
 
-          {/* Compare Button */}
+          {/* Compare Button at Bottom */}
           <div className="flex justify-center">
             <button
               onClick={handleCompare}
               disabled={comparing || (selectedRuns.size === 0 && selectedValidations.size === 0)}
-              className="rounded-xl bg-gradient-to-r from-brand-500 to-brand-600 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-brand-500/25 transition-all duration-200 hover:from-brand-600 hover:to-brand-700 hover:shadow-xl hover:shadow-brand-500/30 disabled:opacity-50"
+              className="rounded-xl bg-gradient-to-r from-brand-500 to-brand-600 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-brand-500/25 transition-all duration-200 hover:from-brand-600 hover:to-brand-700 hover:shadow-xl hover:shadow-brand-500/30 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {comparing ? "Comparing..." : `Compare ${selectedRuns.size + selectedValidations.size} Session(s)`}
             </button>
@@ -240,10 +269,19 @@ export default function CompareSessionsPage() {
             </button>
           </div>
 
+          {/* Debug info - remove in production if not needed */}
+          {process.env.NODE_ENV === 'development' && (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs">
+              <strong>Debug:</strong> Runs: {comparisonData?.runs?.length || 0}, Validations: {comparisonData?.validations?.length || 0}
+            </div>
+          )}
+
           {/* Runs Comparison */}
           {comparisonData && comparisonData.runs && comparisonData.runs.length > 0 && (
             <section className="rounded-2xl border border-slate-200/60 dark:border-slate-700/60 bg-white/95 dark:bg-slate-800/95 p-6 shadow-lg">
-              <h3 className="mb-4 text-lg font-bold text-slate-900 dark:text-slate-50">Idea Discovery Runs</h3>
+              <h3 className="mb-4 text-lg font-bold text-slate-900 dark:text-slate-50">
+                Idea Discovery Runs ({comparisonData.runs.length})
+              </h3>
               <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-700">
                   <thead className="bg-slate-50 dark:bg-slate-700">
@@ -270,17 +308,19 @@ export default function CompareSessionsPage() {
                   </thead>
                   <tbody className="divide-y divide-slate-200 dark:divide-slate-700 bg-white dark:bg-slate-800">
                     {comparisonData.runs.map((run, idx) => {
-                      const projectName = run.inputs?.goal_type 
-                        ? `${run.inputs.goal_type}${run.inputs.interest_area || run.inputs.sub_interest_area ? ` - ${run.inputs.interest_area || run.inputs.sub_interest_area}` : ""}`
+                      // Ensure inputs is an object
+                      const inputs = run.inputs || {};
+                      const projectName = inputs.goal_type 
+                        ? `${inputs.goal_type}${inputs.interest_area || inputs.sub_interest_area ? ` - ${inputs.interest_area || inputs.sub_interest_area}` : ""}`
                         : "Idea Discovery Session";
                       
                       return (
-                        <tr key={idx}>
+                        <tr key={run.run_id || idx} className="hover:bg-slate-50 dark:hover:bg-slate-700">
                           <td className="px-4 py-3 text-sm font-medium text-slate-900 dark:text-slate-100">
                             {projectName}
                             {run.run_id && (
                               <span className="ml-2 text-xs text-slate-500 dark:text-slate-400">
-                                (ID: {run.run_id.slice(-8)})
+                                (ID: {String(run.run_id).slice(-8)})
                               </span>
                             )}
                           </td>
@@ -288,16 +328,16 @@ export default function CompareSessionsPage() {
                             {run.created_at ? new Date(run.created_at).toLocaleDateString() : "N/A"}
                           </td>
                           <td className="px-4 py-3 text-sm text-slate-900 dark:text-slate-100">
-                            {run.inputs?.goal_type || "N/A"}
+                            {inputs.goal_type || "N/A"}
                           </td>
                           <td className="px-4 py-3 text-sm text-slate-900 dark:text-slate-100">
-                            {run.inputs?.time_commitment || "N/A"}
+                            {inputs.time_commitment || "N/A"}
                           </td>
                           <td className="px-4 py-3 text-sm text-slate-900 dark:text-slate-100">
-                            {run.inputs?.budget_range || "N/A"}
+                            {inputs.budget_range || "N/A"}
                           </td>
                           <td className="px-4 py-3 text-sm text-slate-900 dark:text-slate-100">
-                            {run.inputs?.sub_interest_area || run.inputs?.interest_area || "N/A"}
+                            {inputs.sub_interest_area || inputs.interest_area || "N/A"}
                           </td>
                         </tr>
                       );
@@ -308,13 +348,26 @@ export default function CompareSessionsPage() {
             </section>
           )}
 
+          {/* Show message if no runs found */}
+          {comparisonData && (!comparisonData.runs || comparisonData.runs.length === 0) && selectedRuns.size > 0 && (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+              No runs found for comparison. The selected runs may have been deleted or you may not have access to them.
+            </div>
+          )}
+
           {/* Validations Comparison */}
           {comparisonData && comparisonData.validations && comparisonData.validations.length > 0 && (
             <section className="rounded-2xl border border-slate-200/60 dark:border-slate-700/60 bg-white/95 dark:bg-slate-800/95 p-6 shadow-lg">
-              <h3 className="mb-4 text-lg font-bold text-slate-900 dark:text-slate-50">Idea Validations</h3>
+              <h3 className="mb-4 text-lg font-bold text-slate-900 dark:text-slate-50">
+                Idea Validations ({comparisonData.validations.length})
+              </h3>
               <div className="space-y-4">
                 {comparisonData.validations.map((validation, idx) => {
-                  const scores = validation.validation_result?.scores || {};
+                  // Ensure validation_result is an object
+                  const validationResult = validation.validation_result || {};
+                  const scores = validationResult.scores || {};
+                  const overallScore = validationResult.overall_score;
+                  
                   const projectName = validation.idea_explanation 
                     ? (validation.idea_explanation.length > 80 
                         ? validation.idea_explanation.substring(0, 80) + "..." 
@@ -322,14 +375,14 @@ export default function CompareSessionsPage() {
                     : "Idea Validation";
                   
                   return (
-                    <div key={idx} className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4">
+                    <div key={validation.validation_id || idx} className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4">
                       <div className="mb-3">
                         <div className="flex items-center justify-between mb-2">
                           <p className="text-sm font-semibold text-slate-900 dark:text-slate-50">
                             {projectName}
-                            {validation.validation_result?.overall_score !== undefined && (
+                            {overallScore !== undefined && overallScore !== null && (
                               <span className="ml-2 text-brand-600 dark:text-brand-400">
-                                Score: {validation.validation_result.overall_score.toFixed(1)}/10
+                                Score: {Number(overallScore).toFixed(1)}/10
                               </span>
                             )}
                           </p>
@@ -339,27 +392,49 @@ export default function CompareSessionsPage() {
                         </div>
                         {validation.validation_id && (
                           <p className="text-xs text-slate-500 dark:text-slate-400">
-                            ID: {validation.validation_id.slice(-8)}
+                            ID: {String(validation.validation_id).slice(-8)}
                           </p>
                         )}
                       </div>
-                      {Object.keys(scores).length > 0 && (
+                      {Object.keys(scores).length > 0 ? (
                         <div className="grid grid-cols-2 gap-2 md:grid-cols-5">
                           {Object.entries(scores).map(([category, score]) => (
                             <div key={category} className="rounded border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-700 p-2">
                               <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">
                                 {category.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())}
                               </p>
-                              <p className="text-sm font-bold text-brand-600 dark:text-brand-400">{score.toFixed(1)}</p>
+                              <p className="text-sm font-bold text-brand-600 dark:text-brand-400">
+                                {Number(score).toFixed(1)}
+                              </p>
                             </div>
                           ))}
                         </div>
+                      ) : (
+                        <p className="text-xs text-slate-500 dark:text-slate-400 italic">
+                          No detailed scores available for this validation.
+                        </p>
                       )}
                     </div>
                   );
                 })}
               </div>
             </section>
+          )}
+
+          {/* Show message if no validations found */}
+          {comparisonData && (!comparisonData.validations || comparisonData.validations.length === 0) && selectedValidations.size > 0 && (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+              No validations found for comparison. The selected validations may have been deleted or you may not have access to them.
+            </div>
+          )}
+
+          {/* Show message if no comparison data at all */}
+          {comparisonData && 
+           (!comparisonData.runs || comparisonData.runs.length === 0) && 
+           (!comparisonData.validations || comparisonData.validations.length === 0) && (
+            <div className="rounded-lg border border-coral-200 bg-coral-50 p-4 text-sm text-coral-800">
+              No comparison data available. Please try selecting different sessions.
+            </div>
           )}
         </div>
       )}

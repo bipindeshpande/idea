@@ -6,6 +6,7 @@ import { useReports } from "../../context/ReportsContext.jsx";
 import { useAuth } from "../../context/AuthContext.jsx";
 import { validationQuestions } from "../../config/validationQuestions.js";
 import ValidationLoadingIndicator from "../../components/validation/ValidationLoadingIndicator.jsx";
+import OnboardingTooltip from "../../components/validation/OnboardingTooltip.jsx";
 
 const CATEGORY_QUESTIONS = validationQuestions.category_questions;
 const IDEA_EXPLANATION_QUESTIONS = validationQuestions.idea_explanation_questions;
@@ -20,6 +21,36 @@ export default function IdeaValidator() {
   const [step, setStep] = useState(0);
   const [loadingIntake, setLoadingIntake] = useState(true);
   const [userIntake, setUserIntake] = useState(null);
+  const [dismissedTooltips, setDismissedTooltips] = useState(() => {
+    // Check localStorage for dismissed tooltips
+    const saved = localStorage.getItem("validation_tooltips_dismissed");
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [isFirstValidation, setIsFirstValidation] = useState(false);
+
+  // Check if this is user's first validation
+  useEffect(() => {
+    const checkFirstValidation = async () => {
+      if (!isAuthenticated) {
+        setIsFirstValidation(true); // Assume first for non-authenticated users
+        return;
+      }
+      try {
+        const response = await fetch("/api/user/activity", {
+          headers: getAuthHeaders(),
+        });
+        if (response.ok) {
+          const data = await response.json();
+          const validationCount = data.activity?.validations?.length || 0;
+          setIsFirstValidation(validationCount === 0);
+        }
+      } catch (err) {
+        // Default to showing tooltips if we can't check
+        setIsFirstValidation(true);
+      }
+    };
+    checkFirstValidation();
+  }, [isAuthenticated, getAuthHeaders]);
 
   // Load user's latest intake data
   useEffect(() => {
@@ -166,8 +197,8 @@ export default function IdeaValidator() {
           </p>
 
           <div className="space-y-6">
-            {CATEGORY_QUESTIONS.map((question) => (
-              <div key={question.id}>
+            {CATEGORY_QUESTIONS.map((question, index) => (
+              <div key={question.id} className="relative">
                 <label htmlFor={question.id} className="mb-2 block text-base font-semibold text-slate-900 dark:text-slate-100">
                   {question.question}
                 </label>
@@ -184,6 +215,19 @@ export default function IdeaValidator() {
                     </option>
                   ))}
                 </select>
+                {isFirstValidation && index === 0 && !dismissedTooltips.includes(`category-${question.id}`) && (
+                  <OnboardingTooltip
+                    id={`category-${question.id}`}
+                    message="This will take 2-3 minutes. Answer honestly - your responses help us provide accurate validation."
+                    position="bottom"
+                    show={true}
+                    onDismiss={(id) => {
+                      const newDismissed = [...dismissedTooltips, id];
+                      setDismissedTooltips(newDismissed);
+                      localStorage.setItem("validation_tooltips_dismissed", JSON.stringify(newDismissed));
+                    }}
+                  />
+                )}
               </div>
             ))}
           </div>
@@ -245,7 +289,7 @@ export default function IdeaValidator() {
               </div>
             ))}
             
-            <div>
+            <div className="relative">
               <label htmlFor="ideaDetails" className="mb-2 block text-base font-semibold text-slate-900 dark:text-slate-100">
                 Provide details about your idea
               </label>
@@ -260,6 +304,19 @@ export default function IdeaValidator() {
                 className="w-full rounded-xl border border-slate-300/60 dark:border-slate-600/60 bg-white dark:bg-slate-800 px-4 py-3 text-sm font-medium text-slate-700 dark:text-slate-300 shadow-sm transition-all duration-200 focus:border-brand-400 dark:focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100 dark:focus:ring-brand-900 resize-y"
                 placeholder="Describe your startup idea in detail. For example: What problem does it solve? How does it work? Who is it for? What makes it unique? What's your business model?"
               />
+              {isFirstValidation && !dismissedTooltips.includes("idea-details") && (
+                <OnboardingTooltip
+                  id="idea-details"
+                  message="Be specific! The more detail you provide, the more accurate your validation will be. Include problem, solution, target audience, and business model."
+                  position="bottom"
+                  show={true}
+                  onDismiss={(id) => {
+                    const newDismissed = [...dismissedTooltips, id];
+                    setDismissedTooltips(newDismissed);
+                    localStorage.setItem("validation_tooltips_dismissed", JSON.stringify(newDismissed));
+                  }}
+                />
+              )}
             </div>
           </div>
 

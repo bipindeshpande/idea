@@ -13,7 +13,7 @@ export default function DashboardPage() {
   const [apiValidations, setApiValidations] = useState([]);
   const [loadingRuns, setLoadingRuns] = useState(true);
   const [activeTab, setActiveTab] = useState("ideas"); // "ideas" or "validations" (for My Sessions sub-tabs)
-  const [mainTab, setMainTab] = useState("sessions"); // "active-ideas" or "sessions" (for main dashboard tabs)
+  const [mainTab, setMainTab] = useState("sessions"); // "active-ideas", "sessions", "search", or "compare" (for main dashboard tabs)
   const { deleteRun, setInputs } = useReports();
   const { user, isAuthenticated, subscription, getAuthHeaders } = useAuth();
   const { getSavedValidations } = useValidation();
@@ -22,10 +22,29 @@ export default function DashboardPage() {
   const [loadingActions, setLoadingActions] = useState(false);
   const [notes, setNotes] = useState([]);
   const [loadingNotes, setLoadingNotes] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchInput, setSearchInput] = useState(""); // What user is typing
+  const [searchQuery, setSearchQuery] = useState(""); // Active search query used for filtering
   const [sortBy, setSortBy] = useState("date"); // "date", "score", "name"
   const [dateFilter, setDateFilter] = useState("all"); // "all", "week", "month", "3months", "year"
   const [scoreFilter, setScoreFilter] = useState("all"); // "all", "high" (>=7), "medium" (5-7), "low" (<5)
+  const [showAdditionalFilters, setShowAdditionalFilters] = useState(false); // Collapsible state for Additional Filters
+  // Advanced search fields
+  const [advancedSearch, setAdvancedSearch] = useState({
+    goalType: "",
+    interestArea: "",
+    ideaDescription: "",
+    sessionId: "",
+    budgetRange: "all",
+    timeCommitment: "all",
+    workStyle: "all",
+    skillStrength: "all",
+    searchType: "ideas", // "ideas" or "validations"
+  });
+  // Compare tab state
+  const [selectedRuns, setSelectedRuns] = useState(new Set());
+  const [selectedValidations, setSelectedValidations] = useState(new Set());
+  const [comparisonData, setComparisonData] = useState(null);
+  const [comparing, setComparing] = useState(false);
 
   const loadRuns = () => {
     const stored = localStorage.getItem(STORAGE_KEY);
@@ -161,24 +180,24 @@ export default function DashboardPage() {
     if (run.from_api && run.run_id && (!run.inputs || Object.keys(run.inputs).length === 0)) {
       try {
         const response = await fetch(`/api/user/run/${run.run_id}`, {
-          headers: getAuthHeaders(),
-        });
-        if (response.ok) {
-          const data = await response.json();
+        headers: getAuthHeaders(),
+      });
+      if (response.ok) {
+        const data = await response.json();
           if (data.success && data.run?.inputs) {
             setInputs(data.run.inputs);
             navigate("/advisor#intake-form");
             return;
           }
-        }
-      } catch (error) {
-        console.error("Failed to load run inputs:", error);
       }
+    } catch (error) {
+        console.error("Failed to load run inputs:", error);
     }
-    
+    }
+
     // Load the saved inputs into the form (for localStorage runs or if API fetch failed)
     if (run.inputs && Object.keys(run.inputs).length > 0) {
-      setInputs(run.inputs);
+    setInputs(run.inputs);
       navigate("/advisor#intake-form");
     } else {
       // If no inputs available, just navigate to form
@@ -279,17 +298,72 @@ export default function DashboardPage() {
       return true;
     });
     
-    // Search filter
-    if (searchQuery) {
+    // Advanced search filters
+    if (searchQuery && searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter(session => {
         const goalType = session.inputs?.goal_type?.toLowerCase() || "";
         const interestArea = session.inputs?.interest_area?.toLowerCase() || "";
         const subInterest = session.inputs?.sub_interest_area?.toLowerCase() || "";
-        const runId = session.run_id?.toLowerCase() || "";
-        return goalType.includes(query) || interestArea.includes(query) || 
-               subInterest.includes(query) || runId.includes(query);
+        const runId = session.run_id?.toLowerCase() || session.id?.toLowerCase() || "";
+        
+        // Check if any query part matches
+        const queryParts = query.split(/\s+/).filter(p => p.length > 0);
+        return queryParts.some(part => 
+          goalType.includes(part) || 
+          interestArea.includes(part) || 
+          subInterest.includes(part) || 
+          runId.includes(part)
+        );
       });
+    }
+    
+    // Advanced field filters
+    if (advancedSearch.goalType) {
+      const goalType = advancedSearch.goalType.toLowerCase();
+      filtered = filtered.filter(s => 
+        s.inputs?.goal_type?.toLowerCase().includes(goalType)
+      );
+    }
+    
+    if (advancedSearch.interestArea) {
+      const interestArea = advancedSearch.interestArea.toLowerCase();
+      filtered = filtered.filter(s => 
+        s.inputs?.interest_area?.toLowerCase().includes(interestArea) ||
+        s.inputs?.sub_interest_area?.toLowerCase().includes(interestArea)
+      );
+    }
+    
+    if (advancedSearch.sessionId) {
+      const sessionId = advancedSearch.sessionId.toLowerCase();
+      filtered = filtered.filter(s => {
+        const runId = s.run_id?.toLowerCase() || s.id?.toLowerCase() || "";
+        return runId.includes(sessionId);
+      });
+    }
+    
+    if (advancedSearch.budgetRange !== "all") {
+      filtered = filtered.filter(s => 
+        s.inputs?.budget_range === advancedSearch.budgetRange
+      );
+    }
+    
+    if (advancedSearch.timeCommitment !== "all") {
+      filtered = filtered.filter(s => 
+        s.inputs?.time_commitment === advancedSearch.timeCommitment
+      );
+    }
+    
+    if (advancedSearch.workStyle !== "all") {
+      filtered = filtered.filter(s => 
+        s.inputs?.work_style === advancedSearch.workStyle
+      );
+    }
+    
+    if (advancedSearch.skillStrength !== "all") {
+      filtered = filtered.filter(s => 
+        s.inputs?.skill_strength === advancedSearch.skillStrength
+      );
     }
     
     // Date filter
@@ -322,18 +396,34 @@ export default function DashboardPage() {
     });
     
     return filtered;
-  }, [allRuns, searchQuery, dateFilter, sortBy]);
+  }, [allRuns, searchQuery, dateFilter, sortBy, advancedSearch]);
 
   const filteredValidations = useMemo(() => {
     let filtered = [...allValidations];
     
-    // Search filter
-    if (searchQuery) {
+    // Advanced search filters
+    if (searchQuery && searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
+      const queryParts = query.split(/\s+/).filter(p => p.length > 0);
       filtered = filtered.filter(session => {
         const idea = session.idea_explanation?.toLowerCase() || "";
-        const valId = session.validation_id?.toLowerCase() || "";
-        return idea.includes(query) || valId.includes(query);
+        const valId = session.validation_id?.toLowerCase() || session.id?.toLowerCase() || "";
+        return queryParts.some(part => idea.includes(part) || valId.includes(part));
+      });
+    }
+    
+    if (advancedSearch.ideaDescription) {
+      const ideaDesc = advancedSearch.ideaDescription.toLowerCase();
+      filtered = filtered.filter(s => 
+        s.idea_explanation?.toLowerCase().includes(ideaDesc)
+      );
+    }
+    
+    if (advancedSearch.sessionId) {
+      const sessionId = advancedSearch.sessionId.toLowerCase();
+      filtered = filtered.filter(s => {
+        const valId = s.validation_id?.toLowerCase() || s.id?.toLowerCase() || "";
+        return valId.includes(sessionId);
       });
     }
     
@@ -386,7 +476,7 @@ export default function DashboardPage() {
     });
     
     return filtered;
-  }, [allValidations, searchQuery, dateFilter, scoreFilter, sortBy]);
+  }, [allValidations, searchQuery, dateFilter, scoreFilter, sortBy, advancedSearch]);
 
   // Check if a session has open (non-completed) actions
   const sessionHasOpenActions = useCallback((session) => {
@@ -511,14 +601,35 @@ export default function DashboardPage() {
             >
               Active Ideas
             </button>
+            <button
+              onClick={() => setMainTab("search")}
+              className={`px-4 py-2 text-sm font-semibold transition-all duration-200 border-b-2 ${
+                mainTab === "search"
+                  ? "border-brand-500 text-brand-700 dark:text-brand-400"
+                  : "border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 hover:border-slate-300 dark:hover:border-slate-600"
+              }`}
+            >
+              Search
+            </button>
+            <button
+              onClick={() => setMainTab("compare")}
+              className={`px-4 py-2 text-sm font-semibold transition-all duration-200 border-b-2 ${
+                mainTab === "compare"
+                  ? "border-brand-500 text-brand-700 dark:text-brand-400"
+                  : "border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 hover:border-slate-300 dark:hover:border-slate-600"
+              }`}
+            >
+              Compare
+            </button>
           </nav>
-        </div>
+      </div>
 
         {/* Tab 1: Active Ideas */}
         {mainTab === "active-ideas" && (
           <div className="space-y-6">
             {/* Ideas Active Projects */}
             {(() => {
+              // Get ideas with non-completed actions
               const ideaActions = actions.filter((a) => {
                 if (a.status === "completed") return false;
                 if (!a.idea_id) return false;
@@ -528,21 +639,76 @@ export default function DashboardPage() {
                        (a.idea_id.match(/run_([^_]+)/) && !a.idea_id.match(/val_/));
               });
               
-              return ideaActions.length > 0 ? (
-                <div>
-                  <h3 className="mb-4 text-lg font-bold text-slate-900 dark:text-slate-50">💡 Active Ideas ({ideaActions.length})</h3>
-                  {loadingActions ? (
-                    <p className="text-sm text-slate-600 dark:text-slate-300">Loading actions...</p>
+              // Get ideas with notes
+              const ideaNotes = notes.filter((n) => {
+                if (!n.idea_id) return false;
+                // Match run_<runId>_idea_<number> or idea_<number> or run_<runId>
+                return n.idea_id.match(/run_([^_]+)_idea_(\d+)/) || 
+                       n.idea_id.match(/idea_(\d+)/) ||
+                       (n.idea_id.match(/run_([^_]+)/) && !n.idea_id.match(/val_/));
+              });
+              
+              // Combine and deduplicate by idea_id
+              const ideaIdsWithActions = new Set(ideaActions.map(a => a.idea_id));
+              const ideaIdsWithNotes = new Set(ideaNotes.map(n => n.idea_id));
+              const allActiveIdeaIds = new Set([...ideaIdsWithActions, ...ideaIdsWithNotes]);
+              
+              // Create a map of idea_id to display info
+              const activeIdeasMap = new Map();
+              
+              // Process actions
+              ideaActions.forEach(action => {
+                if (!activeIdeasMap.has(action.idea_id)) {
+                  activeIdeasMap.set(action.idea_id, {
+                    idea_id: action.idea_id,
+                    hasAction: true,
+                    hasNote: false,
+                    action: action,
+                    note: null,
+                  });
+                } else {
+                  const existing = activeIdeasMap.get(action.idea_id);
+                  existing.hasAction = true;
+                  existing.action = action;
+                }
+              });
+              
+              // Process notes
+              ideaNotes.forEach(note => {
+                if (!activeIdeasMap.has(note.idea_id)) {
+                  activeIdeasMap.set(note.idea_id, {
+                    idea_id: note.idea_id,
+                    hasAction: false,
+                    hasNote: true,
+                    action: null,
+                    note: note,
+                  });
+                } else {
+                  const existing = activeIdeasMap.get(note.idea_id);
+                  existing.hasNote = true;
+                  existing.note = note;
+                }
+              });
+              
+              const activeIdeas = Array.from(activeIdeasMap.values());
+              
+              return activeIdeas.length > 0 ? (
+          <div>
+                  <h3 className="mb-4 text-lg font-bold text-slate-900 dark:text-slate-50">💡 Active Ideas ({activeIdeas.length})</h3>
+                  {loadingActions || loadingNotes ? (
+                    <p className="text-sm text-slate-600 dark:text-slate-300">Loading...</p>
                   ) : (
                     <div className="space-y-2.5">
-                      {ideaActions.slice(0, 10).map((action) => {
+                      {activeIdeas.slice(0, 10).map((item) => {
                         // Extract project name and navigation info from idea_id
                         let projectName = "Unknown Project";
                         let ideaLink = null;
                         let run = null;
                         let ideaIndex = null;
-                        if (action.idea_id) {
-                          const runMatch = action.idea_id.match(/run_([^_]+)_idea_(\d+)/);
+                        const ideaId = item.idea_id;
+                        
+                        if (ideaId) {
+                          const runMatch = ideaId.match(/run_([^_]+)_idea_(\d+)/);
                           if (runMatch) {
                             const [, runId, idx] = runMatch;
                             ideaIndex = idx;
@@ -556,14 +722,14 @@ export default function DashboardPage() {
                             const actualRunId = run?.run_id || run?.id || runId;
                             ideaLink = `/results/recommendations/${ideaIndex}?id=${actualRunId}`;
                           } else {
-                            const ideaMatch = action.idea_id.match(/idea_(\d+)/);
+                            const ideaMatch = ideaId.match(/idea_(\d+)/);
                             if (ideaMatch) {
                               ideaIndex = ideaMatch[1];
                               projectName = `Idea #${ideaIndex}`;
-                              // Try to find the run from allRuns by checking if action.idea_id contains the run info
+                              // Try to find the run from allRuns by checking if ideaId contains the run info
                               run = allRuns.find(r => {
                                 const runIdStr = r.run_id || r.id;
-                                return action.idea_id.includes(`run_${runIdStr}_idea_`);
+                                return ideaId.includes(`run_${runIdStr}_idea_`);
                               });
                               if (run) {
                                 const actualRunId = run.run_id || run.id;
@@ -578,23 +744,35 @@ export default function DashboardPage() {
                         const cardContent = (
                           <>
                             <div className="mb-2 flex items-center gap-2">
-                              <div
-                                className={`h-2 w-2 rounded-full flex-shrink-0 ${
-                                  action.status === "completed"
-                                    ? "bg-green-500"
-                                    : action.status === "in_progress"
-                                    ? "bg-yellow-500"
-                                    : action.status === "blocked"
-                                    ? "bg-red-500"
-                                    : "bg-slate-400"
-                                }`}
-                              />
+                              {item.hasAction && item.action && (
+                                <div
+                                  className={`h-2 w-2 rounded-full flex-shrink-0 ${
+                                    item.action.status === "completed"
+                                      ? "bg-green-500"
+                                      : item.action.status === "in_progress"
+                                      ? "bg-yellow-500"
+                                      : item.action.status === "blocked"
+                                      ? "bg-red-500"
+                                      : "bg-slate-400"
+                                  }`}
+                                />
+                              )}
+                              {!item.hasAction && item.hasNote && (
+                                <div className="h-2 w-2 rounded-full flex-shrink-0 bg-purple-500" />
+                              )}
                               <h4 className="text-sm font-bold text-slate-900 dark:text-slate-50 truncate flex-1">
                                 {projectName}
                               </h4>
-                              <span className="text-xs text-slate-500 dark:text-slate-400 capitalize flex-shrink-0">
-                                {action.status.replace("_", " ")}
-                              </span>
+                              {item.hasAction && item.action && (
+                                <span className="text-xs text-slate-500 dark:text-slate-400 capitalize flex-shrink-0">
+                                  {item.action.status.replace("_", " ")}
+                                </span>
+                              )}
+                              {item.hasNote && (
+                                <span className="text-xs text-purple-600 dark:text-purple-400 flex-shrink-0">
+                                  📝 Note
+                                </span>
+                              )}
                             </div>
                             {run?.inputs && Object.keys(run.inputs).length > 0 && (
                               <p className="mb-2 text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
@@ -603,44 +781,54 @@ export default function DashboardPage() {
                                 {run.inputs.skill_strength || "Not captured"}
                               </p>
                             )}
-                            <p className="text-sm text-slate-900 dark:text-slate-100">
-                              {action.action_text}
-                            </p>
+                            {item.hasAction && item.action && (
+                              <p className="text-sm text-slate-900 dark:text-slate-100">
+                                {item.action.action_text}
+                              </p>
+                            )}
+                            {item.hasNote && item.note && (
+                              <p className="text-sm text-slate-700 dark:text-slate-300 italic">
+                                {item.note.content.length > 100 
+                                  ? item.note.content.substring(0, 100) + "..." 
+                                  : item.note.content}
+                              </p>
+                            )}
                           </>
                         );
                         
                         return ideaLink ? (
                           <Link
-                            key={action.id}
+                            key={item.idea_id}
                             to={ideaLink}
                             className="block rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-3 transition-all duration-200 hover:border-brand-400 dark:hover:border-brand-500 hover:shadow-md cursor-pointer"
                           >
                             {cardContent}
                           </Link>
                         ) : (
-                          <div key={action.id} className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-3">
+                          <div key={item.idea_id} className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-3">
                             {cardContent}
-                          </div>
+          </div>
                         );
                       })}
-                    </div>
+        </div>
                   )}
-                </div>
+          </div>
               ) : (
                 <div className="rounded-2xl border border-slate-200/60 dark:border-slate-700/60 bg-slate-50/80 dark:bg-slate-800/50 p-6 text-center">
-                  <p className="text-sm text-slate-600 dark:text-slate-300 mb-4">No active ideas with action items yet.</p>
-                  <Link
+                  <p className="text-sm text-slate-600 dark:text-slate-300 mb-4">No active ideas with action items or notes yet.</p>
+              <Link
                     to="/advisor#intake-form"
                     className="inline-block rounded-xl bg-gradient-to-r from-brand-500 to-brand-600 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-brand-500/25 transition-all duration-200 hover:from-brand-600 hover:to-brand-700 hover:shadow-xl hover:shadow-brand-500/30 hover:-translate-y-0.5"
-                  >
-                    Discover Ideas
-                  </Link>
+              >
+                Discover Ideas
+              </Link>
                 </div>
               );
             })()}
 
             {/* Validations Active Projects */}
             {(() => {
+              // Get validations with non-completed actions
               const validationActions = actions.filter((a) => {
                 if (a.status === "completed") return false;
                 if (!a.idea_id) return false;
@@ -648,20 +836,73 @@ export default function DashboardPage() {
                 return a.idea_id.match(/val_(.+)/);
               });
               
-              return validationActions.length > 0 ? (
+              // Get validations with notes
+              const validationNotes = notes.filter((n) => {
+                if (!n.idea_id) return false;
+                // Match val_<validation_id>
+                return n.idea_id.match(/val_(.+)/);
+              });
+              
+              // Combine and deduplicate by idea_id
+              const validationIdsWithActions = new Set(validationActions.map(a => a.idea_id));
+              const validationIdsWithNotes = new Set(validationNotes.map(n => n.idea_id));
+              const allActiveValidationIds = new Set([...validationIdsWithActions, ...validationIdsWithNotes]);
+              
+              // Create a map of idea_id to display info
+              const activeValidationsMap = new Map();
+              
+              // Process actions
+              validationActions.forEach(action => {
+                if (!activeValidationsMap.has(action.idea_id)) {
+                  activeValidationsMap.set(action.idea_id, {
+                    idea_id: action.idea_id,
+                    hasAction: true,
+                    hasNote: false,
+                    action: action,
+                    note: null,
+                  });
+                } else {
+                  const existing = activeValidationsMap.get(action.idea_id);
+                  existing.hasAction = true;
+                  existing.action = action;
+                }
+              });
+              
+              // Process notes
+              validationNotes.forEach(note => {
+                if (!activeValidationsMap.has(note.idea_id)) {
+                  activeValidationsMap.set(note.idea_id, {
+                    idea_id: note.idea_id,
+                    hasAction: false,
+                    hasNote: true,
+                    action: null,
+                    note: note,
+                  });
+                } else {
+                  const existing = activeValidationsMap.get(note.idea_id);
+                  existing.hasNote = true;
+                  existing.note = note;
+                }
+              });
+              
+              const activeValidations = Array.from(activeValidationsMap.values());
+              
+              return activeValidations.length > 0 ? (
                 <div>
-                  <h3 className="mb-4 text-lg font-bold text-slate-900 dark:text-slate-50">✅ Active Validations ({validationActions.length})</h3>
-                  {loadingActions ? (
-                    <p className="text-sm text-slate-600 dark:text-slate-300">Loading actions...</p>
+                  <h3 className="mb-4 text-lg font-bold text-slate-900 dark:text-slate-50">✅ Active Validations ({activeValidations.length})</h3>
+                  {loadingActions || loadingNotes ? (
+                    <p className="text-sm text-slate-600 dark:text-slate-300">Loading...</p>
                   ) : (
                     <div className="space-y-2.5">
-                      {validationActions.slice(0, 10).map((action) => {
+                      {activeValidations.slice(0, 10).map((item) => {
                         // Extract project name from idea_id
                         let projectName = "Unknown Validation";
-                        if (action.idea_id) {
-                          const valMatch = action.idea_id.match(/val_(.+)/);
+                        let validationLink = null;
+                        if (item.idea_id) {
+                          const valMatch = item.idea_id.match(/val_(.+)/);
                           if (valMatch) {
-                            const validation = allValidations.find(v => v.validation_id === valMatch[1]);
+                            const validationId = valMatch[1];
+                            const validation = allValidations.find(v => v.validation_id === validationId);
                             if (validation?.idea_explanation) {
                               projectName = validation.idea_explanation.length > 40 
                                 ? validation.idea_explanation.substring(0, 40) + "..." 
@@ -669,34 +910,70 @@ export default function DashboardPage() {
                             } else {
                               projectName = "Validation";
                             }
+                            validationLink = `/validation/${validationId}`;
                           }
                         }
                         
-                        return (
-                          <div key={action.id} className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-3">
+                        const validationCardContent = (
+                          <>
                             <div className="mb-1.5 flex items-center gap-2">
-                              <div
-                                className={`h-2 w-2 rounded-full flex-shrink-0 ${
-                                  action.status === "completed"
-                                    ? "bg-green-500"
-                                    : action.status === "in_progress"
-                                    ? "bg-yellow-500"
-                                    : action.status === "blocked"
-                                    ? "bg-red-500"
-                                    : "bg-slate-400"
-                                }`}
-                              />
-                              <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 truncate">
+                              {item.hasAction && item.action && (
+                                <div
+                                  className={`h-2 w-2 rounded-full flex-shrink-0 ${
+                                    item.action.status === "completed"
+                                      ? "bg-green-500"
+                                      : item.action.status === "in_progress"
+                                      ? "bg-yellow-500"
+                                      : item.action.status === "blocked"
+                                      ? "bg-red-500"
+                                      : "bg-slate-400"
+                                  }`}
+                                />
+                              )}
+                              {!item.hasAction && item.hasNote && (
+                                <div className="h-2 w-2 rounded-full flex-shrink-0 bg-purple-500" />
+                              )}
+                              <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 truncate flex-1">
                                 {projectName}
                               </span>
-                              <span className="ml-auto text-xs text-slate-500 dark:text-slate-400 capitalize flex-shrink-0">
-                                {action.status.replace("_", " ")}
-                              </span>
+                              {item.hasAction && item.action && (
+                                <span className="ml-auto text-xs text-slate-500 dark:text-slate-400 capitalize flex-shrink-0">
+                                  {item.action.status.replace("_", " ")}
+                                </span>
+                              )}
+                              {item.hasNote && (
+                                <span className="ml-auto text-xs text-purple-600 dark:text-purple-400 flex-shrink-0">
+                                  📝 Note
+                                </span>
+                              )}
                             </div>
-                            <p className="text-sm text-slate-900 dark:text-slate-100">
-                              {action.action_text}
-                            </p>
-                          </div>
+                            {item.hasAction && item.action && (
+                              <p className="text-sm text-slate-900 dark:text-slate-100">
+                                {item.action.action_text}
+                              </p>
+                            )}
+                            {item.hasNote && item.note && (
+                              <p className="text-sm text-slate-700 dark:text-slate-300 italic">
+                                {item.note.content.length > 100 
+                                  ? item.note.content.substring(0, 100) + "..." 
+                                  : item.note.content}
+                              </p>
+                            )}
+                          </>
+                        );
+                        
+                        return validationLink ? (
+              <Link
+                            key={item.idea_id}
+                            to={validationLink}
+                            className="block rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-3 transition-all duration-200 hover:border-brand-400 dark:hover:border-brand-500 hover:shadow-md cursor-pointer"
+              >
+                            {validationCardContent}
+              </Link>
+                        ) : (
+                          <div key={item.idea_id} className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-3">
+                            {validationCardContent}
+            </div>
                         );
                       })}
                     </div>
@@ -704,107 +981,17 @@ export default function DashboardPage() {
                 </div>
               ) : null;
             })()}
-          </div>
+      </div>
         )}
 
         {/* Tab 2: My Sessions */}
         {mainTab === "sessions" && (
           <>
-            <div className="mb-6 flex items-center justify-between">
-              <div>
-                <p className="text-sm text-slate-600 dark:text-slate-300">
-                  Manage your idea discovery runs and validations - revisit previous recommendations, compare results, or generate new ones.
-                </p>
-              </div>
-              {(allRuns.filter(s => !s.is_validation).length > 1 || allValidations.length > 1) && (
-                <Link
-                  to="/dashboard/compare"
-                  className="rounded-xl border border-brand-300/60 dark:border-brand-700/60 bg-brand-50/80 dark:bg-brand-900/20 px-4 py-2 text-sm font-semibold text-brand-700 dark:text-brand-300 transition-all duration-200 hover:border-brand-400 hover:bg-brand-100 dark:hover:bg-brand-900/30"
-                >
-                  Compare Sessions
-                </Link>
-              )}
-            </div>
-
-            {/* Search and Filters */}
-            <div className="mb-6 space-y-3">
-              {/* Search Bar */}
-              <div className="relative">
-                <input
-                  type="text"
-                  placeholder="Search sessions by name, interest area, or ID..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full rounded-xl border border-slate-200/60 dark:border-slate-700/60 bg-white dark:bg-slate-800/50 px-4 py-2.5 pl-10 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-brand-400 dark:focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100 dark:focus:ring-brand-900"
-                />
-                <svg
-                  className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 dark:text-slate-500"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
-                {searchQuery && (
-                  <button
-                    onClick={() => setSearchQuery("")}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300"
-                  >
-                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                )}
-              </div>
-
-              {/* Filter Row */}
-              <div className="flex flex-wrap items-center gap-3">
-                {/* Date Filter */}
-                <select
-                  value={dateFilter}
-                  onChange={(e) => setDateFilter(e.target.value)}
-                  className="rounded-lg border border-slate-200/60 dark:border-slate-700/60 bg-white dark:bg-slate-800/50 px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-300 focus:border-brand-400 dark:focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100 dark:focus:ring-brand-900"
-                >
-                  <option value="all">All Time</option>
-                  <option value="week">Last Week</option>
-                  <option value="month">Last Month</option>
-                  <option value="3months">Last 3 Months</option>
-                  <option value="year">Last Year</option>
-                </select>
-
-                {/* Score Filter (only for validations tab) */}
-                {activeTab === "validations" && (
-                  <select
-                    value={scoreFilter}
-                    onChange={(e) => setScoreFilter(e.target.value)}
-                    className="rounded-lg border border-slate-200/60 dark:border-slate-700/60 bg-white dark:bg-slate-800/50 px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-300 focus:border-brand-400 dark:focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100 dark:focus:ring-brand-900"
-                  >
-                    <option value="all">All Scores</option>
-                    <option value="high">High (≥7.0)</option>
-                    <option value="medium">Medium (5.0-6.9)</option>
-                    <option value="low">Low (&lt;5.0)</option>
-                  </select>
-                )}
-
-                {/* Sort By */}
-                <select
-                  value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value)}
-                  className="rounded-lg border border-slate-200/60 dark:border-slate-700/60 bg-white dark:bg-slate-800/50 px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-300 focus:border-brand-400 dark:focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100 dark:focus:ring-brand-900"
-                >
-                  <option value="date">Sort by Date</option>
-                  {activeTab === "validations" && <option value="score">Sort by Score</option>}
-                  <option value="name">Sort by Name</option>
-                </select>
-
-                {/* Results Count */}
-                <div className="ml-auto text-xs text-slate-500 dark:text-slate-400">
-                  {activeTab === "ideas" 
-                    ? `Showing ${filteredRuns.length} of ${allRuns.filter(s => !s.is_validation).length} ideas`
-                    : `Showing ${filteredValidations.length} of ${allValidations.length} validations`}
-                </div>
-              </div>
-            </div>
+        <div className="mb-6">
+          <p className="text-sm text-slate-600 dark:text-slate-300">
+            Manage your idea discovery runs and validations - revisit previous recommendations or generate new ones.
+          </p>
+        </div>
 
         {/* Tabs */}
         <div className="mb-6 border-b border-slate-200/60 dark:border-slate-700/60">
@@ -843,23 +1030,23 @@ export default function DashboardPage() {
                 {filteredRuns.length === 0 ? (
                   <div className="rounded-2xl border border-slate-200/60 dark:border-slate-700/60 bg-slate-50/80 dark:bg-slate-800/50 p-6 text-center">
                     <p className="text-sm text-slate-600 dark:text-slate-300 mb-4">No idea discovery sessions yet.</p>
-                    <Link
+              <Link
                       to="/advisor#intake-form"
                       className="inline-block rounded-xl bg-gradient-to-r from-brand-500 to-brand-600 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-brand-500/25 transition-all duration-200 hover:from-brand-600 hover:to-brand-700 hover:shadow-xl hover:shadow-brand-500/30 hover:-translate-y-0.5"
-                    >
-                      Discover Ideas
-                    </Link>
-                  </div>
-                ) : (
-                  <div className="grid gap-4">
+              >
+                Discover Ideas
+              </Link>
+          </div>
+        ) : (
+          <div className="grid gap-4">
                     {filteredRuns.map((session) => {
                       const hasOpenActions = sessionHasOpenActions(session);
                       const hasNotes = sessionHasNotes(session);
                       
                       return (
                       <article key={session.id} className="group relative overflow-hidden rounded-xl border border-slate-200/60 dark:border-slate-700/60 bg-white dark:bg-slate-800/50 p-5 shadow-md transition-all duration-300 hover:shadow-lg hover:-translate-y-1">
-                        <div className="flex items-center justify-between gap-4">
-                          <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 mb-1">
                               <p className="text-xs text-slate-500 dark:text-slate-400">
                                 {new Date(session.timestamp).toLocaleString()}
@@ -896,7 +1083,7 @@ export default function DashboardPage() {
                               {session.inputs?.goal_type 
                                 ? `${session.inputs.goal_type}${session.inputs.interest_area || session.inputs.sub_interest_area ? ` - ${session.inputs.interest_area || session.inputs.sub_interest_area}` : ""}`
                                 : "Idea Discovery Session"}
-                            </h3>
+                    </h3>
                             {session.inputs && Object.keys(session.inputs).length > 0 ? (
                               <div className="mt-1.5">
                                 <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
@@ -912,37 +1099,37 @@ export default function DashboardPage() {
                                 </p>
                               </div>
                             ) : null}
-                          </div>
-                          <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
+                  </div>
+                  <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
                             {session.inputs && Object.keys(session.inputs).length > 0 && (
-                              <button
+                      <button
                                 onClick={() => handleNewRequest(session)}
                                 className="rounded-lg border border-brand-200/60 dark:border-brand-700/60 bg-brand-50/80 dark:bg-brand-900/20 px-3 py-1.5 text-xs font-semibold text-brand-700 dark:text-brand-300 transition-all duration-200 hover:border-brand-300 hover:bg-brand-100 dark:hover:bg-brand-900/30 hover:-translate-y-0.5 whitespace-nowrap"
-                              >
-                                Edit
-                              </button>
-                            )}
-                            <Link
+                      >
+                        Edit
+                      </button>
+                    )}
+                    <Link
                               to={`/results/profile?id=${session.run_id || session.id}`}
                               className="rounded-lg border border-brand-300/60 dark:border-brand-700/60 bg-brand-50/80 dark:bg-brand-900/20 px-3 py-1.5 text-xs font-semibold text-brand-700 dark:text-brand-300 transition-all duration-200 hover:border-brand-400 hover:bg-brand-100 dark:hover:bg-brand-900/30 hover:-translate-y-0.5 whitespace-nowrap"
-                            >
-                              View profile
-                            </Link>
-                            <Link
+                    >
+                      View profile
+                    </Link>
+                    <Link
                               to={`/results/recommendations?id=${session.run_id || session.id}`}
                               className="rounded-lg border border-brand-300/60 dark:border-brand-700/60 bg-brand-50/80 dark:bg-brand-900/20 px-3 py-1.5 text-xs font-semibold text-brand-700 dark:text-brand-300 transition-all duration-200 hover:border-brand-400 hover:bg-brand-100 dark:hover:bg-brand-900/30 hover:-translate-y-0.5 whitespace-nowrap"
-                            >
-                              View recommendations
-                            </Link>
-                            <button
+                    >
+                      View recommendations
+                    </Link>
+                    <button
                               onClick={() => handleDelete(session)}
                               className="rounded-lg border border-red-200/60 dark:border-red-800/60 bg-red-50/80 dark:bg-red-900/20 px-3 py-1.5 text-xs font-semibold text-red-700 dark:text-red-300 transition-all duration-200 hover:border-red-300 hover:bg-red-100 dark:hover:bg-red-900/30 hover:-translate-y-0.5 whitespace-nowrap"
-                            >
-                              Delete
-                            </button>
-                          </div>
-                        </div>
-                      </article>
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              </article>
                       );
                     })}
                   </div>
@@ -1057,13 +1244,695 @@ export default function DashboardPage() {
                       </article>
                       );
                     })}
-                  </div>
+          </div>
                 )}
               </>
             )}
           </>
         )}
           </>
+        )}
+
+        {/* Tab 3: Search */}
+        {mainTab === "search" && (
+          <div className="space-y-6">
+            <div className="mb-6">
+              <h3 className="text-lg font-bold text-slate-900 dark:text-slate-50 mb-2">Advanced Search</h3>
+              <p className="text-sm text-slate-600 dark:text-slate-300">
+                Use multiple search criteria and filters to find exactly what you're looking for.
+              </p>
+            </div>
+
+            {/* Advanced Search Form */}
+            <div className="rounded-2xl border border-slate-200/60 dark:border-slate-700/60 bg-white/95 dark:bg-slate-800/95 p-6 shadow-lg">
+              <div className="space-y-4">
+                {/* Search Type */}
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
+                    Search Type
+                  </label>
+                  <select
+                    value={advancedSearch.searchType}
+                    onChange={(e) => {
+                      // Clear all fields when switching type
+                      setAdvancedSearch({
+                        goalType: "",
+                        interestArea: "",
+                        ideaDescription: "",
+                        sessionId: "",
+                        budgetRange: "all",
+                        timeCommitment: "all",
+                        workStyle: "all",
+                        skillStrength: "all",
+                        searchType: e.target.value,
+                      });
+                      setSearchQuery("");
+                      setSearchInput("");
+                    }}
+                    className="w-full rounded-lg border border-slate-200/60 dark:border-slate-700/60 bg-white dark:bg-slate-800/50 px-3 py-2 text-sm text-slate-700 dark:text-slate-300 focus:border-brand-400 dark:focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100 dark:focus:ring-brand-900"
+                  >
+                    <option value="ideas">Ideas</option>
+                    <option value="validations">Validations</option>
+                  </select>
+                </div>
+
+                {/* Search Fields Grid - Show different fields based on search type */}
+                {advancedSearch.searchType === "ideas" ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Goal Type */}
+                    <div>
+                      <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
+                        Goal Type
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="e.g., Extra Income, Side Project"
+                        value={advancedSearch.goalType}
+                        onChange={(e) => setAdvancedSearch({...advancedSearch, goalType: e.target.value})}
+                        className="w-full rounded-lg border border-slate-200/60 dark:border-slate-700/60 bg-white dark:bg-slate-800/50 px-3 py-2 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-brand-400 dark:focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100 dark:focus:ring-brand-900"
+                      />
+                    </div>
+
+                    {/* Interest Area */}
+                    <div>
+                      <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
+                        Interest Area
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="e.g., AI / Automation, E-commerce"
+                        value={advancedSearch.interestArea}
+                        onChange={(e) => setAdvancedSearch({...advancedSearch, interestArea: e.target.value})}
+                        className="w-full rounded-lg border border-slate-200/60 dark:border-slate-700/60 bg-white dark:bg-slate-800/50 px-3 py-2 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-brand-400 dark:focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100 dark:focus:ring-brand-900"
+                      />
+                    </div>
+
+                    {/* Session ID */}
+                    <div>
+                      <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
+                        Session ID
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Enter session ID"
+                        value={advancedSearch.sessionId}
+                        onChange={(e) => setAdvancedSearch({...advancedSearch, sessionId: e.target.value})}
+                        className="w-full rounded-lg border border-slate-200/60 dark:border-slate-700/60 bg-white dark:bg-slate-800/50 px-3 py-2 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-brand-400 dark:focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100 dark:focus:ring-brand-900"
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Idea Description - for validations */}
+                    <div>
+                      <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
+                        Idea Description
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Search in idea descriptions..."
+                        value={advancedSearch.ideaDescription}
+                        onChange={(e) => setAdvancedSearch({...advancedSearch, ideaDescription: e.target.value})}
+                        className="w-full rounded-lg border border-slate-200/60 dark:border-slate-700/60 bg-white dark:bg-slate-800/50 px-3 py-2 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-brand-400 dark:focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100 dark:focus:ring-brand-900"
+                      />
+                    </div>
+
+                    {/* Validation ID */}
+                    <div>
+                      <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
+                        Validation ID
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Enter validation ID"
+                        value={advancedSearch.sessionId}
+                        onChange={(e) => setAdvancedSearch({...advancedSearch, sessionId: e.target.value})}
+                        className="w-full rounded-lg border border-slate-200/60 dark:border-slate-700/60 bg-white dark:bg-slate-800/50 px-3 py-2 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-brand-400 dark:focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100 dark:focus:ring-brand-900"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Advanced Filters - Only show for Ideas */}
+                {advancedSearch.searchType === "ideas" && (
+                  <div className="pt-4 border-t border-slate-200/60 dark:border-slate-700/60">
+                    <button
+                      type="button"
+                      onClick={() => setShowAdditionalFilters(!showAdditionalFilters)}
+                      className="flex items-center justify-between w-full mb-3 text-sm font-semibold text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-slate-100 transition-colors"
+                    >
+                      <span>Additional Filters</span>
+                      <svg
+                        className={`h-5 w-5 transition-transform ${showAdditionalFilters ? "rotate-180" : ""}`}
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </button>
+                    {showAdditionalFilters && (
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      {/* Budget Range */}
+                      <div>
+                        <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
+                          Budget Range
+                        </label>
+                        <select
+                          value={advancedSearch.budgetRange}
+                          onChange={(e) => setAdvancedSearch({...advancedSearch, budgetRange: e.target.value})}
+                          className="w-full rounded-lg border border-slate-200/60 dark:border-slate-700/60 bg-white dark:bg-slate-800/50 px-3 py-2 text-xs text-slate-700 dark:text-slate-300 focus:border-brand-400 dark:focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100 dark:focus:ring-brand-900"
+                        >
+                          <option value="all">All Budgets</option>
+                          <option value="Free / Sweat-equity only">Free / Sweat-equity</option>
+                          <option value="<$100">Less than $100</option>
+                          <option value="$100-$500">$100-$500</option>
+                          <option value="$500-$2000">$500-$2000</option>
+                          <option value=">$2000">More than $2000</option>
+                        </select>
+                      </div>
+
+                      {/* Time Commitment */}
+                      <div>
+                        <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
+                          Time Commitment
+                        </label>
+                        <select
+                          value={advancedSearch.timeCommitment}
+                          onChange={(e) => setAdvancedSearch({...advancedSearch, timeCommitment: e.target.value})}
+                          className="w-full rounded-lg border border-slate-200/60 dark:border-slate-700/60 bg-white dark:bg-slate-800/50 px-3 py-2 text-xs text-slate-700 dark:text-slate-300 focus:border-brand-400 dark:focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100 dark:focus:ring-brand-900"
+                        >
+                          <option value="all">All Time</option>
+                          <option value="<5 hrs/week">Less than 5 hrs/week</option>
+                          <option value="5-10 hrs/week">5-10 hrs/week</option>
+                          <option value="10-20 hrs/week">10-20 hrs/week</option>
+                          <option value="20+ hrs/week">20+ hrs/week</option>
+                        </select>
+                      </div>
+
+                      {/* Work Style */}
+                      <div>
+                        <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
+                          Work Style
+                        </label>
+                        <select
+                          value={advancedSearch.workStyle}
+                          onChange={(e) => setAdvancedSearch({...advancedSearch, workStyle: e.target.value})}
+                          className="w-full rounded-lg border border-slate-200/60 dark:border-slate-700/60 bg-white dark:bg-slate-800/50 px-3 py-2 text-xs text-slate-700 dark:text-slate-300 focus:border-brand-400 dark:focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100 dark:focus:ring-brand-900"
+                        >
+                          <option value="all">All Styles</option>
+                          <option value="Solo">Solo</option>
+                          <option value="Team">Team</option>
+                          <option value="Partnership">Partnership</option>
+                        </select>
+                      </div>
+
+                      {/* Skill Strength */}
+                      <div>
+                        <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
+                          Skill Strength
+                        </label>
+                        <select
+                          value={advancedSearch.skillStrength}
+                          onChange={(e) => setAdvancedSearch({...advancedSearch, skillStrength: e.target.value})}
+                          className="w-full rounded-lg border border-slate-200/60 dark:border-slate-700/60 bg-white dark:bg-slate-800/50 px-3 py-2 text-xs text-slate-700 dark:text-slate-300 focus:border-brand-400 dark:focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100 dark:focus:ring-brand-900"
+                        >
+                          <option value="all">All Skills</option>
+                          <option value="Technical / Automation">Technical</option>
+                          <option value="Creative / Design">Creative</option>
+                          <option value="Business / Marketing">Business</option>
+                          <option value="Sales / Communication">Sales</option>
+                        </select>
+                      </div>
+                    </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Score Filter - Only for Validations */}
+                {advancedSearch.searchType === "validations" && (
+                  <div className="pt-4 border-t border-slate-200/60 dark:border-slate-700/60">
+                    <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
+                      Validation Score
+                    </label>
+                    <select
+                      value={scoreFilter}
+                      onChange={(e) => setScoreFilter(e.target.value)}
+                      className="w-full rounded-lg border border-slate-200/60 dark:border-slate-700/60 bg-white dark:bg-slate-800/50 px-3 py-2 text-xs text-slate-700 dark:text-slate-300 focus:border-brand-400 dark:focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100 dark:focus:ring-brand-900"
+                    >
+                      <option value="all">All Scores</option>
+                      <option value="high">High (≥7.0)</option>
+                      <option value="medium">Medium (5.0-6.9)</option>
+                      <option value="low">Low (&lt;5.0)</option>
+                    </select>
+                  </div>
+                )}
+
+                {/* Action Buttons */}
+                <div className="flex gap-3 pt-4">
+                  <button
+                    onClick={() => {
+                      // Build search query from advanced fields
+                      const queryParts = [];
+                      if (advancedSearch.goalType) queryParts.push(advancedSearch.goalType);
+                      if (advancedSearch.interestArea) queryParts.push(advancedSearch.interestArea);
+                      if (advancedSearch.ideaDescription) queryParts.push(advancedSearch.ideaDescription);
+                      if (advancedSearch.sessionId) queryParts.push(advancedSearch.sessionId);
+                      setSearchQuery(queryParts.join(" ").trim() || " ");
+                      setSearchInput(queryParts.join(" ").trim());
+                    }}
+                    className="flex-1 rounded-xl bg-gradient-to-r from-brand-500 to-brand-600 px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-brand-500/25 transition-all duration-200 hover:from-brand-600 hover:to-brand-700 hover:shadow-xl hover:shadow-brand-500/30 hover:-translate-y-0.5"
+                  >
+                    Search
+                  </button>
+                  <button
+                    onClick={() => {
+                      setAdvancedSearch({
+                        goalType: "",
+                        interestArea: "",
+                        ideaDescription: "",
+                        sessionId: "",
+                        budgetRange: "all",
+                        timeCommitment: "all",
+                        workStyle: "all",
+                        skillStrength: "all",
+                        searchType: "ideas",
+                      });
+                      setSearchInput("");
+                      setSearchQuery("");
+                      setDateFilter("all");
+                      setScoreFilter("all");
+                      setSortBy("date");
+                    }}
+                    className="rounded-xl border border-slate-300 dark:border-slate-600 px-6 py-2.5 text-sm font-semibold text-slate-700 dark:text-slate-300 transition hover:bg-slate-50 dark:hover:bg-slate-800"
+                  >
+                    Clear All
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Results Count */}
+            {(searchQuery || advancedSearch.goalType || advancedSearch.interestArea || advancedSearch.ideaDescription || advancedSearch.sessionId || advancedSearch.budgetRange !== "all" || advancedSearch.timeCommitment !== "all" || advancedSearch.workStyle !== "all" || advancedSearch.skillStrength !== "all" || dateFilter !== "all" || scoreFilter !== "all") && (
+              <div className="text-sm text-slate-600 dark:text-slate-300">
+                {advancedSearch.searchType === "ideas" && (
+                  <>Showing {filteredRuns.length} of {allRuns.filter(s => !s.is_validation).length} ideas</>
+                )}
+                {advancedSearch.searchType === "validations" && (
+                  <>Showing {filteredValidations.length} of {allValidations.length} validations</>
+                )}
+              </div>
+            )}
+
+            {/* Show results only when there's a search query or filters applied */}
+            {(searchQuery || advancedSearch.goalType || advancedSearch.interestArea || advancedSearch.ideaDescription || advancedSearch.sessionId || advancedSearch.budgetRange !== "all" || advancedSearch.timeCommitment !== "all" || advancedSearch.workStyle !== "all" || advancedSearch.skillStrength !== "all" || dateFilter !== "all" || scoreFilter !== "all") ? (
+              <div className="space-y-4">
+                {/* Ideas Results - Only show if searchType is ideas */}
+                {advancedSearch.searchType === "ideas" && filteredRuns.length > 0 && (
+                  <div>
+                    <h4 className="text-md font-semibold text-slate-900 dark:text-slate-50 mb-3">Ideas ({filteredRuns.length})</h4>
+                    <div className="space-y-2.5">
+                      {filteredRuns.map((session) => {
+                        const runId = session.run_id || session.id?.replace("run_", "") || session.id;
+                        return (
+                          <Link
+                            key={session.id || session.timestamp}
+                            to={`/results/recommendations/0?id=${runId}`}
+                            className="block rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4 transition-all duration-200 hover:border-brand-400 dark:hover:border-brand-500 hover:shadow-md"
+                          >
+                            <div className="flex items-start justify-between">
+                              <div className="flex-1">
+                                <h5 className="text-sm font-bold text-slate-900 dark:text-slate-50 mb-1">
+                                  {session.inputs?.goal_type || "Idea Discovery"} - {session.inputs?.interest_area || session.inputs?.sub_interest_area || "General"}
+                                </h5>
+                                {session.inputs && Object.keys(session.inputs).length > 0 && (
+                                  <p className="text-xs text-slate-600 dark:text-slate-300 mb-2">
+                                    Time: {session.inputs.time_commitment || "Not set"} • Budget: {session.inputs.budget_range || "Not set"} • Focus: {session.inputs.sub_interest_area || session.inputs.interest_area || "Not captured"}
+                                  </p>
+                                )}
+                                <p className="text-xs text-slate-500 dark:text-slate-400">
+                                  ID: {runId?.substring(0, 8) || "N/A"} • {session.timestamp ? new Date(session.timestamp).toLocaleDateString() : "Unknown date"}
+                                </p>
+                              </div>
+                            </div>
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Validations Results - Only show if searchType is validations */}
+                {advancedSearch.searchType === "validations" && filteredValidations.length > 0 && (
+                  <div>
+                    <h4 className="text-md font-semibold text-slate-900 dark:text-slate-50 mb-3">Validations ({filteredValidations.length})</h4>
+                    <div className="space-y-2.5">
+                      {filteredValidations.map((session) => (
+                        <Link
+                          key={session.id || session.validation_id || session.timestamp}
+                          to={`/validate-result?id=${session.validation_id || session.id}`}
+                          className="block rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4 transition-all duration-200 hover:border-brand-400 dark:hover:border-brand-500 hover:shadow-md"
+                        >
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <h5 className="text-sm font-bold text-slate-900 dark:text-slate-50 mb-1">
+                                {session.idea_explanation && session.idea_explanation.length > 60
+                                  ? session.idea_explanation.substring(0, 60) + "..."
+                                  : session.idea_explanation || "Validation"}
+                              </h5>
+                              <div className="flex items-center gap-2 mt-2">
+                                {session.overall_score !== undefined && (
+                                  <span className="text-xs font-bold text-brand-700 dark:text-brand-300">
+                                    Score: {session.overall_score.toFixed(1)}/10
+                                  </span>
+                                )}
+                                <span className="text-xs text-slate-500 dark:text-slate-400">
+                                  ID: {session.validation_id || session.id || "N/A"} • {session.timestamp ? new Date(session.timestamp).toLocaleDateString() : "Unknown date"}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        </Link>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* No Results */}
+                {((advancedSearch.searchType === "ideas" && filteredRuns.length === 0) ||
+                  (advancedSearch.searchType === "validations" && filteredValidations.length === 0)) && (
+                  <div className="rounded-2xl border border-slate-200/60 dark:border-slate-700/60 bg-slate-50/80 dark:bg-slate-800/50 p-6 text-center">
+                    <p className="text-sm text-slate-600 dark:text-slate-300 mb-4">No sessions found matching your search criteria.</p>
+                  <button
+                    onClick={() => {
+                      setSearchInput("");
+                      setSearchQuery("");
+                      setDateFilter("all");
+                      setScoreFilter("all");
+                      setSortBy("date");
+                    }}
+                    className="inline-block rounded-xl bg-gradient-to-r from-brand-500 to-brand-600 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-brand-500/25 transition-all duration-200 hover:from-brand-600 hover:to-brand-700 hover:shadow-xl hover:shadow-brand-500/30 hover:-translate-y-0.5"
+                  >
+                    Clear Filters
+                  </button>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="rounded-2xl border border-slate-200/60 dark:border-slate-700/60 bg-slate-50/80 dark:bg-slate-800/50 p-12 text-center">
+                <svg
+                  className="mx-auto h-12 w-12 text-slate-400 dark:text-slate-500 mb-4"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                <h4 className="text-lg font-semibold text-slate-900 dark:text-slate-50 mb-2">Start Your Search</h4>
+                <p className="text-sm text-slate-600 dark:text-slate-300 mb-4">
+                  Enter a search term above to find your ideas and validations.
+                </p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  You can search by goal type, interest area, idea description, or session ID.
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Tab 4: Compare */}
+        {mainTab === "compare" && (
+          <div className="space-y-6">
+            <div className="mb-6">
+              <h3 className="text-lg font-bold text-slate-900 dark:text-slate-50 mb-2">Compare Sessions</h3>
+              <p className="text-sm text-slate-600 dark:text-slate-300">
+                Select up to 5 sessions to compare side-by-side. You can compare ideas with other ideas, or validations with other validations, but not mix them.
+              </p>
+            </div>
+
+            {!comparisonData ? (
+              <div className="space-y-6">
+                {/* Idea Discovery Runs */}
+                <section className="rounded-2xl border border-slate-200/60 dark:border-slate-700/60 bg-white/95 dark:bg-slate-800/95 p-6 shadow-lg">
+                  <div className="flex items-center justify-between mb-4">
+                    <h4 className="text-md font-semibold text-slate-900 dark:text-slate-50">Idea Discovery Runs</h4>
+                    {selectedValidations.size > 0 && (
+                      <span className="text-xs text-amber-600 dark:text-amber-400 font-medium">
+                        ⚠️ Clear validations to select ideas
+                      </span>
+                    )}
+                  </div>
+                  {allRuns.length === 0 ? (
+                    <p className="text-sm text-slate-600 dark:text-slate-300">No idea discovery runs found.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {allRuns.map((run) => {
+                        const runId = run.run_id || run.id?.replace("run_", "") || run.id;
+                        const isSelected = selectedRuns.has(runId);
+                        return (
+                          <label
+                            key={run.id || run.timestamp}
+                            className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all ${
+                              isSelected
+                                ? "border-brand-500 bg-brand-50 dark:bg-brand-900/20"
+                                : "border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600"
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              disabled={selectedValidations.size > 0}
+                              onChange={() => {
+                                // If validations are selected, clear them first
+                                if (selectedValidations.size > 0) {
+                                  setSelectedValidations(new Set());
+                                }
+                                
+                                const newSet = new Set(selectedRuns);
+                                if (newSet.has(runId)) {
+                                  newSet.delete(runId);
+                                } else {
+                                  if (newSet.size >= 5) {
+                                    alert("Maximum 5 sessions can be compared at once");
+                                    return;
+                                  }
+                                  newSet.add(runId);
+                                }
+                                setSelectedRuns(newSet);
+                              }}
+                              className="rounded border-slate-300 text-brand-600 focus:ring-brand-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                            />
+                            <div className="flex-1">
+                              <p className="text-sm font-medium text-slate-900 dark:text-slate-50">
+                                {run.inputs?.goal_type || "Idea Discovery"} - {run.inputs?.interest_area || run.inputs?.sub_interest_area || "General"}
+                              </p>
+                              <p className="text-xs text-slate-500 dark:text-slate-400">
+                                ID: {runId?.substring(0, 8) || "N/A"} • {run.timestamp ? new Date(run.timestamp).toLocaleDateString() : "Unknown date"}
+                              </p>
+                            </div>
+                          </label>
+                        );
+                      })}
+          </div>
+        )}
+      </section>
+
+                {/* Validations */}
+                <section className="rounded-2xl border border-slate-200/60 dark:border-slate-700/60 bg-white/95 dark:bg-slate-800/95 p-6 shadow-lg">
+                  <div className="flex items-center justify-between mb-4">
+                    <h4 className="text-md font-semibold text-slate-900 dark:text-slate-50">Validations</h4>
+                    {selectedRuns.size > 0 && (
+                      <span className="text-xs text-amber-600 dark:text-amber-400 font-medium">
+                        ⚠️ Clear ideas to select validations
+                      </span>
+                    )}
+    </div>
+                  {allValidations.length === 0 ? (
+                    <p className="text-sm text-slate-600 dark:text-slate-300">No validations found.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {allValidations.map((validation) => {
+                        const validationId = validation.validation_id || validation.id;
+                        const isSelected = selectedValidations.has(validationId);
+                        return (
+                          <label
+                            key={validation.id || validation.validation_id || validation.timestamp}
+                            className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all ${
+                              isSelected
+                                ? "border-brand-500 bg-brand-50 dark:bg-brand-900/20"
+                                : "border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600"
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              disabled={selectedRuns.size > 0}
+                              onChange={() => {
+                                // If ideas are selected, clear them first
+                                if (selectedRuns.size > 0) {
+                                  setSelectedRuns(new Set());
+                                }
+                                
+                                const newSet = new Set(selectedValidations);
+                                if (newSet.has(validationId)) {
+                                  newSet.delete(validationId);
+                                } else {
+                                  if (newSet.size >= 5) {
+                                    alert("Maximum 5 sessions can be compared at once");
+                                    return;
+                                  }
+                                  newSet.add(validationId);
+                                }
+                                setSelectedValidations(newSet);
+                              }}
+                              className="rounded border-slate-300 text-brand-600 focus:ring-brand-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                            />
+                            <div className="flex-1">
+                              <p className="text-sm font-medium text-slate-900 dark:text-slate-50">
+                                {validation.idea_explanation && validation.idea_explanation.length > 50
+                                  ? validation.idea_explanation.substring(0, 50) + "..."
+                                  : validation.idea_explanation || "Validation"}
+                              </p>
+                              <div className="flex items-center gap-2 mt-1">
+                                {validation.overall_score !== undefined && (
+                                  <span className="text-xs font-bold text-brand-700 dark:text-brand-300">
+                                    Score: {validation.overall_score.toFixed(1)}/10
+                                  </span>
+                                )}
+                                <span className="text-xs text-slate-500 dark:text-slate-400">
+                                  ID: {validationId?.substring(0, 8) || "N/A"} • {validation.timestamp ? new Date(validation.timestamp).toLocaleDateString() : "Unknown date"}
+                                </span>
+    </div>
+                            </div>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  )}
+                </section>
+
+                {/* Compare Button */}
+                <div className="flex justify-center">
+                  <button
+                    onClick={async () => {
+                      if (selectedRuns.size === 0 && selectedValidations.size === 0) {
+                        alert("Please select at least one session to compare");
+                        return;
+                      }
+
+                      // Ensure only one type is selected
+                      if (selectedRuns.size > 0 && selectedValidations.size > 0) {
+                        alert("Cannot compare ideas with validations. Please select only ideas or only validations.");
+                        return;
+                      }
+
+                      if (selectedRuns.size + selectedValidations.size > 5) {
+                        alert("Maximum 5 sessions can be compared at once");
+                        return;
+                      }
+
+                      setComparing(true);
+                      try {
+                        const response = await fetch("/api/user/compare-sessions", {
+                          method: "POST",
+                          headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
+                          body: JSON.stringify({
+                            run_ids: Array.from(selectedRuns),
+                            validation_ids: Array.from(selectedValidations),
+                          }),
+                        });
+                        if (response.ok) {
+                          const data = await response.json();
+                          if (data.success) {
+                            setComparisonData(data.comparison);
+                          } else {
+                            alert(data.error || "Failed to compare sessions. Please try again.");
+                          }
+                        } else {
+                          const errorData = await response.json().catch(() => ({ error: "Unknown error" }));
+                          alert(errorData.error || "Failed to compare sessions. Please try again.");
+                        }
+                      } catch (error) {
+                        console.error("Failed to compare sessions:", error);
+                        alert("Network error. Please check your connection and try again.");
+                      } finally {
+                        setComparing(false);
+                      }
+                    }}
+                    disabled={comparing || (selectedRuns.size === 0 && selectedValidations.size === 0) || (selectedRuns.size > 0 && selectedValidations.size > 0)}
+                    className="rounded-xl bg-gradient-to-r from-brand-500 to-brand-600 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-brand-500/25 transition-all duration-200 hover:from-brand-600 hover:to-brand-700 hover:shadow-xl hover:shadow-brand-500/30 hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {comparing ? "Comparing..." : `Compare ${selectedRuns.size + selectedValidations.size} Session${selectedRuns.size + selectedValidations.size !== 1 ? "s" : ""}`}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-6">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-md font-semibold text-slate-900 dark:text-slate-50">Comparison Results</h4>
+                  <button
+                    onClick={() => {
+                      setComparisonData(null);
+                      setSelectedRuns(new Set());
+                      setSelectedValidations(new Set());
+                    }}
+                    className="rounded-lg border border-slate-300 dark:border-slate-600 px-4 py-2 text-sm font-semibold text-slate-700 dark:text-slate-300 transition hover:bg-slate-50 dark:hover:bg-slate-800"
+                  >
+                    New Comparison
+                  </button>
+                </div>
+
+                {/* Comparison Results Table */}
+                <div className="overflow-x-auto">
+                  <table className="w-full border-collapse">
+                    <thead>
+                      <tr className="border-b border-slate-200 dark:border-slate-700">
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-700 dark:text-slate-300">Metric</th>
+                        {comparisonData.runs?.map((run, idx) => (
+                          <th key={idx} className="px-4 py-3 text-left text-xs font-semibold text-slate-700 dark:text-slate-300">
+                            {run.project_name || `Run ${idx + 1}`}
+                          </th>
+                        ))}
+                        {comparisonData.validations?.map((val, idx) => (
+                          <th key={idx} className="px-4 py-3 text-left text-xs font-semibold text-slate-700 dark:text-slate-300">
+                            {val.idea_explanation?.substring(0, 30) || `Validation ${idx + 1}`}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr className="border-b border-slate-100 dark:border-slate-800">
+                        <td className="px-4 py-3 text-sm font-medium text-slate-900 dark:text-slate-50">Date</td>
+                        {comparisonData.runs?.map((run, idx) => (
+                          <td key={idx} className="px-4 py-3 text-sm text-slate-600 dark:text-slate-300">
+                            {run.created_at ? new Date(run.created_at).toLocaleDateString() : "N/A"}
+                          </td>
+                        ))}
+                        {comparisonData.validations?.map((val, idx) => (
+                          <td key={idx} className="px-4 py-3 text-sm text-slate-600 dark:text-slate-300">
+                            {val.created_at ? new Date(val.created_at).toLocaleDateString() : "N/A"}
+                          </td>
+                        ))}
+                      </tr>
+                      {comparisonData.validations && comparisonData.validations.length > 0 && (
+                        <tr className="border-b border-slate-100 dark:border-slate-800">
+                          <td className="px-4 py-3 text-sm font-medium text-slate-900 dark:text-slate-50">Validation Score</td>
+                          {comparisonData.runs?.map(() => (
+                            <td key={Math.random()} className="px-4 py-3 text-sm text-slate-600 dark:text-slate-300">N/A</td>
+                          ))}
+                          {comparisonData.validations?.map((val, idx) => (
+                            <td key={idx} className="px-4 py-3 text-sm text-slate-600 dark:text-slate-300">
+                              {val.validation_result?.overall_score?.toFixed(1) || "N/A"}/10
+                            </td>
+                          ))}
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
         )}
       </section>
     </div>

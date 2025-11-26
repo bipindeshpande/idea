@@ -1589,11 +1589,20 @@ def cancel_subscription() -> Any:
     user = session.user
     
     # Only allow cancellation of paid subscriptions
-    if user.subscription_type == "free_trial":
-        return jsonify({"success": False, "error": "Cannot cancel free trial"}), 400
+    subscription_type = user.subscription_type or "free"
     
-    if user.payment_status != "active":
-        return jsonify({"success": False, "error": "Subscription is not active"}), 400
+    # Don't allow cancellation of free tier or free trial
+    if subscription_type in ["free", "free_trial"]:
+        return jsonify({"success": False, "error": "Free subscriptions cannot be cancelled"}), 400
+    
+    # Allow cancellation if subscription is active OR already cancelled (to prevent duplicate cancellations)
+    # But only if subscription hasn't expired yet
+    if user.payment_status == "cancelled":
+        return jsonify({"success": False, "error": "Subscription is already cancelled"}), 400
+    
+    # Check if subscription is still valid (not expired)
+    if not user.is_subscription_active():
+        return jsonify({"success": False, "error": "Subscription has already expired"}), 400
     
     # Get cancellation reason from request
     data: Dict[str, Any] = request.get_json(force=True, silent=True) or {}
@@ -1706,8 +1715,8 @@ def change_subscription_plan() -> Any:
     data: Dict[str, Any] = request.get_json(force=True, silent=True) or {}
     new_subscription_type = data.get("subscription_type", "").strip()
     
-    # Valid subscription types: starter, pro, weekly
-    if new_subscription_type not in ["starter", "pro", "weekly"]:
+    # Valid subscription types: starter, pro, annual
+    if new_subscription_type not in ["starter", "pro", "annual"]:
         return jsonify({"success": False, "error": "Invalid subscription type"}), 400
     
     user = session.user
@@ -1921,23 +1930,23 @@ def create_payment_intent() -> Any:
     data: Dict[str, Any] = request.get_json(force=True, silent=True) or {}
     subscription_type = data.get("subscription_type", "").strip()
     
-    # Valid subscription types: starter, pro, weekly
-    if subscription_type not in ["starter", "pro", "weekly"]:
+    # Valid subscription types: starter, pro, annual
+    if subscription_type not in ["starter", "pro", "annual"]:
         return jsonify({"success": False, "error": "Invalid subscription type"}), 400
     
     user = session.user
     
     # Amounts in cents
     amounts = {
-        "starter": 700,   # $7.00/month
+        "starter": 900,   # $9.00/month
         "pro": 1500,      # $15.00/month
-        "weekly": 500,    # $5.00/week
+        "annual": 12000,  # $120.00/year (save $60)
     }
     
     duration_days = {
         "starter": 30,    # 30 days
         "pro": 30,        # 30 days
-        "weekly": 7,      # 7 days
+        "annual": 365,    # 365 days
     }
     
     try:

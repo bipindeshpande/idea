@@ -28,12 +28,12 @@ const tiers = [
   {
     id: "starter",
     name: "Starter",
-    price: "$7",
+    price: "$9",
     period: "per month",
     description: "Best for regular users testing ideas.",
     features: [
-      "10 validations/month",
-      "5 discoveries/month",
+      "20 validations/month",
+      "10 discoveries/month",
       "Full reports",
       "PDF downloads",
       "Email support",
@@ -60,20 +60,23 @@ const tiers = [
     duration_days: 30,
   },
   {
-    id: "weekly",
-    name: "Weekly",
-    price: "$5",
-    period: "per week",
-    description: "Perfect for short-term projects.",
+    id: "annual",
+    name: "Pro Annual",
+    price: "$120",
+    period: "per year",
+    description: "Best value - save $60 (2 months free).",
     features: [
       "Unlimited validations",
       "Unlimited discoveries",
       "Full reports",
       "PDF downloads",
+      "Priority support",
+      "Save $60/year",
     ],
     highlight: false,
     color: "brand",
-    duration_days: 7,
+    duration_days: 365,
+    annual: true,
   },
 ];
 
@@ -267,9 +270,9 @@ export default function PricingPage() {
             </p>
           </div>
           <div>
-            <h3 className="mb-2 font-semibold text-slate-900 dark:text-slate-100">What happens after my free trial ends?</h3>
+            <h3 className="mb-2 font-semibold text-slate-900 dark:text-slate-100">What happens after my free validations are used?</h3>
             <p className="text-sm text-slate-600 dark:text-slate-300">
-              After your 3-day free trial, you'll need to subscribe to continue accessing the platform. Choose between the weekly ($5) or monthly ($15) plan.
+              After using your 3 free validations and 1 free discovery, you'll need to subscribe to continue. Choose between Starter ($9/month), Pro ($15/month), or Annual ($120/year - save $60).
             </p>
           </div>
         </div>
