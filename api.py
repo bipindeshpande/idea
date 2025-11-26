@@ -35,7 +35,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from sqlalchemy import func
 
 from startup_idea_crew.crew import StartupIdeaCrew
-from app.models.database import db, User, UserSession, UserRun, UserValidation, Payment, SubscriptionCancellation, Admin, AdminResetToken, UserAction, UserNote
+from app.models.database import db, User, UserSession, UserRun, UserValidation, Payment, SubscriptionCancellation, Admin, AdminResetToken, UserAction, UserNote, SystemSettings
 from app.services.email_service import email_service
 from app.services.email_templates import (
     admin_password_reset_email,
@@ -54,6 +54,22 @@ from app.services.email_templates import (
 
 app = Flask(__name__)
 
+# Global error handler for unhandled exceptions
+@app.errorhandler(Exception)
+def handle_exception(e):
+    """Handle all unhandled exceptions."""
+    app.logger.exception("Unhandled exception: %s", e)
+    import traceback
+    app.logger.error(f"Traceback: {traceback.format_exc()}")
+    try:
+        db.session.rollback()
+    except:
+        pass
+    return jsonify({
+        "success": False,
+        "error": f"Internal server error: {str(e)}"
+    }), 500
+
 # CORS Configuration - Restrict to your domain in production
 FRONTEND_URL = os.environ.get("FRONTEND_URL", "https://ideabunch.com")
 ALLOWED_ORIGINS = [
@@ -64,8 +80,11 @@ ALLOWED_ORIGINS = [
 ]
 
 # Only allow localhost in development
-if os.environ.get("FLASK_ENV") != "development":
+# Default to allowing localhost if FLASK_ENV is not explicitly set to production
+FLASK_ENV = os.environ.get("FLASK_ENV", "").lower()
+if FLASK_ENV == "production":
     ALLOWED_ORIGINS = [origin for origin in ALLOWED_ORIGINS if not origin.startswith("http://localhost") and not origin.startswith("http://127.0.0.1")]
+# In development or if FLASK_ENV not set, allow localhost
 
 CORS(app, origins=ALLOWED_ORIGINS, supports_credentials=True)
 
@@ -88,7 +107,6 @@ db.init_app(app)
 
 # Import utilities
 from app.utils import (
-    OUTPUT_DIR,
     PROFILE_FIELDS,
     read_output_file as _read_output_file,
     create_user_session,
@@ -643,7 +661,11 @@ REMEMBER:
     }), 500
 
 
-# Admin authentication imported from app.utils
+# ============================================================================
+# ADMIN ENDPOINTS
+# ============================================================================
+# All admin endpoints require authentication via check_admin_auth()
+# Admin authentication is handled in app.utils.check_admin_auth()
 
 
 @app.post("/api/admin/save-validation-questions")
@@ -729,7 +751,7 @@ def get_admin_stats() -> Any:
     weekly_subscribers = User.query.filter_by(subscription_type="weekly").count()
     starter_subscribers = User.query.filter_by(subscription_type="starter").count()
     pro_subscribers = User.query.filter_by(subscription_type="pro").count()
-    # Legacy monthly subscribers (for backward compatibility)
+    # Backward compatibility: monthly subscribers (migrated to pro)
     monthly_subscribers = User.query.filter_by(subscription_type="monthly").count()
     
     stats = {
@@ -743,7 +765,7 @@ def get_admin_stats() -> Any:
       "weekly_subscribers": weekly_subscribers,
       "starter_subscribers": starter_subscribers,
       "pro_subscribers": pro_subscribers,
-      "monthly_subscribers": monthly_subscribers,  # Legacy, for backward compatibility
+      "monthly_subscribers": monthly_subscribers,  # Backward compatibility (migrated to pro)
     }
     
     return jsonify({"success": True, "stats": stats})
@@ -792,6 +814,53 @@ def get_admin_payments() -> Any:
         return jsonify({"success": True, "payments": payments_data})
     except Exception as exc:
         app.logger.exception("Failed to get payments: %s", exc)
+        return jsonify({"success": False, "error": str(exc)}), 500
+
+
+@app.get("/api/admin/settings")
+@limiter.limit("30 per hour")
+def get_admin_settings() -> Any:
+    """Get system settings (admin only)."""
+    if not check_admin_auth():
+        return jsonify({"success": False, "error": "Unauthorized"}), 401
+    
+    try:
+        debug_mode = SystemSettings.get_setting("debug_mode", "false")
+        return jsonify({
+            "success": True,
+            "settings": {
+                "debug_mode": debug_mode.lower() == "true"
+            }
+        })
+    except Exception as exc:
+        app.logger.exception("Failed to get settings: %s", exc)
+        return jsonify({"success": False, "error": str(exc)}), 500
+
+
+@app.post("/api/admin/settings")
+@limiter.limit("10 per hour")
+def update_admin_settings() -> Any:
+    """Update system settings (admin only)."""
+    if not check_admin_auth():
+        return jsonify({"success": False, "error": "Unauthorized"}), 401
+    
+    try:
+        data: Dict[str, Any] = request.get_json(force=True, silent=True) or {}
+        debug_mode = data.get("debug_mode")
+        
+        admin_email = os.environ.get("ADMIN_EMAIL", "admin")
+        
+        if debug_mode is not None:
+            SystemSettings.set_setting(
+                "debug_mode",
+                "true" if debug_mode else "false",
+                "Debug mode toggle - controls Flask debug mode",
+                updated_by=admin_email
+            )
+        
+        return jsonify({"success": True, "message": "Settings updated"})
+    except Exception as exc:
+        app.logger.exception("Failed to update settings: %s", exc)
         return jsonify({"success": False, "error": str(exc)}), 500
 
 
@@ -955,7 +1024,7 @@ def admin_verify_mfa() -> Any:
         return jsonify({"success": False, "error": "MFA code is required"}), 400
     
     # Development mode: Hardcoded MFA code
-    # TODO: Replace with proper TOTP validation for production
+    # Note: For production, implement proper TOTP validation (see commented code below)
     HARDCODED_MFA_CODE = "2538"
     
     if mfa_code == HARDCODED_MFA_CODE:
@@ -1363,30 +1432,126 @@ def login() -> Any:
         if not email or not password:
             return jsonify({"success": False, "error": "Email and password are required"}), 400
         
-        user = User.query.filter_by(email=email).first()
-        if not user or not user.check_password(password):
+        try:
+            user = User.query.filter_by(email=email).first()
+        except Exception as query_error:
+            app.logger.exception("Database query error during login: %s", query_error)
+            db.session.rollback()
+            return jsonify({"success": False, "error": "Database error. Please try again."}), 500
+        
+        if not user:
             return jsonify({"success": False, "error": "Invalid email or password"}), 401
         
-        if not user.is_active:
+        try:
+            password_valid = user.check_password(password)
+        except Exception as password_error:
+            app.logger.exception("Password check error during login: %s", password_error)
+            return jsonify({"success": False, "error": "Authentication error. Please try again."}), 500
+        
+        if not password_valid:
+            return jsonify({"success": False, "error": "Invalid email or password"}), 401
+        
+        # Check if account is active (database column, not method)
+        try:
+            account_active = user.is_active if hasattr(user, 'is_active') else True
+        except Exception as active_check_error:
+            app.logger.warning(f"Error checking is_active: {active_check_error}")
+            account_active = True  # Default to active if we can't check
+        
+        if not account_active:
             return jsonify({"success": False, "error": "Account is deactivated"}), 403
         
-        # Create session
+        # Create user dict BEFORE creating session to avoid any transaction issues
+        # Use read-only approach - no database modifications
+        try:
+            subscription_type = user.subscription_type or "free"
+            is_active = subscription_type == "free"
+            if user.subscription_expires_at:
+                is_active = datetime.utcnow() < user.subscription_expires_at
+            
+            days_remaining = 0
+            if user.subscription_expires_at:
+                remaining = (user.subscription_expires_at - datetime.utcnow()).days
+                days_remaining = max(0, remaining)
+            
+            user_dict = {
+                "id": user.id,
+                "email": user.email,
+                "subscription_type": subscription_type,
+                "subscription_expires_at": user.subscription_expires_at.isoformat() if user.subscription_expires_at else None,
+                "payment_status": user.payment_status or "trial",
+                "is_active": is_active,
+                "days_remaining": days_remaining,
+            }
+        except Exception as dict_error:
+            app.logger.exception("Failed to create user dict: %s", dict_error)
+            import traceback
+            app.logger.error(f"User dict error traceback: {traceback.format_exc()}")
+            # Fallback to minimal user info
+            try:
+                user_dict = {
+                    "id": user.id,
+                    "email": user.email,
+                    "subscription_type": getattr(user, 'subscription_type', None) or "free",
+                    "subscription_expires_at": user.subscription_expires_at.isoformat() if hasattr(user, 'subscription_expires_at') and user.subscription_expires_at else None,
+                    "payment_status": getattr(user, 'payment_status', None) or "trial",
+                    "is_active": True,
+                    "days_remaining": 0,
+                }
+            except Exception as fallback_error:
+                app.logger.exception("Even fallback user dict failed: %s", fallback_error)
+                # Absolute minimal fallback
+                user_dict = {
+                    "id": user.id,
+                    "email": user.email,
+                    "subscription_type": "free",
+                    "subscription_expires_at": None,
+                    "payment_status": "trial",
+                    "is_active": True,
+                    "days_remaining": 0,
+                }
+        
+        # Create session (this will commit the transaction)
         try:
             session = create_user_session(user.id, request.remote_addr, request.headers.get("User-Agent"))
         except Exception as session_error:
             app.logger.exception("Failed to create user session: %s", session_error)
+            import traceback
+            app.logger.error(f"Session creation traceback: {traceback.format_exc()}")
             db.session.rollback()
-            return jsonify({"success": False, "error": "Failed to create session. Please try again."}), 500
+            return jsonify({
+                "success": False, 
+                "error": f"Failed to create session: {str(session_error)}"
+            }), 500
         
-        return jsonify({
+        # Ensure session_token exists before returning
+        if not session or not hasattr(session, 'session_token') or not session.session_token:
+            app.logger.error("Session created but session_token is missing")
+            db.session.rollback()
+            return jsonify({
+                "success": False,
+                "error": "Failed to create session token"
+            }), 500
+        
+        response_data = {
             "success": True,
-            "user": user.to_dict(),
+            "user": user_dict,
             "session_token": session.session_token,
-        })
+        }
+        
+        return jsonify(response_data)
     except Exception as exc:
         app.logger.exception("Login failed: %s", exc)
-        db.session.rollback()
-        return jsonify({"success": False, "error": "Login failed. Please try again."}), 500
+        import traceback
+        app.logger.error(f"Login error traceback: {traceback.format_exc()}")
+        try:
+            db.session.rollback()
+        except:
+            pass
+        return jsonify({
+            "success": False, 
+            "error": f"Login failed: {str(exc)}"
+        }), 500
 
 
 @app.post("/api/auth/logout")
@@ -2949,13 +3114,96 @@ If you have any urgent questions, feel free to reply to this email.
             "message": "Thank you for your message! We'll get back to you soon.",
         })
     except Exception as exc:
-        app.logger.exception("Failed to send contact form email: %s", exc)
+        app.logger.exception("Contact form submission failed: %s", exc)
+        return jsonify({"success": False, "error": "Failed to send message"}), 500
+
+
+# Public Usage Stats API (for social proof)
+@app.get("/api/public/usage-stats")
+@limiter.limit("100 per hour")  # Public endpoint, limit to prevent abuse
+def get_public_usage_stats() -> Any:
+    """Get anonymized usage statistics for social proof."""
+    try:
+        # Count total users (active users only)
+        total_users = User.query.filter_by(is_active=True).count()
+        
+        # Count total validations (this month)
+        from datetime import datetime, timedelta
+        this_month_start = datetime.utcnow().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        validations_this_month = UserValidation.query.filter(
+            UserValidation.created_at >= this_month_start
+        ).count()
+        
+        # Count total discoveries (this month)
+        discoveries_this_month = UserRun.query.filter(
+            UserRun.created_at >= this_month_start
+        ).count()
+        
+        # Count total validations (all time)
+        total_validations = UserValidation.query.count()
+        
+        # Count total discoveries (all time)
+        total_discoveries = UserRun.query.count()
+        
+        # Calculate average validation score (from last 100 validations)
+        recent_validations = UserValidation.query.order_by(
+            UserValidation.created_at.desc()
+        ).limit(100).all()
+        
+        total_score = 0
+        score_count = 0
+        for validation in recent_validations:
+            if validation.validation_result:
+                try:
+                    result = json.loads(validation.validation_result)
+                    overall_score = result.get("overall_score")
+                    if overall_score is not None:
+                        total_score += float(overall_score)
+                        score_count += 1
+                except:
+                    pass
+        
+        avg_score = round(total_score / score_count, 1) if score_count > 0 else 0
+        
         return jsonify({
-            "success": False,
-            "error": "Failed to send message. Please try again or email us directly.",
-        }), 500
+            "success": True,
+            "stats": {
+                "total_users": total_users,
+                "validations_this_month": validations_this_month,
+                "discoveries_this_month": discoveries_this_month,
+                "total_validations": total_validations,
+                "total_discoveries": total_discoveries,
+                "average_score": avg_score,
+            },
+        })
+    except Exception as exc:
+        app.logger.exception("Failed to get usage stats: %s", exc)
+        # Return default stats on error (so page still loads)
+        return jsonify({
+            "success": True,
+            "stats": {
+                "total_users": 0,
+                "validations_this_month": 0,
+                "discoveries_this_month": 0,
+                "total_validations": 0,
+                "total_discoveries": 0,
+                "average_score": 0,
+            },
+        })
 
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8000))
-    app.run(host="0.0.0.0", port=port, debug=True)
+    # Check system settings for debug mode, fallback to environment variable
+    try:
+        debug_setting = SystemSettings.get_setting("debug_mode", None)
+        if debug_setting is not None:
+            debug_mode = debug_setting.lower() == "true"
+        else:
+            # Fallback to environment variable
+            debug_mode = os.environ.get("FLASK_ENV") == "development" or os.environ.get("DEBUG", "false").lower() == "true"
+    except Exception:
+        # If database not initialized, use environment variable
+        debug_mode = os.environ.get("FLASK_ENV") == "development" or os.environ.get("DEBUG", "false").lower() == "true"
+    
+    app.run(host="0.0.0.0", port=port, debug=debug_mode)

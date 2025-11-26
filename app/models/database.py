@@ -20,7 +20,7 @@ class User(db.Model):
     is_active = db.Column(db.Boolean, default=True)
     
     # Subscription fields
-    subscription_type = db.Column(db.String(50), default="free")  # free, starter, pro, annual, monthly (legacy)
+    subscription_type = db.Column(db.String(50), default="free")  # free, starter, pro, annual (monthly migrated to pro)
     subscription_started_at = db.Column(db.DateTime, default=datetime.utcnow)
     subscription_expires_at = db.Column(db.DateTime)
     payment_status = db.Column(db.String(50), default="trial")  # trial, active, expired, cancelled
@@ -101,7 +101,8 @@ class User(db.Model):
                         db.session.commit()
                     except Exception as e:
                         db.session.rollback()
-                        app.logger.error(f"Failed to set free_trial expiration: {e}")
+                        import logging
+                        logging.error(f"Failed to set free_trial expiration: {e}")
                 elif subscription_type in ["starter", "pro", "annual"]:
                     # For paid subscriptions without expiration, check if they have recent payments
                     # If subscription_started_at exists, extend from there
@@ -203,11 +204,11 @@ class User(db.Model):
         """Check if user can perform a validation. Returns (can_perform, error_message)."""
         subscription_type = self.subscription_type or "free"
         
-        # Handle legacy subscription types
+        # Handle backward compatibility for subscription types
         if subscription_type == "free_trial":
             subscription_type = "free"
         elif subscription_type == "monthly":
-            subscription_type = "pro"  # Legacy monthly becomes pro (unlimited)
+            subscription_type = "pro"  # Monthly migrated to pro (unlimited)
         
         # Check and reset monthly usage if needed
         self.check_and_reset_monthly_usage()
@@ -217,8 +218,8 @@ class User(db.Model):
             return True, ""  # Unlimited
         
         if subscription_type == "free":
-            if self.free_validations_used >= 3:
-                return False, "You've used all 3 free validations. Upgrade to continue."
+            if self.free_validations_used >= 2:
+                return False, "You've used all 2 free validations. Upgrade to continue."
             return True, ""
         
         if subscription_type == "starter":
@@ -232,11 +233,11 @@ class User(db.Model):
         """Check if user can perform a discovery. Returns (can_perform, error_message)."""
         subscription_type = self.subscription_type or "free"
         
-        # Handle legacy subscription types
+        # Handle backward compatibility for subscription types
         if subscription_type == "free_trial":
             subscription_type = "free"
         elif subscription_type == "monthly":
-            subscription_type = "pro"  # Legacy monthly becomes pro (unlimited)
+            subscription_type = "pro"  # Monthly migrated to pro (unlimited)
         
         # Check and reset monthly usage if needed
         self.check_and_reset_monthly_usage()
@@ -246,8 +247,8 @@ class User(db.Model):
             return True, ""  # Unlimited
         
         if subscription_type == "free":
-            if self.free_discoveries_used >= 1:
-                return False, "You've used your free discovery. Upgrade to continue."
+            if self.free_discoveries_used >= 4:
+                return False, "You've used all 4 free discoveries. Upgrade to continue."
             return True, ""
         
         if subscription_type == "starter":
@@ -310,13 +311,13 @@ class User(db.Model):
                 "subscription_type": "free",
                 "validations": {
                     "used": self.free_validations_used,
-                    "limit": 3,
-                    "remaining": max(0, 3 - self.free_validations_used),
+                    "limit": 2,
+                    "remaining": max(0, 2 - self.free_validations_used),
                 },
                 "discoveries": {
                     "used": self.free_discoveries_used,
-                    "limit": 1,
-                    "remaining": max(0, 1 - self.free_discoveries_used),
+                    "limit": 4,
+                    "remaining": max(0, 4 - self.free_discoveries_used),
                 },
             }
         elif subscription_type == "starter":
@@ -352,15 +353,46 @@ class User(db.Model):
         return {}
     
     def to_dict(self):
-        """Convert user to dictionary."""
+        """Convert user to dictionary. Read-only - does not modify database."""
+        # Read-only check - don't call is_subscription_active() as it may modify DB
+        # Instead, do a simple check without committing
+        subscription_type = self.subscription_type or "free"
+        is_active = False
+        
+        try:
+            if subscription_type == "free":
+                is_active = True
+            elif self.subscription_expires_at:
+                # Check if expiration is in the future (read-only)
+                is_active = datetime.utcnow() < self.subscription_expires_at
+            else:
+                # No expiration set - for paid subscriptions, assume inactive
+                # (Don't set expiration here as we're in a read-only context)
+                is_active = False
+        except Exception as e:
+            import logging
+            logging.error(f"Error checking subscription status in to_dict: {e}")
+            # Default to active for free users, inactive for paid
+            is_active = subscription_type == "free"
+        
+        try:
+            days_remaining = 0
+            if self.subscription_expires_at:
+                remaining = (self.subscription_expires_at - datetime.utcnow()).days
+                days_remaining = max(0, remaining)
+        except Exception as e:
+            import logging
+            logging.error(f"Error calculating days remaining in to_dict: {e}")
+            days_remaining = 0
+        
         return {
             "id": self.id,
             "email": self.email,
             "subscription_type": self.subscription_type,
             "subscription_expires_at": self.subscription_expires_at.isoformat() if self.subscription_expires_at else None,
             "payment_status": self.payment_status,
-            "is_active": self.is_subscription_active(),
-            "days_remaining": self.days_remaining(),
+            "is_active": is_active,
+            "days_remaining": days_remaining,
         }
 
 
@@ -507,6 +539,55 @@ class AdminResetToken(db.Model):
     def is_valid(self) -> bool:
         """Check if token is still valid."""
         return not self.used and datetime.utcnow() < self.expires_at
+
+
+class SystemSettings(db.Model):
+    """System-wide settings."""
+    __tablename__ = "system_settings"
+    
+    id = db.Column(db.Integer, primary_key=True)
+    key = db.Column(db.String(255), unique=True, nullable=False, index=True)
+    value = db.Column(db.Text, nullable=False)
+    description = db.Column(db.Text, nullable=True)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_by = db.Column(db.String(255), nullable=True)  # Admin email who updated
+    
+    @staticmethod
+    def get_setting(key: str, default: str = None) -> str:
+        """Get a system setting value."""
+        setting = SystemSettings.query.filter_by(key=key).first()
+        if setting:
+            return setting.value
+        # Create default if doesn't exist
+        if default is not None:
+            SystemSettings.set_setting(key, default, f"Default value for {key}")
+            return default
+        return None
+    
+    @staticmethod
+    def set_setting(key: str, value: str, description: str = None, updated_by: str = None):
+        """Set a system setting value."""
+        setting = SystemSettings.query.filter_by(key=key).first()
+        if setting:
+            setting.value = value
+            if description:
+                setting.description = description
+            if updated_by:
+                setting.updated_by = updated_by
+            setting.updated_at = datetime.utcnow()
+        else:
+            setting = SystemSettings(
+                key=key,
+                value=value,
+                description=description,
+                updated_by=updated_by
+            )
+            db.session.add(setting)
+        try:
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+            raise
 
 
 class Payment(db.Model):

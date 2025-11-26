@@ -55,6 +55,7 @@ export default function CompareSessionsPage() {
     }
 
     setComparing(true);
+    
     try {
       const requestBody = {
         run_ids: Array.from(selectedRuns),
@@ -80,7 +81,6 @@ export default function CompareSessionsPage() {
         if (data.success) {
           if (data.comparison) {
             setComparisonData(data.comparison);
-            // Scroll to results
             window.scrollTo({ top: 0, behavior: 'smooth' });
           } else {
             alert("Comparison completed but no data was returned. Please try again.");

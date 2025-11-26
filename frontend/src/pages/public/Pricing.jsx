@@ -16,8 +16,8 @@ const tiers = [
     period: "forever",
     description: "Perfect for trying out the service. No credit card required.",
     features: [
-      "3 idea validations (lifetime)",
-      "1 idea discovery (lifetime)",
+      "2 idea validations (lifetime)",
+      "4 idea discoveries (lifetime)",
       "Full reports",
       "PDF downloads",
     ],
@@ -137,7 +137,7 @@ export default function PricingPage() {
           Start free, upgrade when you need more
         </h1>
         <p className="mx-auto mt-3 max-w-2xl text-base leading-relaxed text-slate-600 dark:text-slate-300">
-          Get 3 free validations and 1 free discovery. No credit card required. Upgrade to unlock more when you're ready.
+          Get 2 free validations and 4 free discoveries. No credit card required. Upgrade to unlock more when you're ready.
         </p>
       </header>
 
@@ -272,7 +272,7 @@ export default function PricingPage() {
           <div>
             <h3 className="mb-2 font-semibold text-slate-900 dark:text-slate-100">What happens after my free validations are used?</h3>
             <p className="text-sm text-slate-600 dark:text-slate-300">
-              After using your 3 free validations and 1 free discovery, you'll need to subscribe to continue. Choose between Starter ($9/month), Pro ($15/month), or Annual ($120/year - save $60).
+              After using your 2 free validations and 4 free discoveries, you'll need to subscribe to continue. Choose between Starter ($9/month), Pro ($15/month), or Annual ($120/year - save $60).
             </p>
           </div>
         </div>

@@ -22,7 +22,6 @@ This folder contains all important documentation, guides, and setup instructions
 - **[DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md)** - Complete deployment guide
 - **[LAUNCH_CHECKLIST.md](LAUNCH_CHECKLIST.md)** - Pre-launch checklist
 - **[LAUNCH_READINESS_ASSESSMENT.md](LAUNCH_READINESS_ASSESSMENT.md)** - Launch readiness review
-- **[CRITICAL_FIXES_COMPLETE.md](CRITICAL_FIXES_COMPLETE.md)** - Critical fixes documentation
 
 ## 📈 Marketing & User Acquisition
 
@@ -33,10 +32,10 @@ This folder contains all important documentation, guides, and setup instructions
 ## 📝 Project Documentation
 
 - **[FEATURES_SUMMARY.md](FEATURES_SUMMARY.md)** - Features overview
-- **[TODAYS_WORK_SUMMARY.md](TODAYS_WORK_SUMMARY.md)** - Work summary
-- **[TOOL_FIX_SUMMARY.md](TOOL_FIX_SUMMARY.md)** - Tool fixes documentation
-- **[STATUS_OK.md](STATUS_OK.md)** - Status documentation
-- **[FIX_THIS.md](FIX_THIS.md)** - Known issues
+- **[PRODUCTION_READINESS_ASSESSMENT.md](PRODUCTION_READINESS_ASSESSMENT.md)** - Production readiness assessment
+- **[STARTUP_USER_PSYCHE_ANALYSIS.md](STARTUP_USER_PSYCHE_ANALYSIS.md)** - User psychology analysis
+- **[VALUE_ADD_RECOMMENDATIONS.md](VALUE_ADD_RECOMMENDATIONS.md)** - Value-add recommendations
+- **[MISSING_FROM_STARTUP_PSYCHE.md](MISSING_FROM_STARTUP_PSYCHE.md)** - Missing features analysis
 
 ## 📧 Newsletter (Archived)
 

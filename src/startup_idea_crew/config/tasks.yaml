@@ -226,6 +226,7 @@ recommendation_task:
       Example: `1. **AI-Powered Customer Support Bot**` NOT `1. AI-Powered Customer Support Bot` (missing bold)
       Example: `**Idea Name**` NOT `1. **Idea Name**` (missing number)
     - Include dedicated sections for `### Financial Outlook`, `### Risk Radar`, `### Customer Persona`, `### Validation Questions`, and `### 30/60/90 Day Roadmap`
+    - CRITICAL: The `### Risk Radar` and `### 30/60/90 Day Roadmap` sections MUST be highly specific to the recommended ideas and user profile. Generic content will be rejected. Each risk must explain HOW it impacts the specific idea given the user's constraints. Each roadmap milestone must be a concrete, actionable step with specific tools/platforms/actions, not vague tasks.
     - Close with `### Decision Checklist` summarizing go/no-go signals
     - ALWAYS produce at least 3 ideas, even if inputs are minimal. Use the inputs you have and make reasonable assumptions.
     - If inputs are minimal, still create detailed recommendations by making educated inferences from what's provided.
@@ -251,10 +252,22 @@ recommendation_task:
       * **Financial snapshot** (costs, revenue projections, breakeven) citing tool outputs
       * **Key risks & mitigations** leveraging assess_startup_risks results and tailored to the idea’s model and focus
     - `### Financial Outlook` summarizing budget fit, revenue projections, and viability scores
-    - `### Risk Radar` with categorized risks and mitigation tactics; avoid copy-pasting risks already described in idea sections
+    - `### Risk Radar` section MUST contain:
+      * SPECIFIC risks tied to the actual idea(s) being recommended (e.g., "For the AI chatbot idea: Limited training data access could slow development" NOT "Market saturation")
+      * Risks that consider the user's specific constraints: budget ({budget_range}), time ({time_commitment}), work style ({work_style}), and skill level ({skill_strength})
+      * Each risk must be idea-specific and actionable (e.g., "Technical complexity risk: Your {skill_strength} skills may need reinforcement in [specific area] for this idea. Mitigation: Start with no-code tools like [specific tool] before building custom solutions")
+      * Avoid generic risks like "market saturation" or "competition" unless you explain HOW they specifically impact THIS idea given the user's profile
+      * Format: Risk name (Severity: Low/Medium/High): Specific explanation tied to the idea and user profile. Mitigation: Concrete action steps.
     - `### Customer Persona` describing demographics, pains, gains, buying triggers (from generate_customer_persona)
-    - `### Validation Questions` listing at least eight discovery questions tied to learning goals (from generate_validation_questions); questions must mention the idea or audience explicitly and should not repeat the same “listen for”/“act on” guidance
-    - `### 30/60/90 Day Roadmap` outlining milestones aligned to the user's time commitment and varying per idea where appropriate
+    - `### Validation Questions` listing at least eight discovery questions tied to learning goals (from generate_validation_questions); questions must mention the idea or audience explicitly and should not repeat the same "listen for"/"act on" guidance
+    - `### 30/60/90 Day Roadmap` section MUST contain:
+      * CONCRETE, ACTIONABLE milestones specific to the recommended idea(s), NOT generic steps like "validate assumptions" or "conduct research"
+      * Each milestone must reference specific tools, platforms, or actions (e.g., "Days 0-30: Build MVP using [specific tool] targeting [specific audience]. Create landing page on [platform]. Interview 10 potential customers using [specific questions]")
+      * Milestones must respect the user's time commitment ({time_commitment}) - if they have <5 hrs/week, don't suggest 40-hour tasks
+      * Milestones must respect the user's budget ({budget_range}) - if budget is "Free/Sweat-equity", suggest free tools and platforms
+      * Milestones must leverage the user's skill strength ({skill_strength}) and work style ({work_style})
+      * Format: **Days 0-30**: [Specific action 1], [Specific action 2], [Specific action 3]. Success metric: [Measurable outcome]. **Days 30-60**: [Next phase actions]. **Days 60-90**: [Final phase actions]
+      * DO NOT use generic phrases like "validate core assumptions" or "conduct market research" - be specific about WHAT to validate and HOW
     - `### Decision Checklist` highlighting signals to move forward or pivot
     The report should be 800-1000 words (concise but complete). Retain the exact section headings specified. Do not collapse content into a single paragraph.
   agent: recommendation_advisor

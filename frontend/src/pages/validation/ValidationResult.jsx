@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import ReactMarkdown from "react-markdown";
 import Seo from "../../components/common/Seo.jsx";
@@ -119,15 +119,28 @@ export default function ValidationResult() {
   const isFree = !subscription || subscription?.subscription_type === "free";
   const isStarter = subscription?.subscription_type === "starter";
   const [activeTab, setActiveTab] = useState("input"); // Default to "input" tab
+  const [previousScore, setPreviousScore] = useState(null);
+  const [previousValidationId, setPreviousValidationId] = useState(null);
+  const [downloadingPDF, setDownloadingPDF] = useState(false);
+  const pdfRef = useRef(null);
 
   useEffect(() => {
     const validationId = searchParams.get("id");
+    const prevId = searchParams.get("previous");
+    const prevScore = searchParams.get("previousScore");
+    
     if (validationId) {
       // Check if we need to load a different validation
       // Load if: no current validation OR current validation ID doesn't match URL ID
       if (!currentValidation || currentValidation.id !== validationId) {
-      loadValidationById(validationId);
+        loadValidationById(validationId);
       }
+    }
+    
+    // Set previous validation data for comparison
+    if (prevId && prevScore) {
+      setPreviousValidationId(prevId);
+      setPreviousScore(parseFloat(prevScore));
     }
   }, [searchParams, currentValidation, loadValidationById]);
 
@@ -542,21 +555,89 @@ export default function ValidationResult() {
       />
 
       {/* Header */}
-      <div className="mb-8 flex items-center justify-between">
+      <div className="mb-8 flex items-center justify-between no-print">
         <div>
           <h1 className="text-3xl font-bold text-slate-900">Idea Validation Results</h1>
           <p className="mt-2 text-slate-600">Your idea has been evaluated across 10 key parameters</p>
         </div>
-        <Link
-          to="/validate-idea"
-          className="rounded-xl border border-brand-300 bg-white px-4 py-2 text-sm font-semibold text-brand-700 shadow-sm transition hover:border-brand-400 hover:bg-brand-50 whitespace-nowrap"
-        >
-          Validate Another Idea
-        </Link>
+        <div className="flex gap-3">
+          <button
+            onClick={async () => {
+              if (!pdfRef.current || downloadingPDF) return;
+              try {
+                setDownloadingPDF(true);
+                const [{ default: html2canvas }, { default: jsPDF }] = await Promise.all([
+                  import('html2canvas'),
+                  import('jspdf')
+                ]);
+                
+                const elementsToHide = pdfRef.current.querySelectorAll('button, a, [role="button"], .no-print, nav');
+                elementsToHide.forEach(el => el.style.display = 'none');
+                
+                const canvas = await html2canvas(pdfRef.current, {
+                  scale: 1.2,
+                  backgroundColor: "#ffffff",
+                  useCORS: true,
+                  logging: false,
+                  ignoreElements: (element) => {
+                    return element.tagName === 'BUTTON' || 
+                           element.tagName === 'A' || 
+                           element.classList?.contains('no-print') ||
+                           element.getAttribute('role') === 'button' ||
+                           element.tagName === 'NAV';
+                  }
+                });
+                
+                elementsToHide.forEach(el => el.style.display = '');
+                const imgData = canvas.toDataURL("image/png");
+                const pdf = new jsPDF("p", "pt", "a4");
+                const pdfWidth = pdf.internal.pageSize.getWidth();
+                const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+                
+                // Handle multi-page PDF with proper page breaks
+                const pageHeight = pdf.internal.pageSize.getHeight();
+                let heightLeft = pdfHeight;
+                let position = 0;
+                
+                // Add first page
+                pdf.addImage(imgData, "PNG", 0, position, pdfWidth, pdfHeight);
+                heightLeft -= pageHeight;
+                
+                // Add additional pages if content exceeds one page
+                while (heightLeft >= 0) {
+                  position = heightLeft - pdfHeight;
+                  pdf.addPage();
+                  pdf.addImage(imgData, "PNG", 0, position, pdfWidth, pdfHeight);
+                  heightLeft -= pageHeight;
+                }
+                
+                const validationId = validation?.id || currentValidation?.id || Date.now();
+                pdf.save(`idea-validation-report-${validationId}.pdf`);
+              } catch (err) {
+                if (process.env.NODE_ENV === 'development') {
+                  console.error("Failed to generate PDF", err);
+                }
+                alert("Failed to generate PDF. Please try again.");
+              } finally {
+                setDownloadingPDF(false);
+              }
+            }}
+            disabled={downloadingPDF}
+            className="rounded-xl border border-brand-300 bg-white px-4 py-2 text-sm font-semibold text-brand-700 shadow-sm transition hover:border-brand-400 hover:bg-brand-50 whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {downloadingPDF ? "Generating PDF..." : "Download PDF"}
+          </button>
+          <Link
+            to="/validate-idea"
+            className="rounded-xl border border-brand-300 bg-white px-4 py-2 text-sm font-semibold text-brand-700 shadow-sm transition hover:border-brand-400 hover:bg-brand-50 whitespace-nowrap"
+          >
+            Validate Another Idea
+          </Link>
+        </div>
       </div>
 
       {/* Tabbed Interface */}
-      <div className="mb-8">
+      <div className="mb-8 no-print">
         <div className="border-b border-slate-200">
           <nav className="-mb-px flex space-x-6 overflow-x-auto">
             <button
@@ -617,6 +698,8 @@ export default function ValidationResult() {
         </div>
       </div>
 
+      {/* PDF Export Container */}
+      <div ref={pdfRef}>
       {/* Tab Content: Your Input */}
       {activeTab === "input" && (
         <div className="space-y-6">
@@ -691,6 +774,40 @@ export default function ValidationResult() {
       {/* Tab Content: Validation Results */}
       {activeTab === "results" && (
         <div className="space-y-6">
+          {/* Re-Validation Comparison Banner */}
+          {previousScore !== null && previousScore !== undefined && (
+            <div className="rounded-3xl border-2 border-emerald-300 bg-gradient-to-br from-emerald-50 to-white p-6 shadow-soft">
+              <h2 className="mb-3 text-xl font-bold text-slate-900">📈 Improvement Comparison</h2>
+              <div className="flex items-center gap-4">
+                <div className="flex-1 rounded-xl border-2 border-slate-200 bg-slate-50 p-4">
+                  <div className="text-xs font-semibold text-slate-600 mb-1">Previous Score</div>
+                  <div className="text-3xl font-bold text-slate-700">{previousScore.toFixed(1)}</div>
+                  <div className="text-xs text-slate-500">/ 10</div>
+                </div>
+                <div className="text-2xl font-bold text-emerald-600">→</div>
+                <div className="flex-1 rounded-xl border-2 border-emerald-200 bg-emerald-50 p-4">
+                  <div className="text-xs font-semibold text-emerald-700 mb-1">New Score</div>
+                  <div className="text-3xl font-bold text-emerald-700">{overallScore.toFixed(1)}</div>
+                  <div className="text-xs text-emerald-600">/ 10</div>
+                </div>
+                <div className="flex-1 rounded-xl border-2 border-brand-200 bg-brand-50 p-4">
+                  <div className="text-xs font-semibold text-brand-700 mb-1">Change</div>
+                  <div className={`text-3xl font-bold ${overallScore > previousScore ? 'text-emerald-600' : overallScore < previousScore ? 'text-coral-600' : 'text-slate-600'}`}>
+                    {overallScore > previousScore ? '+' : ''}{(overallScore - previousScore).toFixed(1)}
+                  </div>
+                  <div className="text-xs text-brand-600">
+                    {overallScore > previousScore ? 'Improved!' : overallScore < previousScore ? 'Decreased' : 'No change'}
+                  </div>
+                </div>
+              </div>
+              {overallScore > previousScore && (
+                <p className="mt-4 text-sm font-semibold text-emerald-700">
+                  🎉 Great job! Your idea improved by {((overallScore - previousScore) / previousScore * 100).toFixed(0)}%. Keep refining!
+                </p>
+              )}
+            </div>
+          )}
+
           {/* Parameter Scores - Visual Display */}
       <div className="mb-8">
             <div className="mb-6 flex items-center justify-between">
@@ -939,46 +1056,44 @@ export default function ValidationResult() {
             )}
           </div>
 
-          {/* Benchmarking Section */}
-          <div className="rounded-3xl border-2 border-slate-200 bg-gradient-to-br from-slate-50 to-white p-6 shadow-soft">
-            <h2 className="mb-4 text-2xl font-bold text-slate-900">📊 How Your Idea Compares</h2>
-            <div className="space-y-4">
-              {overallScore >= 8 ? (
-                <div className="rounded-xl border-2 border-emerald-200 bg-emerald-50/50 p-4">
-                  <p className="text-sm text-emerald-800">
-                    <strong>Top 15%</strong> - Your idea scores higher than 85% of validated ideas. This indicates exceptional potential.
+          {/* Progress-Based Upgrade Prompts */}
+          {(isFree || isStarter) && (
+            <div className="rounded-3xl border-2 border-brand-200 bg-gradient-to-br from-brand-50 to-white p-6 shadow-soft">
+              <h2 className="mb-4 text-xl font-bold text-slate-900">🚀 Unlock More Features</h2>
+              {isFree && (
+                <div className="space-y-3">
+                  <p className="text-sm text-slate-700">
+                    You've used <strong>{subscription?.validations_used || 0} of 2</strong> free validations.
                   </p>
-                </div>
-              ) : overallScore >= 7 ? (
-                <div className="rounded-xl border-2 border-emerald-200 bg-emerald-50/50 p-4">
-                  <p className="text-sm text-emerald-800">
-                    <strong>Top 30%</strong> - Your idea scores higher than 70% of validated ideas. Strong potential with room for improvement.
+                  <p className="text-sm text-slate-600">
+                    Upgrade to <strong>Starter ($9/month)</strong> to get 20 validations/month and compare your ideas side-by-side.
                   </p>
-                </div>
-              ) : overallScore >= 6 ? (
-                <div className="rounded-xl border-2 border-amber-200 bg-amber-50/50 p-4">
-                  <p className="text-sm text-amber-800">
-                    <strong>Above Average</strong> - Your idea scores higher than 50% of validated ideas. Good foundation with clear improvement areas.
-                  </p>
-                </div>
-              ) : overallScore >= 5 ? (
-                <div className="rounded-xl border-2 border-amber-200 bg-amber-50/50 p-4">
-                  <p className="text-sm text-amber-800">
-                    <strong>Average</strong> - Your idea is in the middle range. Average score for validated ideas is 5.5/10. Focus on strengthening weak areas.
-                  </p>
-                </div>
-              ) : (
-                <div className="rounded-xl border-2 border-coral-200 bg-coral-50/50 p-4">
-                  <p className="text-sm text-coral-800">
-                    <strong>Below Average</strong> - Your idea scores below 50% of validated ideas. Consider significant refinements or pivoting.
-                  </p>
+                  <Link
+                    to="/pricing"
+                    className="inline-block rounded-xl bg-gradient-to-r from-brand-500 to-brand-600 px-6 py-2.5 text-sm font-semibold text-white shadow-lg transition hover:from-brand-600 hover:to-brand-700"
+                  >
+                    View Plans →
+                  </Link>
                 </div>
               )}
-              <p className="mt-3 text-xs text-slate-500">
-                * Comparison based on anonymized aggregated data from all validated ideas on our platform.
-              </p>
+              {isStarter && (
+                <div className="space-y-3">
+                  <p className="text-sm text-slate-700">
+                    You've used <strong>{subscription?.validations_used || 0} of 20</strong> validations this month.
+                  </p>
+                  <p className="text-sm text-slate-600">
+                    Upgrade to <strong>Pro ($29/month)</strong> for unlimited validations, advanced analytics, and priority support.
+                  </p>
+                  <Link
+                    to="/pricing"
+                    className="inline-block rounded-xl bg-gradient-to-r from-brand-500 to-brand-600 px-6 py-2.5 text-sm font-semibold text-white shadow-lg transition hover:from-brand-600 hover:to-brand-700"
+                  >
+                    Upgrade to Pro →
+                  </Link>
+                </div>
+              )}
             </div>
-          </div>
+          )}
 
           {nextSteps && (
             <div className="rounded-3xl border-2 border-emerald-200 bg-gradient-to-br from-emerald-50 to-white p-6 shadow-soft">
@@ -1042,20 +1157,76 @@ export default function ValidationResult() {
               Get personalized startup ideas based on your profile and interests
             </p>
           </button>
-          <Link
-            to="/validate-idea"
+          <button
+            onClick={() => {
+              // Store current validation data for re-validation
+              const revalidateData = {
+                previousValidationId: validation?.id || currentValidation?.id,
+                previousScore: overallScore,
+                previousScores: scores,
+                categoryAnswers: categoryAnswers,
+                ideaExplanation: ideaExplanation,
+                timestamp: new Date().toISOString(),
+              };
+              localStorage.setItem("revalidate_data", JSON.stringify(revalidateData));
+              
+              // Navigate to validation form
+              navigate("/validate-idea?revalidate=true");
+            }}
             className="rounded-2xl border border-coral-300 bg-white p-6 text-center transition hover:border-coral-400 hover:bg-coral-50"
           >
             <div className="mb-2 text-2xl">🔄</div>
-            <h3 className="mb-2 font-semibold text-slate-900">Refine & Re-validate</h3>
+            <h3 className="mb-2 font-semibold text-slate-900">Improve This Idea</h3>
             <p className="text-sm text-slate-600">
-              Update your idea based on feedback and validate again
+              Update your idea based on feedback and re-validate to see improvements
             </p>
-          </Link>
+          </button>
         </div>
       </div>
+
+          {/* Benchmarking Section - Last card in Next Steps */}
+          <div className="rounded-3xl border-2 border-slate-200 bg-gradient-to-br from-slate-50 to-white p-6 shadow-soft">
+            <h2 className="mb-4 text-2xl font-bold text-slate-900">📊 How Your Idea Compares</h2>
+            <div className="space-y-4">
+              {overallScore >= 8 ? (
+                <div className="rounded-xl border-2 border-emerald-200 bg-emerald-50/50 p-4">
+                  <p className="text-sm text-emerald-800">
+                    <strong>Top 15%</strong> - Your idea scores higher than 85% of validated ideas. This indicates exceptional potential.
+                  </p>
+                </div>
+              ) : overallScore >= 7 ? (
+                <div className="rounded-xl border-2 border-emerald-200 bg-emerald-50/50 p-4">
+                  <p className="text-sm text-emerald-800">
+                    <strong>Top 30%</strong> - Your idea scores higher than 70% of validated ideas. Strong potential with room for improvement.
+                  </p>
+                </div>
+              ) : overallScore >= 6 ? (
+                <div className="rounded-xl border-2 border-amber-200 bg-amber-50/50 p-4">
+                  <p className="text-sm text-amber-800">
+                    <strong>Above Average</strong> - Your idea scores higher than 50% of validated ideas. Good foundation with clear improvement areas.
+                  </p>
+                </div>
+              ) : overallScore >= 5 ? (
+                <div className="rounded-xl border-2 border-amber-200 bg-amber-50/50 p-4">
+                  <p className="text-sm text-amber-800">
+                    <strong>Average</strong> - Your idea is in the middle range. Average score for validated ideas is 5.5/10. Focus on strengthening weak areas.
+                  </p>
+                </div>
+              ) : (
+                <div className="rounded-xl border-2 border-coral-200 bg-coral-50/50 p-4">
+                  <p className="text-sm text-coral-800">
+                    <strong>Below Average</strong> - Your idea scores below 50% of validated ideas. Consider significant refinements or pivoting.
+                  </p>
+                </div>
+              )}
+              <p className="mt-3 text-xs text-slate-500">
+                * Comparison based on anonymized aggregated data from all validated ideas on our platform.
+              </p>
+            </div>
+          </div>
         </div>
       )}
+      </div>
     </section>
   );
 }

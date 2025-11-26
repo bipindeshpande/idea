@@ -416,18 +416,22 @@ export default function RecommendationFullReport() {
       const pdfWidth = pdf.internal.pageSize.getWidth();
       const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
       
-      // Handle multi-page PDF
+      // Handle multi-page PDF with proper page breaks
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const pageWidth = pdf.internal.pageSize.getWidth();
       let heightLeft = pdfHeight;
       let position = 0;
       
+      // Add first page
       pdf.addImage(imgData, "PNG", 0, position, pdfWidth, pdfHeight);
-      heightLeft -= pdf.internal.pageSize.getHeight();
+      heightLeft -= pageHeight;
       
-      while (heightLeft > 0) {
+      // Add additional pages if content exceeds one page
+      while (heightLeft >= 0) {
         position = heightLeft - pdfHeight;
         pdf.addPage();
         pdf.addImage(imgData, "PNG", 0, position, pdfWidth, pdfHeight);
-        heightLeft -= pdf.internal.pageSize.getHeight();
+        heightLeft -= pageHeight;
       }
       
       pdf.save(`startup-idea-advisor-complete-report-${runQuery || Date.now()}.pdf`);

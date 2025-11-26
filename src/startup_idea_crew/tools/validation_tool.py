@@ -188,6 +188,32 @@ def assess_startup_risks(idea: str, time_commitment: str = "", financial_resourc
     else:
         financial_resources = str(financial_resources).strip()
     
+    # Generate more specific risk assessment based on the idea
+    idea_lower = idea.lower()
+    
+    # Identify specific risk areas based on idea keywords
+    specific_risks = []
+    
+    # Technical/Development risks
+    if any(keyword in idea_lower for keyword in ['ai', 'ml', 'machine learning', 'algorithm', 'automation', 'bot', 'chatbot']):
+        specific_risks.append("Technical Complexity: AI/ML components require specialized knowledge and may need significant development time. Consider using pre-built APIs or no-code AI tools initially.")
+    
+    if any(keyword in idea_lower for keyword in ['app', 'mobile', 'ios', 'android', 'platform']):
+        specific_risks.append("Platform Development: Mobile app development requires platform-specific expertise and app store approval processes. Consider starting with a web version or using no-code app builders.")
+    
+    # Market/Competition risks
+    if any(keyword in idea_lower for keyword in ['marketplace', 'platform', 'network', 'community']):
+        specific_risks.append("Chicken-and-Egg Problem: Marketplace/platform ideas need both supply and demand sides. Consider focusing on one side first or providing initial value yourself.")
+    
+    # Financial risks based on resources
+    if financial_resources and financial_resources.lower() in ['free', 'sweat-equity', 'low', 'minimal', 'not specified']:
+        specific_risks.append("Limited Financial Resources: With {financial_resources} budget, you'll need to rely heavily on free tools, sweat equity, and bootstrapping. This may limit marketing spend and slow growth.")
+    
+    # Time commitment risks
+    if time_commitment and ('<5' in time_commitment or 'part-time' in time_commitment.lower() or 'minimal' in time_commitment.lower()):
+        specific_risks.append("Time Constraints: With {time_commitment} available, development will be slow. Consider focusing on MVP features only and using pre-built solutions to accelerate progress.")
+    
+    # Build the risk assessment
     risk_assessment = f"""
     STARTUP RISK ASSESSMENT
     {'=' * 60}
@@ -196,56 +222,45 @@ def assess_startup_risks(idea: str, time_commitment: str = "", financial_resourc
     Time Commitment: {time_commitment}
     Financial Resources: {financial_resources}
     
-    Risk Categories:
+    SPECIFIC RISKS FOR THIS IDEA:
+    {chr(10).join(f"- {risk}" for risk in specific_risks) if specific_risks else "- Analyze the specific idea to identify unique risks"}
     
-    1. Market Risks (Medium):
-       - Customer demand uncertainty
-       - Market timing risks
-       - Competitive threats
-       Mitigation: Validate early, test MVP, monitor competition
+    Risk Categories to Consider:
     
-    2. Technical Risks (Low-Medium):
-       - Technology feasibility
-       - Development complexity
-       - Scalability challenges
-       Mitigation: Prototype early, use proven technologies
+    1. Market Risks:
+       - How does THIS specific idea face customer demand uncertainty?
+       - What competitive threats exist for THIS idea specifically?
+       - Is the market timing right for THIS idea?
     
-    3. Financial Risks (Medium-High):
-       - Insufficient funding
-       - Cash flow challenges
-       - Customer acquisition costs
-       Mitigation: Bootstrap if possible, validate unit economics
+    2. Technical Risks:
+       - What specific technical challenges does THIS idea face?
+       - What skills/expertise are needed that might be missing?
+       - Are there specific technologies that could fail or be too complex?
     
-    4. Operational Risks (Low-Medium):
-       - Resource constraints
-       - Time management
-       - Team building
-       Mitigation: Start lean, outsource non-core functions
+    3. Financial Risks:
+       - How does the {financial_resources} budget constraint specifically impact THIS idea?
+       - What are the specific costs for THIS idea (tools, platforms, services)?
+       - What revenue model challenges exist for THIS specific idea?
     
-    5. Regulatory Risks (Low):
-       - Compliance requirements
-       - Industry regulations
-       - Data privacy laws
-       Mitigation: Research regulations early, consult experts
+    4. Operational Risks:
+       - How does {time_commitment} time commitment specifically limit THIS idea?
+       - What operational challenges are unique to THIS idea's business model?
+       - What resources (beyond money) does THIS idea need?
     
-    Overall Risk Level: MEDIUM
+    5. Regulatory/Compliance Risks:
+       - Are there specific regulations that apply to THIS idea?
+       - What data privacy/security concerns exist for THIS idea?
     
-    Risk Mitigation Priority:
-    1. Validate customer demand (HIGHEST PRIORITY)
-    2. Test business model assumptions
-    3. Build MVP quickly and cheaply
-    4. Secure initial customers
-    5. Monitor cash flow closely
+    IMPORTANT: When writing the Risk Radar section, you MUST:
+    - Reference the specific idea name and what makes it risky
+    - Explain HOW each risk impacts THIS idea given the user's constraints
+    - Provide concrete mitigation steps with specific tools/platforms/actions
+    - Avoid generic risks like "market saturation" unless you explain HOW it specifically affects THIS idea
+    - Tie each risk to the user's profile (budget, time, skills, work style)
     
-    Recommendations:
-    - Start as a side project if possible
-    - Validate before scaling
-    - Keep costs low initially
-    - Build a financial runway
-    - Have a backup plan
+    Example of GOOD risk: "Technical complexity risk: Building an AI chatbot requires NLP expertise that may be beyond your current {skill_strength} skills. Mitigation: Start with no-code tools like Botpress or Dialogflow to validate the concept before building custom solutions."
     
-    RECOMMENDATION: Risks are manageable with proper planning and validation. 
-    Focus on de-risking through early customer validation and lean startup methods.
+    Example of BAD risk: "Market saturation (Medium severity): Focus on a specific niche"
     """
     
     return risk_assessment.strip()

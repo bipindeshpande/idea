@@ -35,19 +35,27 @@ def read_output_file(filename: str) -> str | None:
 
 def create_user_session(user_id: int, ip_address: Optional[str] = None, user_agent: Optional[str] = None) -> UserSession:
     """Create a new user session."""
-    session_token = secrets.token_urlsafe(32)
-    expires_at = datetime.utcnow() + timedelta(days=7)  # 7 days
-    
-    session = UserSession(
-        user_id=user_id,
-        session_token=session_token,
-        expires_at=expires_at,
-        ip_address=ip_address,
-        user_agent=user_agent,
-    )
-    db.session.add(session)
-    db.session.commit()
-    return session
+    try:
+        session_token = secrets.token_urlsafe(32)
+        expires_at = datetime.utcnow() + timedelta(days=7)  # 7 days
+        
+        session = UserSession(
+            user_id=user_id,
+            session_token=session_token,
+            expires_at=expires_at,
+            ip_address=ip_address,
+            user_agent=user_agent,
+        )
+        db.session.add(session)
+        db.session.commit()
+        return session
+    except Exception as e:
+        db.session.rollback()
+        import logging
+        logging.error(f"Failed to create user session for user_id {user_id}: {e}")
+        import traceback
+        logging.error(f"Traceback: {traceback.format_exc()}")
+        raise
 
 
 def get_current_session() -> Optional[UserSession]:

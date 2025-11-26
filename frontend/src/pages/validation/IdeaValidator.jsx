@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate, Link, useSearchParams } from "react-router-dom";
 import Seo from "../../components/common/Seo.jsx";
 import { useValidation } from "../../context/ValidationContext.jsx";
 import { useReports } from "../../context/ReportsContext.jsx";
@@ -13,6 +13,7 @@ const IDEA_EXPLANATION_QUESTIONS = validationQuestions.idea_explanation_question
 
 export default function IdeaValidator() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { validateIdea, loading, error, setError, setCategoryAnswers, setIdeaExplanation, categoryAnswers, ideaExplanation } = useValidation();
   const { inputs, loadRunById } = useReports();
   const { getAuthHeaders, isAuthenticated } = useAuth();
@@ -27,6 +28,8 @@ export default function IdeaValidator() {
     return saved ? JSON.parse(saved) : [];
   });
   const [isFirstValidation, setIsFirstValidation] = useState(false);
+  const [previousValidationData, setPreviousValidationData] = useState(null);
+  const isRevalidate = searchParams.get("revalidate") === "true";
 
   // Check if this is user's first validation
   useEffect(() => {
@@ -51,6 +54,53 @@ export default function IdeaValidator() {
     };
     checkFirstValidation();
   }, [isAuthenticated, getAuthHeaders]);
+
+  // Load previous validation data if re-validating
+  useEffect(() => {
+    if (isRevalidate) {
+      const revalidateData = localStorage.getItem("revalidate_data");
+      if (revalidateData) {
+        try {
+          const data = JSON.parse(revalidateData);
+          setPreviousValidationData(data);
+          
+          // Pre-fill form with previous answers
+          if (data.categoryAnswers) {
+            setCategoryAnswers(data.categoryAnswers);
+          }
+          if (data.ideaExplanation) {
+            setIdeaExplanation(data.ideaExplanation);
+            // Parse idea explanation to fill ideaAnswers and ideaDetails
+            const lines = data.ideaExplanation.split("\n\n");
+            // Try to extract answers from the explanation format
+            // This is a simple parser - can be improved
+            const newIdeaAnswers = {};
+            IDEA_EXPLANATION_QUESTIONS.forEach((q) => {
+              const questionText = q.question.toLowerCase();
+              for (const line of lines) {
+                if (line.toLowerCase().includes(questionText.substring(0, 20))) {
+                  // Extract answer after question
+                  const answerMatch = line.match(new RegExp(q.question + "\\s*\\n(.+)", "i"));
+                  if (answerMatch) {
+                    newIdeaAnswers[q.id] = answerMatch[1].trim();
+                  }
+                }
+              }
+            });
+            if (Object.keys(newIdeaAnswers).length > 0) {
+              setIdeaAnswers(newIdeaAnswers);
+            }
+            // Set idea details (last part or full if no structured format)
+            if (lines.length > 0) {
+              setIdeaDetails(lines[lines.length - 1]);
+            }
+          }
+        } catch (err) {
+          console.error("Failed to load revalidate data:", err);
+        }
+      }
+    }
+  }, [isRevalidate, setCategoryAnswers, setIdeaExplanation]);
 
   // Load user's latest intake data
   useEffect(() => {
@@ -157,7 +207,14 @@ export default function IdeaValidator() {
     const result = await validateIdea(categoryAnswers, ideaExplanation);
     
     if (result.success) {
-      navigate(`/validate-result?id=${result.validation.id}`);
+      // If this is a re-validation, pass previous validation data for comparison
+      if (isRevalidate && previousValidationData) {
+        navigate(`/validate-result?id=${result.validation.id}&previous=${previousValidationData.previousValidationId}&previousScore=${previousValidationData.previousScore}`);
+        // Clear revalidate data after use
+        localStorage.removeItem("revalidate_data");
+      } else {
+        navigate(`/validate-result?id=${result.validation.id}`);
+      }
     }
   };
 

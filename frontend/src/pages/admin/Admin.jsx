@@ -1505,6 +1505,128 @@ function AdminDashboard() {
             </div>
           </div>
         </div>
+
+        {/* System Settings */}
+        <div className="mt-6 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 p-6">
+          <SystemSettingsPanel />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SystemSettingsPanel() {
+  const [debugMode, setDebugMode] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState("");
+
+  useEffect(() => {
+    loadSettings();
+  }, []);
+
+  const loadSettings = async () => {
+    try {
+      const authToken = localStorage.getItem(ADMIN_STORAGE_KEY) === "true" ? ADMIN_PASSWORD : "";
+      const response = await fetch("/api/admin/settings", {
+        headers: {
+          "Authorization": `Bearer ${authToken}`,
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.settings) {
+          setDebugMode(data.settings.debug_mode || false);
+        }
+      }
+    } catch (error) {
+      if (process.env.NODE_ENV === 'development') {
+        console.error("Failed to load settings:", error);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleToggleDebug = async () => {
+    setSaving(true);
+    setMessage("");
+    try {
+      const authToken = localStorage.getItem(ADMIN_STORAGE_KEY) === "true" ? ADMIN_PASSWORD : "";
+      const response = await fetch("/api/admin/settings", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${authToken}`,
+        },
+        body: JSON.stringify({
+          debug_mode: !debugMode,
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          setDebugMode(!debugMode);
+          setMessage(`Debug mode ${!debugMode ? "enabled" : "disabled"}. Server restart required for changes to take effect.`);
+          setTimeout(() => setMessage(""), 5000);
+        }
+      } else {
+        setMessage("Failed to update settings");
+        setTimeout(() => setMessage(""), 3000);
+      }
+    } catch (error) {
+      if (process.env.NODE_ENV === 'development') {
+        console.error("Failed to update settings:", error);
+      }
+      setMessage("Failed to update settings");
+      setTimeout(() => setMessage(""), 3000);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div>
+        <h3 className="mb-4 text-lg font-semibold text-slate-900 dark:text-slate-100">System Settings</h3>
+        <p className="text-sm text-slate-600 dark:text-slate-400">Loading settings...</p>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <h3 className="mb-4 text-lg font-semibold text-slate-900 dark:text-slate-100">System Settings</h3>
+      <div className="space-y-4">
+        <div className="flex items-center justify-between rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4">
+          <div>
+            <h4 className="font-semibold text-slate-900 dark:text-slate-100">Debug Mode</h4>
+            <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
+              Enable Flask debug mode. Shows detailed error tracebacks. <strong>Warning:</strong> Disable in production for security.
+            </p>
+          </div>
+          <label className="relative inline-flex cursor-pointer items-center">
+            <input
+              type="checkbox"
+              checked={debugMode}
+              onChange={handleToggleDebug}
+              disabled={saving}
+              className="peer sr-only"
+            />
+            <div className="peer h-6 w-11 rounded-full bg-slate-200 dark:bg-slate-700 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-slate-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-brand-600 peer-checked:after:translate-x-full peer-checked:after:border-white peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-brand-300 dark:peer-focus:ring-brand-800"></div>
+          </label>
+        </div>
+        {message && (
+          <div className={`rounded-lg border p-3 text-sm ${
+            message.includes("enabled") || message.includes("disabled")
+              ? "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-200"
+              : "border-coral-200 bg-coral-50 text-coral-800 dark:border-coral-800 dark:bg-coral-900/30 dark:text-coral-200"
+          }`}>
+            {message}
+          </div>
+        )}
       </div>
     </div>
   );
