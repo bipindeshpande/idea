@@ -81,7 +81,7 @@ def pre_execute_recommendation_tools(
     
     # Prepare tool calls with user profile data
     tool_calls = {
-        "risks": lambda: assess_startup_risks(idea, time_commitment, financial_resources),
+        "risks": lambda: assess_startup_risks(idea, time_commitment, financial_resources, user_profile=user_profile),
         "costs": lambda: estimate_startup_costs(business_type, "MVP"),
         "revenue": lambda: project_revenue(business_model, target_customers, pricing_model),
         "viability": lambda: check_financial_viability(idea, "", "", "Year 1"),

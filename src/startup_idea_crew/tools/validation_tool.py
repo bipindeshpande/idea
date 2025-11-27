@@ -1,10 +1,21 @@
 """
 Validation Tools for Startup Idea Crew
-Tools to validate startup ideas and check feasibility
+Tools to validate startup ideas and check feasibility - AI-powered for personalized insights
 """
 
 from crewai.tools import tool
+from openai import OpenAI
+import os
+from typing import Optional, Dict, Any
 import re
+
+
+def _get_openai_client() -> OpenAI:
+    """Get OpenAI client with API key from environment."""
+    api_key = os.environ.get("OPENAI_API_KEY")
+    if not api_key:
+        raise ValueError("OPENAI_API_KEY environment variable is not set")
+    return OpenAI(api_key=api_key)
 
 
 @tool("Idea Validation Tool")
@@ -160,24 +171,34 @@ def check_domain_availability(business_name: str) -> str:
 
 
 @tool("Risk Assessment Tool")
-def assess_startup_risks(idea: str, time_commitment: str = "", financial_resources: str = "") -> str:
+def assess_startup_risks(
+    idea: str, 
+    time_commitment: str = "", 
+    financial_resources: str = "",
+    user_profile: Optional[Dict[str, Any]] = None
+) -> str:
     """
-    Assess risks associated with a startup idea.
+    Assess SPECIFIC risks associated with a startup idea using AI.
+    Generates idea-specific risks with severity ratings and actionable mitigation strategies.
     
     Args:
         idea: Description of the startup idea (required)
-        time_commitment: Available time commitment (optional, can be empty)
-        financial_resources: Available financial resources (optional, can be empty)
+        time_commitment: Available time commitment (optional)
+        financial_resources: Available financial resources (optional)
+        user_profile: Dictionary with user profile data (goal_type, skill_strength, work_style, etc.)
     
     Returns:
-        Risk assessment report with mitigation strategies
+        Specific risk assessment with mitigation strategies formatted for Risk Radar section
     """
     # Ensure idea is a string
     if isinstance(idea, dict):
         idea = str(idea)
     idea = str(idea).strip()
     
-    # Handle empty strings for optional parameters
+    if not idea:
+        return "Error: Startup idea is required for risk assessment."
+    
+    # Handle optional parameters
     if not time_commitment or (isinstance(time_commitment, str) and time_commitment.strip() == ""):
         time_commitment = "Not specified"
     else:
@@ -188,80 +209,115 @@ def assess_startup_risks(idea: str, time_commitment: str = "", financial_resourc
     else:
         financial_resources = str(financial_resources).strip()
     
-    # Generate more specific risk assessment based on the idea
-    idea_lower = idea.lower()
+    # Build user profile context
+    profile_context = ""
+    if user_profile and isinstance(user_profile, dict):
+        profile_parts = []
+        if user_profile.get("skill_strength"):
+            profile_parts.append(f"Skill Strength: {user_profile.get('skill_strength')}")
+        if user_profile.get("work_style"):
+            profile_parts.append(f"Work Style: {user_profile.get('work_style')}")
+        if user_profile.get("budget_range"):
+            profile_parts.append(f"Budget: {user_profile.get('budget_range')}")
+        if user_profile.get("goal_type"):
+            profile_parts.append(f"Goal: {user_profile.get('goal_type')}")
+        
+        if profile_parts:
+            profile_context = "\n".join(profile_parts)
     
-    # Identify specific risk areas based on idea keywords
-    specific_risks = []
-    
-    # Technical/Development risks
-    if any(keyword in idea_lower for keyword in ['ai', 'ml', 'machine learning', 'algorithm', 'automation', 'bot', 'chatbot']):
-        specific_risks.append("Technical Complexity: AI/ML components require specialized knowledge and may need significant development time. Consider using pre-built APIs or no-code AI tools initially.")
-    
-    if any(keyword in idea_lower for keyword in ['app', 'mobile', 'ios', 'android', 'platform']):
-        specific_risks.append("Platform Development: Mobile app development requires platform-specific expertise and app store approval processes. Consider starting with a web version or using no-code app builders.")
-    
-    # Market/Competition risks
-    if any(keyword in idea_lower for keyword in ['marketplace', 'platform', 'network', 'community']):
-        specific_risks.append("Chicken-and-Egg Problem: Marketplace/platform ideas need both supply and demand sides. Consider focusing on one side first or providing initial value yourself.")
-    
-    # Financial risks based on resources
-    if financial_resources and financial_resources.lower() in ['free', 'sweat-equity', 'low', 'minimal', 'not specified']:
-        specific_risks.append("Limited Financial Resources: With {financial_resources} budget, you'll need to rely heavily on free tools, sweat equity, and bootstrapping. This may limit marketing spend and slow growth.")
-    
-    # Time commitment risks
-    if time_commitment and ('<5' in time_commitment or 'part-time' in time_commitment.lower() or 'minimal' in time_commitment.lower()):
-        specific_risks.append("Time Constraints: With {time_commitment} available, development will be slow. Consider focusing on MVP features only and using pre-built solutions to accelerate progress.")
-    
-    # Build the risk assessment
-    risk_assessment = f"""
+    # Create AI prompt for specific risk generation
+    prompt = f"""Generate SPECIFIC, ACTIONABLE risks for this startup idea. Each risk must be tied to THIS exact idea, not generic startup risks.
+
+Startup Idea: {idea}
+
+Constraints & Profile:
+- Time Commitment: {time_commitment}
+- Financial Resources: {financial_resources}
+{profile_context if profile_context else ""}
+
+CRITICAL REQUIREMENTS:
+1. Generate 4-6 SPECIFIC risks tied to THIS exact idea
+2. Each risk must explain HOW it affects THIS idea given the user's constraints
+3. Provide actionable mitigation steps with specific tools/platforms
+4. Avoid generic risks like "market saturation" - explain HOW it affects THIS idea
+5. Format each risk exactly as shown below
+
+Your response MUST follow this EXACT format:
+
     STARTUP RISK ASSESSMENT
     {'=' * 60}
     
     Idea: {idea}
-    Time Commitment: {time_commitment}
-    Financial Resources: {financial_resources}
-    
-    SPECIFIC RISKS FOR THIS IDEA:
-    {chr(10).join(f"- {risk}" for risk in specific_risks) if specific_risks else "- Analyze the specific idea to identify unique risks"}
-    
-    Risk Categories to Consider:
-    
-    1. Market Risks:
-       - How does THIS specific idea face customer demand uncertainty?
-       - What competitive threats exist for THIS idea specifically?
-       - Is the market timing right for THIS idea?
-    
-    2. Technical Risks:
-       - What specific technical challenges does THIS idea face?
-       - What skills/expertise are needed that might be missing?
-       - Are there specific technologies that could fail or be too complex?
-    
-    3. Financial Risks:
-       - How does the {financial_resources} budget constraint specifically impact THIS idea?
-       - What are the specific costs for THIS idea (tools, platforms, services)?
-       - What revenue model challenges exist for THIS specific idea?
-    
-    4. Operational Risks:
-       - How does {time_commitment} time commitment specifically limit THIS idea?
-       - What operational challenges are unique to THIS idea's business model?
-       - What resources (beyond money) does THIS idea need?
-    
-    5. Regulatory/Compliance Risks:
-       - Are there specific regulations that apply to THIS idea?
-       - What data privacy/security concerns exist for THIS idea?
-    
-    IMPORTANT: When writing the Risk Radar section, you MUST:
-    - Reference the specific idea name and what makes it risky
-    - Explain HOW each risk impacts THIS idea given the user's constraints
-    - Provide concrete mitigation steps with specific tools/platforms/actions
-    - Avoid generic risks like "market saturation" unless you explain HOW it specifically affects THIS idea
-    - Tie each risk to the user's profile (budget, time, skills, work style)
-    
-    Example of GOOD risk: "Technical complexity risk: Building an AI chatbot requires NLP expertise that may be beyond your current {skill_strength} skills. Mitigation: Start with no-code tools like Botpress or Dialogflow to validate the concept before building custom solutions."
-    
-    Example of BAD risk: "Market saturation (Medium severity): Focus on a specific niche"
-    """
-    
-    return risk_assessment.strip()
+
+SPECIFIC RISKS:
+
+1. [Risk Name] (Severity: Low/Medium/High):
+   Explanation: [HOW this risk specifically affects THIS idea. Reference the idea name and explain the specific impact given the user's constraints (time: {time_commitment}, budget: {financial_resources}). Be specific about what could go wrong.]
+   Mitigation: [Concrete action steps with specific tools/platforms/approaches. Example: "Start with [specific tool] to validate before building custom solutions. Use [specific platform] for initial MVP."]
+
+2. [Risk Name] (Severity: Low/Medium/High):
+   Explanation: [Specific explanation for THIS idea]
+   Mitigation: [Specific mitigation steps]
+
+[Continue for 4-6 risks total]
+
+Example of GOOD risk format:
+1. Technical Complexity Risk (Severity: High):
+   Explanation: Building an AI chatbot for {idea} requires NLP expertise that may be beyond your current skill level. The time constraint of {time_commitment} means you'll struggle to learn these skills while building, which could delay launch by 6+ months.
+   Mitigation: Start with no-code tools like Botpress or Dialogflow to validate the concept. Build a basic MVP in 2 weeks using pre-trained models, then iterate. Consider partnering with an NLP specialist for advanced features.
+
+Example of BAD risk (avoid this):
+- Market saturation (Medium): Focus on a niche market
+
+Generate risks that are:
+- SPECIFIC to {idea}
+- Tied to the constraints (time: {time_commitment}, budget: {financial_resources})
+- ACTIONABLE with concrete mitigation steps
+- REALISTIC about what could go wrong
+
+Focus on risks that matter for THIS idea, not generic startup risks.
+"""
+
+    try:
+        client = _get_openai_client()
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You are an expert risk analyst for startups. Generate specific, actionable risks tied to each unique startup idea. Avoid generic risks - focus on what could go wrong with THIS specific idea given the founder's constraints."
+                },
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ],
+            temperature=0.7,
+            max_tokens=2000,
+        )
+        
+        risk_content = response.choices[0].message.content.strip()
+        return risk_content
+        
+    except Exception as e:
+        # Fallback to a structured template if AI call fails
+        return f"""STARTUP RISK ASSESSMENT
+{'=' * 60}
+
+Idea: {idea}
+Time Commitment: {time_commitment}
+Financial Resources: {financial_resources}
+
+Error: Unable to generate personalized risk assessment at this time. Please try again or contact support.
+
+Note: AI-powered risk assessment requires OPENAI_API_KEY to be configured.
+Error details: {str(e)}
+
+Generic Risk Categories to Consider:
+1. Technical complexity for this specific idea
+2. Market timing and competition for THIS solution
+3. Resource constraints ({time_commitment} time, {financial_resources} budget)
+4. Regulatory/compliance requirements for this idea type
+5. Operational challenges unique to this business model
+"""
 
