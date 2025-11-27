@@ -362,13 +362,29 @@ class User(db.Model):
         try:
             if subscription_type == "free":
                 is_active = True
-            elif self.subscription_expires_at:
-                # Check if expiration is in the future (read-only)
-                is_active = datetime.utcnow() < self.subscription_expires_at
+            elif subscription_type in ["starter", "pro", "annual"]:
+                # For paid subscriptions, check expiration
+                if self.subscription_expires_at:
+                    # Check if expiration is in the future (read-only)
+                    is_active = datetime.utcnow() < self.subscription_expires_at
+                elif self.subscription_started_at:
+                    # No expiration set but has start date - calculate expiration
+                    duration_days = {
+                        "starter": 30,
+                        "pro": 30,
+                        "annual": 365,
+                    }.get(subscription_type, 30)
+                    calculated_expiry = self.subscription_started_at + timedelta(days=duration_days)
+                    is_active = datetime.utcnow() < calculated_expiry
+                else:
+                    # No expiration and no start date - assume inactive
+                    is_active = False
             else:
-                # No expiration set - for paid subscriptions, assume inactive
-                # (Don't set expiration here as we're in a read-only context)
-                is_active = False
+                # Unknown subscription type - check expiration if exists
+                if self.subscription_expires_at:
+                    is_active = datetime.utcnow() < self.subscription_expires_at
+                else:
+                    is_active = False
         except Exception as e:
             import logging
             logging.error(f"Error checking subscription status in to_dict: {e}")
@@ -414,10 +430,10 @@ class UserSession(db.Model):
         if datetime.utcnow() >= self.expires_at:
             return False
         
-        # Check for inactivity timeout (30 minutes)
+        # Check for inactivity timeout (5 minutes)
         if self.last_activity:
             time_since_activity = datetime.utcnow() - self.last_activity
-            if time_since_activity > timedelta(minutes=30):
+            if time_since_activity > timedelta(minutes=5):
                 return False
         
         return True
