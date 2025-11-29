@@ -4,17 +4,18 @@ import validationQuestionsData from "./validationQuestions.json";
 
 // Default fallback data
 const defaultValidationQuestions = {
-  category_questions: [
+  // SCREEN 1 — "About Your Idea" (4 Required Dropdowns)
+  screen1_questions: [
     {
       id: "industry",
-      question: "What industry or sector does your idea belong to?",
+      question: "What industry does your idea belong to?",
       options: [
-        "Technology / Software",
-        "Healthcare / Wellness",
-        "E-commerce / Retail",
-        "Education / EdTech",
-        "Finance / FinTech",
+        "SaaS",
+        "Fintech",
         "Food & Beverage",
+        "E-commerce",
+        "Healthtech",
+        "Education",
         "Real Estate",
         "Entertainment / Media",
         "Transportation / Logistics",
@@ -22,106 +23,171 @@ const defaultValidationQuestions = {
       ],
     },
     {
-      id: "target_audience",
-      question: "Who is your primary target audience?",
+      id: "geography",
+      question: "Which region are you targeting first?",
       options: [
-        "Individual consumers (B2C)",
-        "Small businesses (B2B SMB)",
-        "Enterprise companies (B2B Enterprise)",
-        "Non-profits / Organizations",
-        "Students / Educational institutions",
+        "US",
+        "EU",
+        "India",
+        "Global",
         "Other",
       ],
     },
     {
-      id: "business_model",
-      question: "What is your primary business model?",
+      id: "stage",
+      question: "What stage is your idea currently in?",
       options: [
-        "SaaS (Subscription)",
-        "Marketplace / Platform",
-        "E-commerce / Product sales",
-        "Freemium",
-        "Consulting / Services",
-        "Advertising / Media",
-        "Other",
+        "Raw Idea",
+        "Early Research",
+        "Prototype",
+        "MVP Launched",
+        "Revenue Stage",
+      ],
+    },
+    {
+      id: "commitment",
+      question: "How serious are you about building this idea?",
+      options: [
+        "Side Hustle",
+        "Lifestyle Business",
+        "Full-time Startup",
+        "High-Growth/Fundable",
       ],
     },
   ],
-  idea_explanation_questions: [
+  
+  // SCREEN 2 — "How Your Idea Works" (5 Required Dropdowns)
+  screen2_questions: [
     {
-      id: "problem",
+      id: "problem_category",
       question: "What problem does your idea solve?",
       options: [
-        "Saves time or increases efficiency",
-        "Reduces costs or expenses",
-        "Improves convenience or accessibility",
-        "Solves a communication or connection gap",
-        "Addresses a health or wellness need",
-        "Fixes a quality or reliability issue",
-        "Other problem",
+        "Inefficiency",
+        "High Cost",
+        "Complexity",
+        "Lack of Access",
+        "Trust/Quality Gap",
+        "Poor Transparency",
+        "Fragmented Market",
       ],
     },
     {
-      id: "solution",
-      question: "How does your solution work?",
+      id: "solution_type",
+      question: "How would you best describe your solution type?",
       options: [
-        "Software / App / Platform",
-        "Physical product / Hardware",
-        "Service / Consulting",
-        "Marketplace connecting buyers and sellers",
-        "Content / Information / Education",
-        "Community / Network / Social platform",
-        "Other solution type",
+        "Marketplace / Platform",
+        "SaaS / Online Platform",
+        "AI Automation",
+        "On-demand Service",
+        "E-commerce",
+        "Aggregator / Comparison",
       ],
     },
     {
-      id: "uniqueness",
-      question: "What makes your idea unique or different?",
+      id: "user_type",
+      question: "Who will primarily use your product or service?",
       options: [
-        "Better technology or features",
-        "Lower price or better value",
-        "Better user experience or design",
-        "Serves an underserved market",
-        "Faster or more convenient",
-        "Better quality or reliability",
-        "Not sure yet / Still exploring",
+        "Consumers",
+        "SMBs",
+        "Enterprises",
+        "Freelancers / Creators",
+        "Students",
+        "Professionals (medical, legal, finance)",
       ],
     },
     {
-      id: "users",
-      question: "Who would use your product or service?",
+      id: "revenue_model",
+      question: "How will your business make money?",
       options: [
-        "General consumers / Everyone",
-        "Small business owners",
-        "Professionals / Freelancers",
-        "Students / Young adults",
-        "Parents / Families",
-        "Seniors / Retirees",
-        "Specific niche group",
+        "Subscription",
+        "Commission / Transaction Fee",
+        "One-time Purchase",
+        "Freemium → Upgrade",
+        "Advertising",
+        "Lead Generation",
       ],
     },
     {
-      id: "revenue",
-      question: "How do you plan to make money?",
+      id: "unique_moat",
+      question: "What makes your idea different or unique?",
       options: [
-        "Monthly / Annual subscription",
-        "One-time purchase",
-        "Transaction fees / Commission",
-        "Advertising revenue",
-        "Freemium (free + paid features)",
-        "Consulting / Services",
-        "Not sure yet",
+        "Better Price",
+        "Superior UX",
+        "Proprietary Tech",
+        "Niche Focus",
+        "Network Effects",
+        "Faster / More Reliable",
       ],
+    },
+    {
+      id: "business_archetype",
+      question: "What best describes the type of business you want to build?",
+      options: [
+        "Online software / AI product (SaaS / app / tool)",
+        "Local service business",
+        "Food & beverage / restaurant / stall / catering",
+        "Retail / physical shop",
+        "Physical product brand",
+        "Content / creator / education",
+        "Marketplace / platform",
+      ],
+    },
+  ],
+  
+  // SCREEN 3 — Optional fields
+  optional_fields: [
+    {
+      id: "initial_budget",
+      question: "What is your expected initial budget? (Optional)",
+      options: [
+        "$0",
+        "Under $1k",
+        "$1k–$10k",
+        "$10k+",
+      ],
+    },
+    {
+      id: "delivery_channel",
+      question: "How will customers mainly interact with your business? (Optional)",
+      options: [
+        "Online only",
+        "Mostly online",
+        "Mostly offline / in-person",
+        "Mixed online & offline",
+      ],
+    },
+    {
+      id: "constraints",
+      question: "Do you have any constraints? (Optional - Multi-select)",
+      options: [
+        "Limited Time",
+        "Limited Skills",
+        "Limited Budget",
+        "Limited Network",
+        "None",
+      ],
+      multiSelect: true,
     },
   ],
 };
 
 // Merge JSON data with defaults (JSON takes precedence, but only if it has content)
 export const validationQuestions = {
+  // Legacy support - map to new structure
   category_questions: (validationQuestionsData?.category_questions && validationQuestionsData.category_questions.length > 0) 
     ? validationQuestionsData.category_questions 
-    : defaultValidationQuestions.category_questions,
+    : defaultValidationQuestions.screen1_questions,
   idea_explanation_questions: (validationQuestionsData?.idea_explanation_questions && validationQuestionsData.idea_explanation_questions.length > 0)
     ? validationQuestionsData.idea_explanation_questions
-    : defaultValidationQuestions.idea_explanation_questions,
+    : defaultValidationQuestions.screen2_questions,
+  // New 3-screen structure
+  screen1_questions: (validationQuestionsData?.screen1_questions && validationQuestionsData.screen1_questions.length > 0)
+    ? validationQuestionsData.screen1_questions
+    : defaultValidationQuestions.screen1_questions,
+  screen2_questions: (validationQuestionsData?.screen2_questions && validationQuestionsData.screen2_questions.length > 0)
+    ? validationQuestionsData.screen2_questions
+    : defaultValidationQuestions.screen2_questions,
+  optional_fields: (validationQuestionsData?.optional_fields && validationQuestionsData.optional_fields.length > 0)
+    ? validationQuestionsData.optional_fields
+    : defaultValidationQuestions.optional_fields,
 };

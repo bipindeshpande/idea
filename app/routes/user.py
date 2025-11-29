@@ -73,8 +73,12 @@ def get_user_activity() -> Any:
                 "created_at": r.created_at.isoformat() if r.created_at else None,
             })
         
-        # Get all validations (no limit for analytics)
-        validations = UserValidation.query.filter_by(user_id=user.id).order_by(UserValidation.created_at.desc()).all()
+        # Get all validations (no limit for analytics) - exclude deleted ones and only show completed
+        validations = UserValidation.query.filter_by(
+            user_id=user.id,
+            is_deleted=False,
+            status="completed"
+        ).order_by(UserValidation.created_at.desc()).all()
         validations_data = []
         for v in validations:
             validation_result = {}
@@ -83,11 +87,24 @@ def get_user_activity() -> Any:
             except:
                 pass
             
+            # Parse category_answers if it exists
+            category_answers = {}
+            if v.category_answers:
+                try:
+                    if isinstance(v.category_answers, str):
+                        category_answers = json.loads(v.category_answers)
+                    else:
+                        category_answers = v.category_answers
+                except (json.JSONDecodeError, TypeError) as e:
+                    current_app.logger.warning(f"Failed to parse category_answers for validation {v.validation_id}: {e}")
+                    category_answers = {}
+            
             validations_data.append({
                 "id": v.id,
                 "validation_id": v.validation_id,
                 "overall_score": validation_result.get("overall_score"),
                 "idea_explanation": v.idea_explanation,
+                "category_answers": category_answers,  # Include category_answers for editing
                 "created_at": v.created_at.isoformat() if v.created_at else None,
             })
         
@@ -643,7 +660,11 @@ def compare_sessions() -> Any:
         
         # Fetch validations
         for validation_id in validation_ids:
-            validation = UserValidation.query.filter_by(user_id=user.id, validation_id=validation_id).first()
+            validation = UserValidation.query.filter_by(
+                user_id=user.id,
+                validation_id=validation_id,
+                is_deleted=False
+            ).first()
             if validation:
                 category_answers = {}
                 validation_result = {}
@@ -678,8 +699,11 @@ def get_smart_recommendations() -> Any:
     user = session.user
     
     try:
-        # Get all validations
-        validations = UserValidation.query.filter_by(user_id=user.id).order_by(UserValidation.created_at.desc()).all()
+        # Get all validations - exclude deleted ones
+        validations = UserValidation.query.filter_by(
+            user_id=user.id,
+            is_deleted=False
+        ).order_by(UserValidation.created_at.desc()).all()
         
         if len(validations) < 2:
             return jsonify({

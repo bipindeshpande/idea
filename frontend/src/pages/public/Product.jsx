@@ -1,5 +1,7 @@
 import { Link } from "react-router-dom";
+import { useState } from "react";
 import Seo from "../../components/common/Seo.jsx";
+import ExpandableDetails from "../../components/common/ExpandableDetails.jsx";
 
 const valuePanels = [
   {
@@ -7,36 +9,75 @@ const valuePanels = [
     summary: "Deep insights into your motivations, constraints, strengths, and opportunity angles tailored to your unique profile.",
     icon: "🎯",
     color: "brand",
+    details: [
+      "Motivation analysis: Why you want to start",
+      "Constraint mapping: Time, budget, skills assessed",
+      "Strength identification: What you bring to the table",
+      "Opportunity angles: Strategic considerations for your profile"
+    ],
   },
   {
     title: "Ranked Startup Ideas",
     summary: "Top 3 ideas scored against your goals, time commitment, budget, and skills with detailed fit analysis.",
     icon: "💡",
     color: "aqua",
+    details: [
+      "Scored across 5 dimensions: Goal fit, time fit, budget fit, skill fit, work style",
+      "Detailed fit analysis for each idea",
+      "Clear ranking with rationale",
+      "Comparison matrix to evaluate options"
+    ],
   },
   {
     title: "Financial Outlook",
     summary: "Realistic startup costs, revenue projections, and breakeven timelines that respect your budget constraints.",
     icon: "💰",
     color: "coral",
+    details: [
+      "Startup costs breakdown (initial + monthly)",
+      "Revenue projections (conservative, realistic, optimistic scenarios)",
+      "Breakeven timeline analysis",
+      "Unit economics (LTV, CAC, margins)",
+      "Funding requirements if needed"
+    ],
   },
   {
     title: "Risk Radar",
     summary: "Identified risks with severity ratings and actionable mitigation strategies for each recommendation.",
     icon: "⚠️",
     color: "sand",
+    details: [
+      "5-10 key risks identified per idea",
+      "Severity ratings (Low, Medium, High)",
+      "Impact analysis for each risk",
+      "Actionable mitigation strategies",
+      "Early warning signals to watch"
+    ],
   },
   {
     title: "Validation Questions",
     summary: "Customer discovery scripts with guidance on what to listen for and how to act on responses.",
     icon: "🔍",
     color: "brand",
+    details: [
+      "Structured customer interview scripts",
+      "What to listen for in responses",
+      "How to interpret feedback",
+      "Next steps based on validation results"
+    ],
   },
   {
     title: "30/60/90 Day Roadmap",
     summary: "Customized execution plan with specific milestones and checkpoints for your chosen idea.",
     icon: "🗺️",
     color: "aqua",
+    details: [
+      "Days 0-30: Validation phase (customer interviews, MVP)",
+      "Days 30-60: Building phase (development, early customers)",
+      "Days 60-90: Launch phase (public launch, marketing, sales)",
+      "Specific milestones and deliverables for each phase",
+      "Success metrics and checkpoints"
+    ],
   },
 ];
 
@@ -95,13 +136,13 @@ export default function ProductPage() {
             to="/validate-idea"
             className="inline-flex items-center justify-center whitespace-nowrap rounded-xl bg-gradient-to-r from-coral-500 to-coral-600 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-coral-500/25 transition-all duration-200 hover:from-coral-600 hover:to-coral-700 hover:shadow-xl hover:shadow-coral-500/30 hover:-translate-y-0.5"
           >
-            Validate Idea
+            Validate Idea 🚀
           </Link>
           <Link
             to="/advisor"
             className="inline-flex items-center justify-center whitespace-nowrap rounded-xl bg-gradient-to-r from-brand-500 to-brand-600 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-brand-500/25 transition-all duration-200 hover:from-brand-600 hover:to-brand-700 hover:shadow-xl hover:shadow-brand-500/30 hover:-translate-y-0.5"
           >
-            Discover Ideas
+            Discover Ideas 💡
           </Link>
           <Link
             to="/results/recommendations/full?sample=true"
@@ -135,10 +176,65 @@ export default function ProductPage() {
                   <h3 className="text-base font-bold text-slate-900 dark:text-slate-50">{panel.title}</h3>
                 </div>
                 <p className="text-sm leading-relaxed text-slate-600 dark:text-slate-300">{panel.summary}</p>
+                {panel.details && (
+                  <ExpandableDetails triggerText="What's included" icon="→">
+                    <ul className="space-y-1.5">
+                      {panel.details.map((detail, idx) => (
+                        <li key={idx} className="flex items-start gap-2">
+                          <span className="mt-0.5 text-brand-600 dark:text-brand-400">•</span>
+                          <span>{detail}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </ExpandableDetails>
+                )}
               </article>
             );
           })}
         </div>
+      </section>
+
+      {/* 10 Validation Parameters - Expandable Section */}
+      <section className="mb-8">
+        <details className="group rounded-2xl border border-brand-200/60 dark:border-brand-700/60 bg-gradient-to-br from-brand-50/50 via-brand-50/30 to-white dark:from-brand-900/10 dark:via-brand-900/5 dark:to-slate-800/50 p-5 shadow-md transition-all duration-300 hover:shadow-lg">
+          <summary className="cursor-pointer list-none">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-bold text-slate-900 dark:text-slate-50">10-Parameter Validation Framework</h2>
+                <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
+                  See all parameters we analyze when validating your startup idea
+                </p>
+              </div>
+              <span className="flex-shrink-0 text-xl text-brand-600 dark:text-brand-400 transition-transform group-open:rotate-180">▼</span>
+            </div>
+          </summary>
+          <div className="mt-4 space-y-3 pt-4 border-t border-brand-200/60 dark:border-brand-700/60">
+            <div className="grid gap-3 sm:grid-cols-2">
+              {[
+                { name: "Market Opportunity", desc: "Market size, growth trends, addressable market (TAM, SAM, SOM)" },
+                { name: "Problem-Solution Fit", desc: "Customer pain point validation, solution relevance, willingness to pay" },
+                { name: "Competitive Landscape", desc: "Direct/indirect competitors, differentiation opportunities, barriers to entry" },
+                { name: "Target Audience Clarity", desc: "Customer personas, market segmentation, acquisition channels, LTV" },
+                { name: "Business Model Viability", desc: "Revenue streams, pricing strategy, unit economics, CAC" },
+                { name: "Technical Feasibility", desc: "Build complexity, required resources, tech stack, time to market" },
+                { name: "Financial Sustainability", desc: "Startup costs, operating expenses, revenue projections, breakeven" },
+                { name: "Scalability Potential", desc: "Growth potential, expansion opportunities, operational scalability" },
+                { name: "Risk Assessment", desc: "Key risks identified, severity ratings, mitigation strategies" },
+                { name: "Go-to-Market Strategy", desc: "Launch plan, distribution channels, marketing & sales approach" },
+              ].map((param, idx) => (
+                <div key={idx} className="rounded-lg border border-brand-200/40 dark:border-brand-700/40 bg-white/60 dark:bg-slate-800/40 p-3">
+                  <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-50">{param.name}</h3>
+                  <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">{param.desc}</p>
+                </div>
+              ))}
+            </div>
+            <p className="mt-4 text-center">
+              <Link to="/validate-idea" className="text-xs font-medium text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300">
+                Start validating your idea →
+              </Link>
+            </p>
+          </div>
+        </details>
       </section>
 
       {/* How It Works */}

@@ -56,6 +56,7 @@ export default function DiscoveryLoadingIndicator() {
           <p className="mb-2 text-sm text-slate-600">
             Step {currentStep.step} of {currentStep.total}
           </p>
+          <p className="mb-4 text-xs text-slate-500">Crunching the numbers... 📊</p>
           
           <div className="mb-4 h-2 w-full overflow-hidden rounded-full bg-brand-100">
             <div 

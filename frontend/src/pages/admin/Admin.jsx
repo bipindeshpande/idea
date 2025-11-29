@@ -1032,12 +1032,6 @@ function UsersManagement() {
       <div className="rounded-3xl border border-slate-200 dark:border-slate-700 bg-white/95 dark:bg-slate-800/95 p-8 shadow-soft">
         <div className="mb-6 flex items-center justify-between">
           <h2 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Users ({users.length})</h2>
-          <button
-            onClick={loadUsers}
-            className="rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 px-4 py-2 text-sm font-semibold text-slate-700 dark:text-slate-300 transition hover:bg-slate-50 dark:hover:bg-slate-600"
-          >
-            Refresh
-          </button>
         </div>
 
         <div className="overflow-x-auto">
@@ -1275,12 +1269,6 @@ function PaymentsManagement() {
     <div className="rounded-3xl border border-slate-200 dark:border-slate-700 bg-white/95 dark:bg-slate-800/95 p-8 shadow-soft">
       <div className="mb-6 flex items-center justify-between">
         <h2 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Payments ({payments.length})</h2>
-        <button
-          onClick={loadPayments}
-          className="rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 px-4 py-2 text-sm font-semibold text-slate-700 dark:text-slate-300 transition hover:bg-slate-50 dark:hover:bg-slate-600"
-        >
-          Refresh
-        </button>
       </div>
 
       <div className="overflow-x-auto">

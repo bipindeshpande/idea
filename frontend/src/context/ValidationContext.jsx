@@ -44,15 +44,22 @@ export function ValidationProvider({ children }) {
     }
   }, []);
 
-  const validateIdea = useCallback(async (answers, explanation) => {
+  const validateIdea = useCallback(async (answers, explanation, validationId = null) => {
     setLoading(true);
     setError("");
     setCategoryAnswers(answers);
     setIdeaExplanation(explanation);
 
     try {
-      const response = await fetch("/api/validate-idea", {
-        method: "POST",
+      // Use PUT for editing, POST for creating new
+      const isEdit = !!validationId;
+      const url = isEdit 
+        ? `/api/validate-idea/${validationId}`
+        : "/api/validate-idea";
+      const method = isEdit ? "PUT" : "POST";
+
+      const response = await fetch(url, {
+        method: method,
         headers: {
           "Content-Type": "application/json",
           ...getAuthHeaders(),
@@ -65,7 +72,7 @@ export function ValidationProvider({ children }) {
 
       if (!response.ok) {
         const err = await response.json().catch(() => ({}));
-        throw new Error(err.error || "Failed to validate idea");
+        throw new Error(err.error || `Failed to ${isEdit ? 'update' : 'validate'} idea`);
       }
 
       const data = await response.json();
@@ -76,7 +83,7 @@ export function ValidationProvider({ children }) {
       }
 
       const validation = {
-        id: data.validation_id || Date.now().toString(),
+        id: data.validation_id || validationId || Date.now().toString(),
         timestamp: Date.now(),
         categoryAnswers: answers,
         ideaExplanation: explanation,

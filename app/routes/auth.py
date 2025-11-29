@@ -7,6 +7,7 @@ import traceback
 
 from app.models.database import db, User
 from app.utils import create_user_session, get_current_session, require_auth
+from app.services.audit_service import log_login, log_password_reset
 from app.services.email_service import email_service
 from app.services.email_templates import (
     welcome_email,
@@ -18,11 +19,19 @@ from app.services.email_templates import (
 bp = Blueprint("auth", __name__, url_prefix="/api/auth")
 
 # Note: Rate limits are applied in api.py after blueprint registration
-# Import limiter here for use in decorators
-try:
-    from api import limiter
-except (ImportError, AttributeError):
-    limiter = None
+# Import limiter lazily to avoid circular imports
+_limiter = None
+
+def get_limiter():
+    """Get limiter instance lazily to avoid circular imports."""
+    global _limiter
+    if _limiter is None:
+        try:
+            from api import limiter
+            _limiter = limiter
+        except (ImportError, AttributeError, RuntimeError):
+            _limiter = None
+    return _limiter
 
 
 @bp.post("/register")
@@ -59,6 +68,12 @@ def register() -> Any:
         
         # Create session
         session = create_user_session(user.id, request.remote_addr, request.headers.get("User-Agent"))
+        
+        # Log successful login
+        try:
+            log_login(user.id, success=True)
+        except:
+            pass  # Don't fail login if audit logging fails
         
         # Send welcome email
         try:
@@ -137,6 +152,11 @@ def login() -> Any:
             return jsonify({"success": False, "error": "Authentication error. Please try again."}), 500
         
         if not password_valid:
+            # Log failed login attempt
+            try:
+                log_login(user.id if user else None, success=False)
+            except:
+                pass  # Don't fail login if audit logging fails
             return jsonify({"success": False, "error": "Invalid email or password"}), 401
         
         # Check if account is active (database column, not method)
@@ -243,6 +263,12 @@ def login() -> Any:
             "session_token": session.session_token,
         }
         
+        # Log successful login (don't fail if this fails)
+        try:
+            log_login(user.id, success=True)
+        except Exception as log_error:
+            current_app.logger.warning(f"Failed to log login: {log_error}")
+        
         return jsonify(response_data)
     except Exception as exc:
         current_app.logger.exception("Login failed: %s", exc)
@@ -253,7 +279,7 @@ def login() -> Any:
             pass
         return jsonify({
             "success": False, 
-            "error": f"Login failed: {str(exc)}"
+            "error": "Login failed. Please try again."
         }), 500
 
 
@@ -334,6 +360,12 @@ def forgot_password() -> Any:
             text_content=text_content,
         )
         current_app.logger.info(f"Password reset email sent to {email}")
+        
+        # Log password reset request
+        try:
+            log_password_reset(user.id)
+        except:
+            pass  # Don't fail if audit logging fails
     except Exception as e:
         current_app.logger.warning(f"Failed to send password reset email to {email}: {e}")
         # Still return success to avoid revealing if email exists

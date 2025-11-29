@@ -6,6 +6,7 @@ import ReactMarkdown from "react-markdown";
 // import jsPDF from "jspdf";
 import Seo from "../../components/common/Seo.jsx";
 import { useReports } from "../../context/ReportsContext.jsx";
+import { useAuth } from "../../context/AuthContext.jsx";
 import { parseTopIdeas, trimFromHeading } from "../../utils/markdown/markdown.js";
 import {
   personalizeCopy,
@@ -244,6 +245,14 @@ export default function RecommendationFullReport() {
   // Get reports context - will always be available since ReportsProvider wraps the app
   const reportsContext = useReports();
   const { reports, loadRunById, currentRunId, inputs, loading } = reportsContext;
+  
+  // ===== ENHANCEMENT FEATURE (REVERSIBLE) =====
+  const { getAuthHeaders, isAuthenticated } = useAuth();
+  const [enhancements, setEnhancements] = useState(null);
+  const [enhancementsLoading, setEnhancementsLoading] = useState(false);
+  const [enhancementsStarted, setEnhancementsStarted] = useState(false);
+  const abortControllerRef = useRef(null);
+  // ===== END ENHANCEMENT FEATURE =====
 
   useEffect(() => {
     // Only try to load if not in sample mode
@@ -461,22 +470,32 @@ export default function RecommendationFullReport() {
       )}
       
 
-      <div className="flex items-center justify-between gap-3">
-        <Link 
-          to={isSample ? "/product" : backPath} 
-          className="inline-flex items-center gap-2 text-sm text-brand-700 hover:text-brand-800"
-        >
-          <span aria-hidden="true">←</span> {isSample ? "Back to product" : "Back to recommendations"}
-        </Link>
-        <button
-          type="button"
-          onClick={handleDownloadPDF}
-          disabled={downloading || (isSample ? false : !remainderMarkdown)}
-          className="no-print rounded-xl border border-brand-300 bg-white px-4 py-2 text-sm font-medium text-brand-700 shadow-sm transition hover:border-brand-400 hover:text-brand-800 disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-400 whitespace-nowrap"
-        >
-          {downloading ? "Preparing PDF..." : "Download Complete Report PDF"}
-        </button>
-      </div>
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <Link 
+            to={isSample ? "/product" : backPath} 
+            className="inline-flex items-center gap-2 text-sm text-brand-700 hover:text-brand-800"
+          >
+            <span aria-hidden="true">←</span> {isSample ? "Back to product" : "Back to recommendations"}
+          </Link>
+          <div className="flex items-center gap-3">
+            {isSample && (
+              <Link
+                to="/results/profile?sample=true"
+                className="inline-flex items-center gap-2 rounded-xl border border-brand-300 bg-white px-4 py-2 text-sm font-medium text-brand-700 shadow-sm transition hover:border-brand-400 hover:text-brand-800"
+              >
+                View Sample Profile Analysis
+              </Link>
+            )}
+            <button
+              type="button"
+              onClick={handleDownloadPDF}
+              disabled={downloading || (isSample ? false : !remainderMarkdown)}
+              className="no-print rounded-xl border border-brand-300 bg-white px-4 py-2 text-sm font-medium text-brand-700 shadow-sm transition hover:border-brand-400 hover:text-brand-800 disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-400 whitespace-nowrap"
+            >
+              {downloading ? "Preparing PDF..." : "Download Complete Report PDF"}
+            </button>
+          </div>
+        </div>
 
       {/* Loading state */}
       {loading && !isSample && (
@@ -528,7 +547,9 @@ export default function RecommendationFullReport() {
         className="absolute left-[-9999px] top-0"
         style={{ width: "210mm" }}
       >
-        <CompleteReportPDF 
+        <CompleteReportPDF
+          enhancements={enhancements}
+          enhancementsLoading={enhancementsLoading}
           profileAnalysis={effectiveReports?.profile_analysis || ""}
           topIdeas={topIdeas}
           remainderMarkdown={remainderMarkdown}
@@ -557,7 +578,13 @@ export default function RecommendationFullReport() {
           </div>
         )
       ) : remainderMarkdown ? (
-        <FullReportContent remainderMarkdown={remainderMarkdown} inputs={effectiveInputs} topIdeas={topIdeas} />
+        <FullReportContent 
+          remainderMarkdown={remainderMarkdown} 
+          inputs={effectiveInputs} 
+          topIdeas={topIdeas}
+          enhancements={enhancements}
+          enhancementsLoading={enhancementsLoading}
+        />
       ) : (
         <div className="rounded-3xl border border-amber-200 bg-amber-50/80 p-6 text-amber-800 shadow-soft">
           <h2 className="text-lg font-semibold">Full report not available</h2>
@@ -570,11 +597,70 @@ export default function RecommendationFullReport() {
   );
 }
 
-function CompleteReportPDF({ profileAnalysis, topIdeas, remainderMarkdown, inputs }) {
+function CompleteReportPDF({ profileAnalysis, topIdeas, remainderMarkdown, inputs, enhancements = null, enhancementsLoading = false }) {
   const sections = useMemo(() => splitFullReportSections(remainderMarkdown), [remainderMarkdown]);
   const matrixRows = parseRecommendationMatrix(sections["recommendation matrix"]);
-  const financialOutlook = buildFinancialSnapshots(sections["financial outlook"], "", inputs?.budget_range || "");
-  const riskRows = parseRiskRows(sections["risk radar"]);
+  
+  // ===== ENHANCEMENT FEATURE: Use enhanced data when available (REVERSIBLE) =====
+  // Parse enhanced financial if available, otherwise use basic
+  const enhancedFinancial = useMemo(() => {
+    if (!enhancements?.financial) return null;
+    try {
+      return JSON.parse(enhancements.financial);
+    } catch {
+      return enhancements.financial; // Return as string if not JSON
+    }
+  }, [enhancements]);
+  
+  // Parse enhanced risk radar if available, otherwise use basic
+  const enhancedRiskRadar = useMemo(() => {
+    if (!enhancements?.risk_radar) return null;
+    try {
+      return JSON.parse(enhancements.risk_radar);
+    } catch {
+      return enhancements.risk_radar; // Return as string if not JSON
+    }
+  }, [enhancements]);
+  
+  // ===== ENHANCEMENT FEATURE: Keep basic separate from enhanced (REVERSIBLE) =====
+  // Always keep basic financial in its original format (for table display)
+  // Also check remainder markdown for startup costs to ensure consistency
+  const basicFinancialOutlook = useMemo(() => {
+    const financialSection = sections["financial outlook"] || "";
+    // Also check the remainder markdown for startup costs mentioned elsewhere
+    const mainMarkdown = remainderMarkdown || "";
+    // Try to find startup cost in main markdown if not in financial section
+    let combinedSection = financialSection;
+    if (financialSection && !financialSection.match(/startup\s+costs?[:\-]?\s*\$/i)) {
+      // Look for startup cost in main markdown and prepend it
+      const mainStartupMatch = mainMarkdown.match(/(?:startup\s+costs?|estimated\s+startup)[:\-]?\s*\$[\d,]+(?:\s*(?:K|thousand))?/i);
+      if (mainStartupMatch) {
+        combinedSection = `Startup costs: ${mainStartupMatch[0].replace(/.*?(\$[\d,]+(?:\s*(?:K|thousand))?)/i, '$1')}\n\n${financialSection}`;
+      }
+    }
+    return buildFinancialSnapshots(combinedSection, "", inputs?.budget_range || "");
+  }, [sections, remainderMarkdown, inputs]);
+  
+  // Use basic for display (enhanced shown separately)
+  const financialOutlook = basicFinancialOutlook;
+  // ===== END ENHANCEMENT FEATURE: Basic/Enhanced separation =====
+  
+  const riskRows = useMemo(() => {
+    if (enhancedRiskRadar) {
+      // Enhanced risk radar available
+      if (Array.isArray(enhancedRiskRadar)) {
+        return enhancedRiskRadar.map(risk => ({
+          risk: risk.risk_name || risk.name || "Risk",
+          severity: risk.severity || "Medium",
+          mitigation: risk.mitigation || risk.explanation || ""
+        }));
+      }
+      return enhancedRiskRadar;
+    }
+    // Fall back to basic
+    return parseRiskRows(sections["risk radar"]);
+  }, [enhancedRiskRadar, sections]);
+  // ===== END ENHANCEMENT FEATURE: Enhanced data parsing =====
   const validationQuestions = buildValidationQuestions(
     sections["validation questions"],
     "your top ideas",
@@ -682,8 +768,8 @@ function CompleteReportPDF({ profileAnalysis, topIdeas, remainderMarkdown, input
             </div>
           )}
 
-          {/* Financial Outlook */}
-          {financialOutlook.length > 0 && (
+          {/* ===== ENHANCEMENT FEATURE: Financial Outlook (Enhanced replaces basic) (REVERSIBLE) ===== */}
+          {!enhancedFinancial && financialOutlook.length > 0 && (
             <div className="mb-6">
               <h3 className="text-xl font-semibold text-slate-800 mb-3">Financial Outlook</h3>
               <div className="overflow-hidden border border-amber-100">
@@ -708,9 +794,10 @@ function CompleteReportPDF({ profileAnalysis, topIdeas, remainderMarkdown, input
               </div>
             </div>
           )}
+          {/* ===== END ENHANCEMENT FEATURE: Basic Financial (only shown if enhanced not available) ===== */}
 
-          {/* Risk Radar */}
-          {riskRows.length > 0 && (
+          {/* ===== ENHANCEMENT FEATURE: Risk Radar (Enhanced replaces basic) (REVERSIBLE) ===== */}
+          {!enhancedRiskRadar && riskRows.length > 0 && (
             <div className="mb-6">
               <h3 className="text-xl font-semibold text-slate-800 mb-3">Risk Radar</h3>
               <div className="overflow-hidden border border-slate-200">
@@ -735,6 +822,7 @@ function CompleteReportPDF({ profileAnalysis, topIdeas, remainderMarkdown, input
               </div>
             </div>
           )}
+          {/* ===== END ENHANCEMENT FEATURE: Basic Risk Radar (only shown if enhanced not available) ===== */}
 
           {/* Validation Questions */}
           {validationQuestions.length > 0 && (
@@ -1077,15 +1165,67 @@ function SampleReportContent({ inputs }) {
   );
 }
 
-function FullReportContent({ remainderMarkdown, inputs, topIdeas = [] }) {
+function FullReportContent({ remainderMarkdown, inputs, topIdeas = [], enhancements = null, enhancementsLoading = false }) {
   const [activeTab, setActiveTab] = useState("matrix");
   
   const sections = useMemo(() => splitFullReportSections(remainderMarkdown), [remainderMarkdown]);
 
   const profileSummary = useMemo(() => buildConciseProfileSummary(inputs), [inputs]);
   const matrixRows = parseRecommendationMatrix(sections["recommendation matrix"]);
-  const financialOutlook = buildFinancialSnapshots(sections["financial outlook"], "", inputs?.budget_range || "");
-  const riskRows = parseRiskRows(sections["risk radar"]);
+  
+  // ===== ENHANCEMENT FEATURE: Parse enhanced data (REVERSIBLE) =====
+  const enhancedFinancial = useMemo(() => {
+    if (!enhancements?.financial) return null;
+    try {
+      return JSON.parse(enhancements.financial);
+    } catch {
+      return enhancements.financial;
+    }
+  }, [enhancements]);
+  
+  const enhancedRiskRadar = useMemo(() => {
+    if (!enhancements?.risk_radar) return null;
+    try {
+      return JSON.parse(enhancements.risk_radar);
+    } catch {
+      return enhancements.risk_radar;
+    }
+  }, [enhancements]);
+  
+  // ===== ENHANCEMENT FEATURE: Keep basic separate from enhanced (REVERSIBLE) =====
+  // Always keep basic financial in its original format (for table display)
+  // Also check remainder markdown for startup costs to ensure consistency
+  const basicFinancialOutlook = useMemo(() => {
+    const financialSection = sections["financial outlook"] || "";
+    // Also check the remainder markdown for startup costs mentioned elsewhere
+    const mainMarkdown = remainderMarkdown || "";
+    // Try to find startup cost in main markdown if not in financial section
+    let combinedSection = financialSection;
+    if (financialSection && !financialSection.match(/startup\s+costs?[:\-]?\s*\$/i)) {
+      // Look for startup cost in main markdown and prepend it
+      const mainStartupMatch = mainMarkdown.match(/(?:startup\s+costs?|estimated\s+startup)[:\-]?\s*\$[\d,]+(?:\s*(?:K|thousand))?/i);
+      if (mainStartupMatch) {
+        combinedSection = `Startup costs: ${mainStartupMatch[0].replace(/.*?(\$[\d,]+(?:\s*(?:K|thousand))?)/i, '$1')}\n\n${financialSection}`;
+      }
+    }
+    return buildFinancialSnapshots(combinedSection, "", inputs?.budget_range || "");
+  }, [sections, remainderMarkdown, inputs]);
+  
+  // Use basic for display (enhanced shown separately)
+  const financialOutlook = basicFinancialOutlook;
+  // ===== END ENHANCEMENT FEATURE: Basic/Enhanced separation =====
+  
+  const riskRows = useMemo(() => {
+    if (enhancedRiskRadar && Array.isArray(enhancedRiskRadar)) {
+      return enhancedRiskRadar.map(risk => ({
+        risk: risk.risk_name || risk.name || "Risk",
+        severity: risk.severity || "Medium",
+        mitigation: risk.mitigation || risk.explanation || ""
+      }));
+    }
+    return parseRiskRows(sections["risk radar"]);
+  }, [enhancedRiskRadar, sections]);
+  // ===== END ENHANCEMENT FEATURE: Enhanced data parsing =====
   const validationQuestions = buildValidationQuestions(
     sections["validation questions"],
     "your top ideas",
@@ -1115,10 +1255,17 @@ function FullReportContent({ remainderMarkdown, inputs, topIdeas = [] }) {
   // Build tabs list based on available content
   const tabs = [];
   if (matrixRows.length > 0) tabs.push({ id: "matrix", label: "Recommendation Matrix" });
-  if (financialOutlook.length > 0) tabs.push({ id: "financial", label: "Financial Outlook" });
-  if (riskRows.length > 0) tabs.push({ id: "risk", label: "Risk Radar" });
+  if (financialOutlook.length > 0 || enhancedFinancial) tabs.push({ id: "financial", label: "Financial Outlook" });
+  if (riskRows.length > 0 || enhancedRiskRadar) tabs.push({ id: "risk", label: "Risk Radar" });
   if (sections["customer persona"] || validationQuestions.length > 0) tabs.push({ id: "persona-validation", label: "Customer & Validation" });
   if (roadmapMarkdown) tabs.push({ id: "roadmap", label: "30/60/90 Day Roadmap" });
+  // ===== ENHANCEMENT FEATURE: Add new enhanced tabs (REVERSIBLE) =====
+  if (enhancements?.competitive) tabs.push({ id: "competitive", label: "Competitive Analysis" });
+  if (enhancements?.market) tabs.push({ id: "market", label: "Market Intelligence" });
+  if (enhancements?.success_metrics) tabs.push({ id: "metrics", label: "Success Metrics & KPIs" });
+  if (enhancements?.tool_stack) tabs.push({ id: "tools", label: "Tool Stack" });
+  if (enhancements?.validation_plan) tabs.push({ id: "validation-plan", label: "Validation Plan" });
+  // ===== END ENHANCEMENT FEATURE: New tabs =====
   if (decisionChecklist.length > 0) tabs.push({ id: "checklist", label: "Decision Checklist" });
   if (finalConclusion) tabs.push({ id: "conclusion", label: "Final Conclusion" });
   otherSections.forEach((section) => {
@@ -1216,59 +1363,124 @@ function FullReportContent({ remainderMarkdown, inputs, topIdeas = [] }) {
         </div>
       )}
 
-      {activeTab === "financial" && financialOutlook.length > 0 && (
-        <div className="rounded-2xl border border-amber-100 bg-amber-50/80 p-5 shadow-soft">
-          <h2 className="text-xl font-semibold text-slate-900">Financial outlook</h2>
-          <div className="mt-3 overflow-hidden rounded-xl border border-amber-100 bg-white">
-            <table className="min-w-full divide-y divide-amber-100 text-sm">
-              <thead className="bg-amber-100/60 text-left uppercase tracking-wide text-amber-700">
-                <tr>
-                  <th className="px-4 py-3 w-10"></th>
-                  <th className="px-4 py-3">Focus</th>
-                  <th className="px-4 py-3">Estimate</th>
-                  <th className="px-4 py-3 text-right">Benchmark</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-amber-100 text-slate-700">
-                {financialOutlook.map(({ focus, estimate, metric }, index) => (
-                  <tr key={`${focus}-${index}`}>
-                    <td className="px-4 py-3 text-brand-500">✓</td>
-                    <td className="px-4 py-3 font-semibold text-amber-800">{focus}</td>
-                    <td className="px-4 py-3">{estimate}</td>
-                    <td className="px-4 py-3 text-right font-semibold text-amber-700">{metric}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+      {/* ===== ENHANCEMENT FEATURE: Financial Tab (Enhanced replaces basic) (REVERSIBLE) ===== */}
+      {activeTab === "financial" && (
+        <>
+          {enhancedFinancial ? (
+            <div className="rounded-2xl border-2 border-emerald-200 bg-emerald-50/50 p-5 shadow-soft">
+              <div className="mb-2 flex items-center gap-2">
+                <span className="text-emerald-600">✨</span>
+                <h2 className="text-xl font-semibold text-slate-900">Enhanced Financial Outlook</h2>
+              </div>
+              <div className="prose prose-slate max-w-none mt-4">
+                <ReactMarkdown
+                  components={{
+                    p: ({ node, ...props }) => <p className="text-slate-700 leading-relaxed mb-2" {...props} />,
+                    ul: ({ node, ...props }) => <ul className="list-disc list-outside space-y-1 text-slate-700 mb-2 ml-5" {...props} />,
+                    table: ({ node, ...props }) => <table className="min-w-full divide-y divide-slate-200 text-sm mb-4" {...props} />,
+                  }}
+                >
+                  {typeof enhancedFinancial === 'string' ? enhancedFinancial : JSON.stringify(enhancedFinancial, null, 2)}
+                </ReactMarkdown>
+              </div>
+            </div>
+          ) : financialOutlook.length > 0 ? (
+            <div className="rounded-2xl border border-amber-100 bg-amber-50/80 p-5 shadow-soft">
+              <h2 className="text-xl font-semibold text-slate-900">Financial outlook</h2>
+              <div className="mt-3 overflow-hidden rounded-xl border border-amber-100 bg-white">
+                <table className="min-w-full divide-y divide-amber-100 text-sm">
+                  <thead className="bg-amber-100/60 text-left uppercase tracking-wide text-amber-700">
+                    <tr>
+                      <th className="px-4 py-3 w-10"></th>
+                      <th className="px-4 py-3">Focus</th>
+                      <th className="px-4 py-3">Estimate</th>
+                      <th className="px-4 py-3 text-right">Benchmark</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-amber-100 text-slate-700">
+                    {financialOutlook.map(({ focus, estimate, metric }, index) => (
+                      <tr key={`${focus}-${index}`}>
+                        <td className="px-4 py-3 text-brand-500">✓</td>
+                        <td className="px-4 py-3 font-semibold text-amber-800">{focus}</td>
+                        <td className="px-4 py-3">{estimate}</td>
+                        <td className="px-4 py-3 text-right font-semibold text-amber-700">{metric}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ) : null}
+        </>
       )}
+      {/* ===== END ENHANCEMENT FEATURE: Financial Tab ===== */}
 
-      {activeTab === "risk" && riskRows.length > 0 && (
-        <div className="rounded-2xl border border-slate-200 bg-white/95 p-5 shadow-soft">
-          <h2 className="text-xl font-semibold text-slate-900">Risk radar</h2>
-          <div className="mt-3 overflow-hidden rounded-xl border border-slate-200">
-            <table className="min-w-full divide-y divide-slate-200 text-sm">
-              <thead className="bg-brand-500/10 text-left uppercase tracking-wide text-slate-500">
-                <tr>
-                  <th className="px-4 py-3">Risk</th>
-                  <th className="px-4 py-3 w-32">Severity</th>
-                  <th className="px-4 py-3">Mitigation</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200">
-                {riskRows.map((row, index) => (
-                  <tr key={index}>
-                    <td className="px-4 py-3 text-slate-700">{row.risk}</td>
-                    <td className="px-4 py-3 font-semibold text-slate-600">{row.severity}</td>
-                    <td className="px-4 py-3 text-slate-700">{row.mitigation}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+      {/* ===== ENHANCEMENT FEATURE: Risk Tab (Enhanced replaces basic) (REVERSIBLE) ===== */}
+      {activeTab === "risk" && (
+        <>
+          {enhancedRiskRadar && Array.isArray(enhancedRiskRadar) && enhancedRiskRadar.length > 0 ? (
+            <div className="rounded-2xl border-2 border-amber-200 bg-amber-50/50 p-5 shadow-soft">
+              <div className="mb-2 flex items-center gap-2">
+                <span className="text-amber-600">✨</span>
+                <h2 className="text-xl font-semibold text-slate-900">Enhanced Risk Radar</h2>
+              </div>
+              <div className="mt-3 overflow-hidden rounded-xl border border-slate-200">
+                <table className="min-w-full divide-y divide-slate-200 text-sm">
+                  <thead className="bg-brand-500/10 text-left uppercase tracking-wide text-slate-500">
+                    <tr>
+                      <th className="px-4 py-3">Risk</th>
+                      <th className="px-4 py-3 w-32">Severity</th>
+                      <th className="px-4 py-3">Mitigation</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200">
+                    {enhancedRiskRadar.map((risk, index) => (
+                      <tr key={index}>
+                        <td className="px-4 py-3 font-semibold text-slate-900">{risk.risk_name || risk.name || "Risk"}</td>
+                        <td className="px-4 py-3">
+                          <span className={`inline-flex px-2 py-1 rounded text-xs font-semibold ${
+                            risk.severity?.toLowerCase() === 'high' ? 'bg-coral-100 text-coral-700' :
+                            risk.severity?.toLowerCase() === 'medium' ? 'bg-amber-100 text-amber-700' :
+                            'bg-emerald-100 text-emerald-700'
+                          }`}>
+                            {risk.severity || "Medium"}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-slate-700">{risk.mitigation || risk.explanation || ""}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ) : riskRows.length > 0 ? (
+            <div className="rounded-2xl border border-slate-200 bg-white/95 p-5 shadow-soft">
+              <h2 className="text-xl font-semibold text-slate-900">Risk radar</h2>
+              <div className="mt-3 overflow-hidden rounded-xl border border-slate-200">
+                <table className="min-w-full divide-y divide-slate-200 text-sm">
+                  <thead className="bg-brand-500/10 text-left uppercase tracking-wide text-slate-500">
+                    <tr>
+                      <th className="px-4 py-3">Risk</th>
+                      <th className="px-4 py-3 w-32">Severity</th>
+                      <th className="px-4 py-3">Mitigation</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200">
+                    {riskRows.map((row, index) => (
+                      <tr key={index}>
+                        <td className="px-4 py-3 text-slate-700">{row.risk}</td>
+                        <td className="px-4 py-3 font-semibold text-slate-600">{row.severity}</td>
+                        <td className="px-4 py-3 text-slate-700">{row.mitigation}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ) : null}
+        </>
       )}
+      {/* ===== END ENHANCEMENT FEATURE: Risk Tab ===== */}
 
       {activeTab === "persona-validation" && (sections["customer persona"] || validationQuestions.length > 0) && (
         <div className="space-y-6">

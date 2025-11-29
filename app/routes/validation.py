@@ -1,6 +1,6 @@
 """Validation routes blueprint - idea validation endpoints."""
 from flask import Blueprint, request, jsonify, current_app
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 from datetime import datetime
 import os
 import json
@@ -8,6 +8,13 @@ import re
 import time
 
 from openai import OpenAI
+try:
+    from anthropic import Anthropic
+    ANTHROPIC_AVAILABLE = True
+except ImportError:
+    ANTHROPIC_AVAILABLE = False
+    Anthropic = None
+
 from app.models.database import db, User, UserSession, UserRun, UserValidation
 from app.utils import get_current_session, require_auth
 from app.services.email_service import email_service
@@ -17,15 +24,770 @@ bp = Blueprint("validation", __name__)
 
 # Note: Rate limits will be applied after blueprint registration in api.py
 
+# Validation model configuration - can be "openai", "claude", or "auto" (tries Claude first, falls back to OpenAI)
+VALIDATION_MODEL_PROVIDER = os.environ.get("VALIDATION_MODEL_PROVIDER", "claude").lower()
+
+ARCHETYPE_REFERENCE_EXAMPLES = """
+### Reference Snapshots (non-tech friendly)
+1. **Mumbai vada pav stall (Food & beverage)** — Market is the footfall around the stall, technical feasibility covers kitchen permits, hygiene, and prep capacity. Scalability means extra carts or franchising, not servers. Financials = rent, ingredients, daily break-even plates.
+2. **Neighborhood yoga studio (Local service)** — Technical feasibility = certified instructors and studio readiness. Scalability = more time slots, instructors, or second location. Acquisition uses local partnerships, flyers, WhatsApp groups.
+3. **Home plumbing service (Local service / Mostly offline)** — Focus on licenses, tools, on-call staffing, travel radius. Risk = reputation, seasonality, emergency availability.
+4. **Eco-friendly bottle brand (Physical product)** — Technical feasibility = manufacturing + QA. Financials = unit cost, MOQ, inventory. Go-to-market = retail shelves, pop-ups, or D2C.
+5. **Creator-led course (Content / education)** — Technical feasibility is the creator’s ability to produce and deliver content. Scalability = audience growth, cohorts, evergreen funnels. Financials = course pricing, marketing spend, platform fees.
+""".strip()
+
+BUSINESS_ARCHETYPE_PROFILES = [
+    {
+        "slug": "online_software",
+        "label": "Online software / AI product (SaaS / app / tool)",
+        "aliases": [
+            "online software",
+            "saas",
+            "software",
+            "app",
+            "online software / ai product (saas / app / tool)"
+        ],
+        "guidance": {
+            "market": "Discuss TAM/SAM, vertical focus, and willingness to pay for a digital tool.",
+            "technical": "Evaluate engineering complexity, data/infra requirements, integrations, AI model needs, and founding team's technical depth.",
+            "scalability": "Assess marginal cost per user, cloud/infrastructure scaling, and ability to serve global demand.",
+            "financial": "Emphasize CAC vs. LTV, pricing model (subscription, usage), churn risk, and runway.",
+            "risk": "Call out security, compliance, and dependency on APIs/models.",
+            "gtm": "Focus on digital acquisition: SEO, content, outbound, partnerships, communities."
+        }
+    },
+    {
+        "slug": "local_service",
+        "label": "Local service business",
+        "aliases": [
+            "local service",
+            "local service business",
+            "service business",
+            "consulting",
+            "coaching",
+            "healthcare",
+            "cleaning"
+        ],
+        "guidance": {
+            "market": "Look at local demand, serviceable radius, competition density, and referrals.",
+            "technical": "Focus on certifications, staffing skills, scheduling systems, and operational playbooks.",
+            "scalability": "Think in terms of hiring/training additional staff, expanding service areas, or adding standardized packages.",
+            "financial": "Consider hourly rates, utilization, travel/operating costs, and cash-flow management.",
+            "risk": "Highlight reputation, service quality, liability, and dependency on the founder.",
+            "gtm": "Use local SEO, partnerships, community groups, flyers, marketplaces (Thumbtack, Urban Company)."
+        }
+    },
+    {
+        "slug": "food_beverage",
+        "label": "Food & beverage / restaurant / stall / catering",
+        "aliases": [
+            "food & beverage",
+            "food and beverage",
+            "restaurant",
+            "stall",
+            "catering",
+            "food business",
+            "food & beverage / restaurant / stall / catering"
+        ],
+        "guidance": {
+            "market": "Emphasize local cuisine demand, foot traffic, neighborhood demographics, and competition.",
+            "technical": "Cover kitchen setup, licensing, hygiene, supply chain, menu complexity, and staffing.",
+            "scalability": "Assess table turns, delivery, catering, franchising, or multiple outlets.",
+            "financial": "Track ingredient costs, rent, staff wages, equipment, daily break-even units.",
+            "risk": "Mention food safety, spoilage, labor churn, and dependency on chef quality.",
+            "gtm": "Use location visibility, aggregators (Swiggy/Zomato), social proof, tastings, or loyalty programs."
+        }
+    },
+    {
+        "slug": "retail_shop",
+        "label": "Retail / physical shop",
+        "aliases": [
+            "retail",
+            "physical shop",
+            "store",
+            "retail / physical shop"
+        ],
+        "guidance": {
+            "market": "Focus on neighborhood income, walk-ins, complementary stores, and seasonal trends.",
+            "technical": "Evaluate merchandising, inventory systems, POS, supplier relationships, and display.",
+            "scalability": "Discuss additional stores, e-commerce add-ons, or franchising once playbook works.",
+            "financial": "Consider rent, inventory turns, working capital, shrinkage, and gross margins.",
+            "risk": "Highlight inventory risk, footfall dependency, landlord changes.",
+            "gtm": "Use local ads, signage, partnerships, events, and online discovery to drive visits."
+        }
+    },
+    {
+        "slug": "physical_product",
+        "label": "Physical product brand",
+        "aliases": [
+            "physical product",
+            "product brand",
+            "d2c",
+            "manufacturing",
+            "physical product brand"
+        ],
+        "guidance": {
+            "market": "Analyze niche demand, differentiation, and willingness to switch from incumbents.",
+            "technical": "Cover prototyping, manufacturing partners, quality assurance, and supply chain.",
+            "scalability": "Look at batch production, distribution, retail partnerships, and unit economics improvement.",
+            "financial": "Focus on COGS, MOQ, inventory carrying cost, gross margin, and cash conversion cycles.",
+            "risk": "Consider stockouts, overproduction, logistics, and regulatory compliance.",
+            "gtm": "Mention D2C funnels, marketplaces, wholesale, pop-ups, and influencer collaborations."
+        }
+    },
+    {
+        "slug": "content_creator",
+        "label": "Content / creator / education",
+        "aliases": [
+            "content",
+            "creator",
+            "education",
+            "content / creator / education",
+            "newsletter",
+            "course"
+        ],
+        "guidance": {
+            "market": "Assess audience niche, engagement depth, and monetization appetite.",
+            "technical": "Focus on production capability, tooling, editing, and platform dependence.",
+            "scalability": "Discuss audience growth, evergreen content, community, and upsell ladders.",
+            "financial": "Look at CPMs, course pricing, cohort size, sponsorship rates.",
+            "risk": "Highlight platform risk, burnout, churn, and dependency on single persona.",
+            "gtm": "Use content marketing, collaborations, social channels, community, newsletters."
+        }
+    },
+    {
+        "slug": "marketplace",
+        "label": "Marketplace / platform",
+        "aliases": [
+            "marketplace",
+            "platform",
+            "marketplace / platform"
+        ],
+        "guidance": {
+            "market": "Consider multi-sided demand, supply liquidity, and trust gaps.",
+            "technical": "Discuss matching logic, ops tooling, escrow/payments, and moderation.",
+            "scalability": "Assess network effects, geographic expansion, and operational complexity.",
+            "financial": "Focus on take rates, transaction volume, and subsidies required.",
+            "risk": "Call out chicken-and-egg, disintermediation, compliance.",
+            "gtm": "Explain how each side is acquired (field sales, referrals, online campaigns)."
+        }
+    },
+]
+
+DEFAULT_ARCHETYPE_PROFILE = {
+    "slug": "general",
+    "label": "General business",
+    "aliases": [],
+    "guidance": {
+        "market": "Comment on demand, competition, and target customer pain.",
+        "technical": "Describe the operational or product capabilities required.",
+        "scalability": "Explain how capacity can grow (staffing, locations, automation).",
+        "financial": "Discuss revenue model, major costs, and break-even outlook.",
+        "risk": "Note the biggest execution, regulatory, or market risks.",
+        "gtm": "Explain the most realistic acquisition or distribution channels."
+    }
+}
+
+def _match_archetype_profile(value: Optional[str]) -> Dict[str, Any]:
+    if not value:
+        return DEFAULT_ARCHETYPE_PROFILE
+    normalized = value.strip().lower()
+    for profile in BUSINESS_ARCHETYPE_PROFILES:
+        aliases = [profile["label"].lower()] + profile.get("aliases", [])
+        if normalized in aliases:
+            return profile
+    return DEFAULT_ARCHETYPE_PROFILE
+
+def _format_archetype_guidance(profile: Dict[str, Any]) -> str:
+    guidance = profile.get("guidance", {})
+    return "\n".join(
+        [
+            f"- Market Opportunity: {guidance.get('market', DEFAULT_ARCHETYPE_PROFILE['guidance']['market'])}",
+            f"- Technical Feasibility: {guidance.get('technical', DEFAULT_ARCHETYPE_PROFILE['guidance']['technical'])}",
+            f"- Scalability Potential: {guidance.get('scalability', DEFAULT_ARCHETYPE_PROFILE['guidance']['scalability'])}",
+            f"- Financial Sustainability: {guidance.get('financial', DEFAULT_ARCHETYPE_PROFILE['guidance']['financial'])}",
+            f"- Risk Assessment: {guidance.get('risk', DEFAULT_ARCHETYPE_PROFILE['guidance']['risk'])}",
+            f"- Go-to-Market Strategy: {guidance.get('gtm', DEFAULT_ARCHETYPE_PROFILE['guidance']['gtm'])}",
+        ]
+    )
+
+def _build_validation_prompt(structured_json: str, business_profile: Dict[str, Any], delivery_channel: str) -> str:
+    guidance_block = _format_archetype_guidance(business_profile)
+    delivery_text = delivery_channel or "Not specified"
+    return f"""You are an experienced, highly critical Venture Capital Partner and Product Analyst. Your sole purpose is to stress-test an early-stage startup or small business idea based on the structured data provided. Your analysis must be ruthless, objective, and focused on identifying the **weakest point** and **riskiest assumptions**. You must generate a structured report in **Markdown format only**.
+
+{ARCHETYPE_REFERENCE_EXAMPLES}
+
+### 1. INPUT DATA STRUCTURE
+
+You will receive the following JSON data. Analyze all fields, especially combining the dropdown categories with the detailed narrative (`description_structured`):
+
+```json
+{structured_json}
+```
+
+### 2. BUSINESS CONTEXT
+
+- Business type: {business_profile['label']}
+- Delivery channel: {delivery_text}
+- Adapt every parameter to this context. Do **not** assume the business is software by default. Use the following guidance:
+{guidance_block}
+
+### 3. CORE DIRECTIVES
+
+1. **DO NOT** repeat the input data or confirm the categories. Jump immediately into the analysis.
+2. **CRITIQUE** the idea based on the founder's ambition and constraints.
+3. **SCORE** each pillar below on a scale of **1 (Poor) to 5 (Excellent)**.
+4. **FOCUS** on the primary geography/delivery model provided.
+
+### 4. REQUIRED OUTPUT STRUCTURE (Markdown Format)
+
+Generate the full report using the exact headings and structure below:
+
+## 🎯 Executive Summary & Overall Verdict
+
+[Generate a single, concise paragraph (3-4 sentences) summarizing the idea's potential and its biggest challenge.]
+
+| Pillar | Score (1-5) | Reasoning |
+| :--- | :--- | :--- |
+| **Problem-Solution Fit** | [Score 1-5] | [Critique how well the solution addresses the pain point.] |
+| **Market Viability & Scope** | [Score 1-5] | [Critique the market size for the chosen geography and industry.] |
+| **Competitive Moat** | [Score 1-5] | [Critique the strength of the differentiator against known/potential competitors.] |
+| **Financial Viability** | [Score 1-5] | [Critique the revenue model against the initial budget and feasibility.] |
+| **Feasibility & Risk** | [Score 1-5] | [Critique the founder's constraints and current stage against the required effort.] |
+
+---
+
+## 🔎 Deep Dive Analysis
+
+### 1. Core Problem & User Urgency
+* **Analysis:** Assess if the problem category matches the urgency described in the `description_structured`. Is this a 'Vitamin' or a 'Painkiller'?
+* **Verdict:** [A single sentence verdict.]
+
+### 2. Business Model Stress Test
+* **Analysis:** Evaluate the chosen `revenue_model` against the solution type and archetype. Are they compatible? Is the pricing viable?
+* **Red Flag:** [Identify the biggest financial viability risk.]
+
+### 3. Competitive Landscape
+* **Analysis:** Based on the `competitors` field and the `unique_moat`, detail *why* the identified moat will actually defend the business.
+* **Key Insight:** [The core competitive advantage or fatal flaw.]
+
+---
+
+## 🛑 Critical Assumptions & Next Steps
+
+### 1. Riskiest Assumption (The 'Kill Switch')
+
+[Identify the single most critical, unproven assumption that could immediately kill the business. This must be a specific statement the founder needs to validate.]
+
+### 2. Actionable Next Steps (Prioritized)
+
+1. **Validation Step 1:** [Most urgent task.]
+2. **Validation Step 2:** [Product/service or market research step.]
+3. **Validation Step 3:** [Strategic or financial planning task.]
+
+CRITICAL: Output ONLY the Markdown report in the exact format above. Do not include any preamble, introduction, or closing remarks. Start directly with `## 🎯 Executive Summary & Overall Verdict` and end with the last validation step."""
+
+VALIDATION_SYSTEM_PROMPT = """You are an experienced, highly critical Venture Capital Partner and Product Analyst. You evaluate ANY business type—software, local services, food stalls, retail, creator businesses, physical products, or marketplaces. Never assume the idea is digital by default. Always adapt to the provided business archetype and delivery channel. Be direct, specific, and brutally honest.
+
+SCORING GUIDELINES (1-5 scale):
+- 1 (Poor): Critical flaws that make the idea unviable
+- 2 (Weak): Significant weaknesses that are hard to overcome
+- 3 (Moderate): Viable but with notable challenges
+- 4 (Good): Strong idea with minor concerns
+- 5 (Excellent): Exceptional idea with clear advantages
+
+Use grounded business language. Refer to customers/clients/diners/patients/etc. based on the archetype, not generic “users” unless it fits."""
+
+def _get_validation_client():
+    """
+    Get the appropriate AI client for validation.
+    Returns: (client, model_name, is_claude)
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    provider = VALIDATION_MODEL_PROVIDER
+    
+    # Force OpenAI if Claude is not available
+    if provider == "claude" and not ANTHROPIC_AVAILABLE:
+        try:
+            current_app.logger.warning("Claude requested but anthropic package not installed. Falling back to OpenAI.")
+        except RuntimeError:
+            logger.warning("Claude requested but anthropic package not installed. Falling back to OpenAI.")
+        provider = "openai"
+    
+    # Auto mode: try Claude first, fall back to OpenAI
+    if provider == "auto":
+        if ANTHROPIC_AVAILABLE and os.environ.get("ANTHROPIC_API_KEY"):
+            provider = "claude"
+        else:
+            provider = "openai"
+    
+    if provider == "claude":
+        api_key = os.environ.get("ANTHROPIC_API_KEY")
+        if not api_key:
+            try:
+                current_app.logger.warning("ANTHROPIC_API_KEY not set. Falling back to OpenAI.")
+            except RuntimeError:
+                logger.warning("ANTHROPIC_API_KEY not set. Falling back to OpenAI.")
+            return OpenAI(api_key=os.environ.get("OPENAI_API_KEY")), "gpt-4o", False
+        
+        client = Anthropic(api_key=api_key)
+        # Use the latest Claude Sonnet model (2025)
+        # Default to Sonnet 4, but allow override via environment variable
+        # Available 2025 models:
+        # - claude-sonnet-4-20250514 (Sonnet 4 - recommended for validation)
+        # - claude-3-7-sonnet-20250219 (Sonnet 3.7 - alternative)
+        # - claude-3-5-sonnet-20240620 (Sonnet 3.5 - older but still works)
+        model_name = os.environ.get("CLAUDE_MODEL_NAME", "claude-sonnet-4-20250514")
+        return client, model_name, True
+    else:
+        # Default to OpenAI
+        api_key = os.environ.get("OPENAI_API_KEY")
+        if not api_key:
+            raise ValueError("OPENAI_API_KEY environment variable is not set")
+        return OpenAI(api_key=api_key), "gpt-4o", False
+
+
+def _call_ai_validation(client, model_name, is_claude: bool, system_prompt: str, user_prompt: str, temperature: float = 0.7, max_tokens: int = 2500) -> str:
+    """
+    Call AI model for validation. Supports both OpenAI and Claude.
+    Returns: Response text content
+    """
+    if is_claude:
+        # Claude API
+        response = client.messages.create(
+            model=model_name,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            system=system_prompt,
+            messages=[
+                {"role": "user", "content": user_prompt}
+            ]
+        )
+        return response.content[0].text
+    else:
+        # OpenAI API
+        response = client.chat.completions.create(
+            model=model_name,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ],
+            temperature=temperature,
+            max_tokens=max_tokens,
+        )
+        return response.choices[0].message.content.strip()
+
+
+def _is_idea_vague_or_nonsensical(idea_explanation: str) -> bool:
+    """
+    Detect if an idea is too vague, nonsensical, or not a real business concept.
+    Returns True if the idea should be scored 0-2.
+    This is a STRICT filter - only catches truly nonsensical ideas.
+    """
+    if not idea_explanation or len(idea_explanation.strip()) < 5:
+        return True
+    
+    idea_lower = idea_explanation.lower().strip()
+    
+    # ONLY catch truly nonsensical patterns - be very strict
+    vague_patterns = [
+        # Exact match only for truly vague phrases
+        r'^sell\s+ice\s+to\s+(eskimo|esquimau)$',
+        r'^perpetual\s+motion$',
+        r'^free\s+energy$',
+        # Very vague single words or short phrases (exact match)
+        r'^(a\s+business|an\s+idea|a\s+startup|making\s+money|earn\s+money)$',
+        r'^(sell|selling)\s+(air|nothing|something)$',
+    ]
+    
+    # Check if idea matches vague patterns (must be exact match)
+    for pattern in vague_patterns:
+        if re.match(pattern, idea_lower, re.IGNORECASE):
+            return True
+    
+    # Only flag if EXTREMELY short (< 15 chars) with no content
+    if len(idea_explanation.strip()) < 15:
+        # Check if it's just one word or very vague
+        words = idea_explanation.strip().split()
+        if len(words) <= 1:
+            vague_single_words = ['business', 'idea', 'startup', 'money', 'something', 'anything']
+            if words[0].lower() in vague_single_words:
+                return True
+    
+    # Only catch specific nonsensical phrases (exact match required)
+    nonsensical_phrases = [
+        'sell ice to eskimo',
+        'sell ice to eskimos',
+        'perpetual motion machine',
+        'free energy device',
+    ]
+    
+    idea_normalized = ' '.join(idea_lower.split())  # Normalize whitespace
+    words = idea_explanation.strip().split()
+    for phrase in nonsensical_phrases:
+        if phrase in idea_normalized and len(idea_explanation.strip()) < 60:
+            # Only catch if it's the main content, not just mentioned
+            if idea_normalized.count(phrase) == 1 and len(words) <= 10:
+                return True
+    
+    return False
+
+
+def _parse_markdown_validation(markdown_content: str) -> dict:
+    """
+    Parse Markdown validation output and convert to JSON format expected by frontend.
+    Extracts scores from the 5-pillar table (1-5 scale) and converts to 0-10 scale.
+    """
+    if not markdown_content or not isinstance(markdown_content, str):
+        return None
+    
+    try:
+        # Extract Executive Summary
+        exec_summary_match = re.search(
+            r'## 🎯 Executive Summary & Overall Verdict\s*\n\n(.*?)(?=\n\n\|)', 
+            markdown_content, 
+            re.DOTALL
+        )
+        executive_summary = exec_summary_match.group(1).strip() if exec_summary_match else ""
+        
+        # Extract scores from the table (1-5 scale)
+        pillar_scores = {}
+        table_match = re.search(
+            r'\| Pillar \| Score.*?\|\n\|.*?\|\n(.*?)(?=\n\n---)', 
+            markdown_content, 
+            re.DOTALL
+        )
+        if table_match:
+            table_rows = table_match.group(1).strip().split('\n')
+            pillar_mapping = {
+                "Problem-Solution Fit": "problem_solution_fit",
+                "Market Viability & Scope": "market_opportunity",
+                "Competitive Moat": "competitive_landscape",
+                "Financial Viability": "financial_sustainability",
+                "Feasibility & Risk": "risk_assessment"
+            }
+            
+            for row in table_rows:
+                if '|' in row and '**' in row:
+                    # Extract pillar name and score
+                    parts = [p.strip() for p in row.split('|') if p.strip()]
+                    if len(parts) >= 2:
+                        pillar_name = re.sub(r'\*\*|\*', '', parts[0]).strip()
+                        score_text = parts[1].strip()
+                        # Extract numeric score (1-5)
+                        score_match = re.search(r'(\d+)', score_text)
+                        if score_match:
+                            score_1_5 = int(score_match.group(1))
+                            # Convert 1-5 scale to 0-10 scale: (score-1)*2.5+1, then round
+                            # 1→2, 2→5, 3→7, 4→9, 5→10
+                            score_0_10 = max(1, min(10, round((score_1_5 - 1) * 2.25 + 1)))
+                            
+                            # Map to our scoring keys
+                            if pillar_name in pillar_mapping:
+                                pillar_scores[pillar_mapping[pillar_name]] = score_0_10
+        
+        # Calculate overall score as average of pillar scores (convert to 0-10)
+        if pillar_scores:
+            avg_score = sum(pillar_scores.values()) / len(pillar_scores)
+            overall_score = round(avg_score)
+        else:
+            overall_score = 5  # Default if parsing fails
+        
+        # Extract Deep Dive Analysis sections
+        deep_dive_match = re.search(
+            r'## 🔎 Deep Dive Analysis\s*\n\n(.*?)(?=\n\n## 🛑)', 
+            markdown_content, 
+            re.DOTALL
+        )
+        deep_dive_full = deep_dive_match.group(1).strip() if deep_dive_match else ""
+        
+        # Extract individual Deep Dive sections
+        # Section 1: Core Problem & User Urgency
+        problem_section_match = re.search(
+            r'### 1\. Core Problem & User Urgency\s*\n(.*?)(?=\n\n### 2\.|$)', 
+            deep_dive_full, 
+            re.DOTALL
+        )
+        problem_analysis = problem_section_match.group(1).strip() if problem_section_match else ""
+        
+        # Section 2: Business Model Stress Test
+        business_model_match = re.search(
+            r'### 2\. Business Model Stress Test\s*\n(.*?)(?=\n\n### 3\.|$)', 
+            deep_dive_full, 
+            re.DOTALL
+        )
+        business_model_analysis = business_model_match.group(1).strip() if business_model_match else ""
+        
+        # Section 3: Competitive Landscape
+        competitive_match = re.search(
+            r'### 3\. Competitive Landscape\s*\n(.*?)(?=\n\n### |$)', 
+            deep_dive_full, 
+            re.DOTALL
+        )
+        competitive_analysis = competitive_match.group(1).strip() if competitive_match else ""
+        
+        # Extract Critical Assumptions & Next Steps
+        assumptions_match = re.search(
+            r'## 🛑 Critical Assumptions & Next Steps\s*\n\n(.*?)$', 
+            markdown_content, 
+            re.DOTALL
+        )
+        assumptions_steps = assumptions_match.group(1).strip() if assumptions_match else ""
+        
+        # Extract Riskiest Assumption
+        riskiest_match = re.search(
+            r'### 1\. Riskiest Assumption.*?\n\n(.*?)(?=\n\n### 2\.|$)', 
+            assumptions_steps, 
+            re.DOTALL
+        )
+        riskiest_assumption = riskiest_match.group(1).strip() if riskiest_match else ""
+        
+        # Build details dict - extract specific insights for each parameter
+        # Each parameter card should show unique, actionable insights based on the AI analysis
+        
+        details = {}
+        
+        # Extract reasoning from the pillar table for each pillar
+        pillar_reasoning = {}
+        if table_match:
+            table_rows = table_match.group(1).strip().split('\n')
+            for row in table_rows:
+                if '|' in row and '**' in row:
+                    parts = [p.strip() for p in row.split('|') if p.strip()]
+                    if len(parts) >= 3:
+                        pillar_name = re.sub(r'\*\*|\*', '', parts[0]).strip()
+                        reasoning = parts[2].strip() if len(parts) > 2 else ""
+                        pillar_reasoning[pillar_name] = reasoning
+        
+        # Map extracted analysis to frontend parameters with specific insights
+        # Problem-Solution Fit
+        if "Problem-Solution Fit" in pillar_reasoning:
+            details["Problem-Solution Fit"] = f"**Key Insight:** {pillar_reasoning['Problem-Solution Fit']}"
+        elif problem_analysis:
+            # Extract verdict from problem analysis
+            verdict_match = re.search(r'\*\*Verdict:\*\*\s*(.*?)(?:\n|$)', problem_analysis, re.IGNORECASE)
+            if verdict_match:
+                details["Problem-Solution Fit"] = f"**Assessment:** {verdict_match.group(1).strip()}"
+            else:
+                # Use first sentence of problem analysis
+                first_sentence = problem_analysis.split('.')[0] if problem_analysis else ""
+                details["Problem-Solution Fit"] = f"**Analysis:** {first_sentence}." if first_sentence else "See detailed analysis tab for insights."
+        else:
+            details["Problem-Solution Fit"] = "See detailed analysis tab for insights."
+        
+        # Market Opportunity
+        if "Market Viability & Scope" in pillar_reasoning:
+            details["Market Opportunity"] = f"**Market Assessment:** {pillar_reasoning['Market Viability & Scope']}"
+        elif problem_analysis:
+            # Try to extract market-related insights
+            market_insight = re.search(r'(?:market|size|opportunity|scope).*?\.', problem_analysis, re.IGNORECASE)
+            if market_insight:
+                details["Market Opportunity"] = f"**Market View:** {market_insight.group(0)}"
+            else:
+                details["Market Opportunity"] = "See detailed analysis tab for market insights."
+        else:
+            details["Market Opportunity"] = "See detailed analysis tab for insights."
+        
+        # Competitive Landscape
+        if "Competitive Moat" in pillar_reasoning:
+            details["Competitive Landscape"] = f"**Competitive Position:** {pillar_reasoning['Competitive Moat']}"
+        elif competitive_analysis:
+            # Extract key insight from competitive analysis
+            key_insight_match = re.search(r'\*\*Key Insight:\*\*\s*(.*?)(?:\n|$)', competitive_analysis, re.IGNORECASE)
+            if key_insight_match:
+                details["Competitive Landscape"] = f"**Key Insight:** {key_insight_match.group(1).strip()}"
+            else:
+                first_sentence = competitive_analysis.split('.')[0] if competitive_analysis else ""
+                details["Competitive Landscape"] = f"**Analysis:** {first_sentence}." if first_sentence else "See detailed analysis tab for insights."
+        else:
+            details["Competitive Landscape"] = "See detailed analysis tab for insights."
+        
+        # Business Model Viability
+        if "Financial Viability" in pillar_reasoning:
+            details["Business Model Viability"] = f"**Viability Check:** {pillar_reasoning['Financial Viability']}"
+        elif business_model_analysis:
+            # Extract red flag or key insight
+            red_flag_match = re.search(r'\*\*Red Flag:\*\*\s*(.*?)(?:\n|$)', business_model_analysis, re.IGNORECASE)
+            if red_flag_match:
+                details["Business Model Viability"] = f"**Critical Risk:** {red_flag_match.group(1).strip()}"
+            else:
+                first_sentence = business_model_analysis.split('.')[0] if business_model_analysis else ""
+                details["Business Model Viability"] = f"**Analysis:** {first_sentence}." if first_sentence else "See detailed analysis tab for insights."
+        else:
+            details["Business Model Viability"] = "See detailed analysis tab for insights."
+        
+        # Risk Assessment
+        if "Feasibility & Risk" in pillar_reasoning:
+            details["Risk Assessment"] = f"**Risk Profile:** {pillar_reasoning['Feasibility & Risk']}"
+        elif riskiest_assumption:
+            # Use the riskiest assumption as the insight
+            first_sentence = riskiest_assumption.split('.')[0] if riskiest_assumption else ""
+            details["Risk Assessment"] = f"**Riskiest Assumption:** {first_sentence}." if first_sentence else "See detailed analysis tab for risk assessment."
+        else:
+            details["Risk Assessment"] = "See detailed analysis tab for insights."
+        
+        # Technical Feasibility (derived from feasibility & risk)
+        if "Feasibility & Risk" in pillar_reasoning:
+            # Extract technical aspects from feasibility reasoning
+            tech_match = re.search(r'(?:technical|technology|build|implementation|development).*?\.', pillar_reasoning.get("Feasibility & Risk", ""), re.IGNORECASE)
+            if tech_match:
+                details["Technical Feasibility"] = f"**Technical View:** {tech_match.group(0)}"
+            else:
+                details["Technical Feasibility"] = f"**Assessment:** {pillar_reasoning['Feasibility & Risk'][:100]}..."
+        else:
+            details["Technical Feasibility"] = "See detailed analysis tab for technical assessment."
+        
+        # Financial Sustainability (derived from financial viability)
+        if "Financial Viability" in pillar_reasoning:
+            details["Financial Sustainability"] = f"**Financial Health:** {pillar_reasoning['Financial Viability']}"
+        elif business_model_analysis:
+            # Extract financial insights
+            financial_match = re.search(r'(?:financial|revenue|pricing|cost|budget).*?\.', business_model_analysis, re.IGNORECASE)
+            if financial_match:
+                details["Financial Sustainability"] = f"**Financial Insight:** {financial_match.group(0)}"
+            else:
+                details["Financial Sustainability"] = "See detailed analysis tab for financial insights."
+        else:
+            details["Financial Sustainability"] = "See detailed analysis tab for insights."
+        
+        # Scalability Potential (derived from market + feasibility)
+        if "Market Viability & Scope" in pillar_reasoning:
+            market_text = pillar_reasoning['Market Viability & Scope']
+            scale_match = re.search(r'(?:scale|scalable|growth|expand).*?\.', market_text, re.IGNORECASE)
+            if scale_match:
+                details["Scalability Potential"] = f"**Scalability:** {scale_match.group(0)}"
+            else:
+                details["Scalability Potential"] = f"**Assessment:** {market_text[:100]}..."
+        else:
+            details["Scalability Potential"] = "See detailed analysis tab for scalability assessment."
+        
+        # Target Audience Clarity (derived from problem analysis)
+        if problem_analysis:
+            audience_match = re.search(r'(?:user|customer|audience|target|market).*?\.', problem_analysis, re.IGNORECASE)
+            if audience_match:
+                details["Target Audience Clarity"] = f"**Audience Insight:** {audience_match.group(0)}"
+            else:
+                details["Target Audience Clarity"] = "See detailed analysis tab for audience insights."
+        else:
+            details["Target Audience Clarity"] = "See detailed analysis tab for insights."
+        
+        # Go-to-Market Strategy (derived from next steps or competitive analysis)
+        if competitive_analysis:
+            gtm_match = re.search(r'(?:market|launch|go-to-market|GTM|strategy|approach).*?\.', competitive_analysis, re.IGNORECASE)
+            if gtm_match:
+                details["Go-to-Market Strategy"] = f"**Strategy Insight:** {gtm_match.group(0)}"
+            else:
+                details["Go-to-Market Strategy"] = "See detailed analysis tab for GTM strategy."
+        else:
+            details["Go-to-Market Strategy"] = "See detailed analysis tab for insights."
+        
+        # Build recommendations from executive summary + deep dive + assumptions
+        # Use the full markdown content if specific sections weren't extracted
+        if executive_summary or deep_dive_full or assumptions_steps:
+            recommendations = ""
+            if executive_summary:
+                recommendations += executive_summary + "\n\n"
+            if deep_dive_full:
+                recommendations += "## 🔎 Deep Dive Analysis\n\n" + deep_dive_full + "\n\n"
+            if assumptions_steps:
+                recommendations += "## 🛑 Critical Assumptions & Next Steps\n\n" + assumptions_steps
+        else:
+            # Fallback: use the entire markdown content
+            recommendations = markdown_content if markdown_content else "Analysis available in detailed report."
+        
+        # Extract next steps as list
+        next_steps = []
+        steps_match = re.search(r'### 2\. Actionable Next Steps.*?\n\n(.*?)(?=\n\n|$)', markdown_content, re.DOTALL)
+        if steps_match:
+            steps_text = steps_match.group(1)
+            step_lines = [line.strip() for line in steps_text.split('\n') if line.strip() and re.match(r'^\d+\.', line.strip())]
+            next_steps = step_lines[:5]  # Max 5 steps
+        
+        # Build complete validation data structure (compatible with frontend)
+        validation_data = {
+            "overall_score": overall_score,
+            "scores": {
+                "market_opportunity": pillar_scores.get("market_opportunity", round(overall_score)),
+                "problem_solution_fit": pillar_scores.get("problem_solution_fit", round(overall_score)),
+                "competitive_landscape": pillar_scores.get("competitive_landscape", round(overall_score)),
+                "target_audience_clarity": pillar_scores.get("problem_solution_fit", round(overall_score)),  # Derived
+                "business_model_viability": pillar_scores.get("financial_sustainability", round(overall_score)),  # Derived
+                "technical_feasibility": pillar_scores.get("risk_assessment", round(overall_score)),  # Derived
+                "financial_sustainability": pillar_scores.get("financial_sustainability", round(overall_score)),
+                "scalability_potential": pillar_scores.get("market_opportunity", round(overall_score)),  # Derived
+                "risk_assessment": pillar_scores.get("risk_assessment", round(overall_score)),
+                "go_to_market_strategy": pillar_scores.get("competitive_landscape", round(overall_score)),  # Derived
+            },
+            "details": details,
+            "recommendations": recommendations,
+            "next_steps": next_steps if next_steps else ["1. Review the detailed analysis above", "2. Address the critical assumptions identified", "3. Execute the prioritized validation steps"],
+            "markdown_report": markdown_content,  # Store original Markdown for full display
+        }
+        
+        return validation_data
+        
+    except Exception as e:
+        # Safe logger access - may not be in Flask context
+        import logging
+        import traceback
+        logger = logging.getLogger(__name__)
+        try:
+            from flask import current_app
+            if current_app:
+                logger = current_app.logger
+        except RuntimeError:
+            pass  # Not in Flask context, use standard logger
+        logger.error(f"Failed to parse Markdown validation: {e}")
+        logger.error(traceback.format_exc())
+        return None
+
+
+def _cap_scores_for_vague_idea(validation_data: dict, idea_explanation: str) -> dict:
+    """
+    Cap all scores to 0-2 if idea is detected as vague/nonsensical.
+    """
+    if not _is_idea_vague_or_nonsensical(idea_explanation):
+        return validation_data
+    
+    # Log that we're capping scores
+    current_app.logger.warning(
+        f"Capping validation scores to 0-2 for vague/nonsensical idea: '{idea_explanation[:100]}'"
+    )
+    
+    # Original scores for reference
+    original_overall = validation_data.get("overall_score", 5)
+    
+    # Cap overall score to max 2
+    validation_data["overall_score"] = min(original_overall, 2)
+    
+    # Cap all parameter scores to max 2
+    if "scores" in validation_data and isinstance(validation_data["scores"], dict):
+        for key in validation_data["scores"]:
+            validation_data["scores"][key] = min(validation_data["scores"].get(key, 5), 2)
+    
+    # Add note in recommendations about why scores were capped
+    if "recommendations" in validation_data:
+        note = "\n\n**NOTE**: This idea was identified as too vague or nonsensical as a business concept. Scores have been capped at 2/10. To improve your score, provide a clear business description including: what problem you're solving, who your target customers are, how your solution works, and your revenue model."
+        validation_data["recommendations"] = note + "\n\n" + str(validation_data.get("recommendations", ""))
+    
+    return validation_data
+
 
 @bp.post("/api/validate-idea")
 @require_auth
 def validate_idea() -> Any:
   """Validate a startup idea across 10 key parameters using OpenAI."""
-  # Check usage limits
+  # Check usage limits and refresh session activity at start
   session = get_current_session()
   if not session:
-    return jsonify({"success": False, "error": "Not authenticated"}), 401
+    return jsonify({"success": False, "error": "Authentication required"}), 401
+  
+  # Refresh session activity at the start to prevent expiration during long validation
+  session.last_activity = datetime.utcnow()
+  db.session.commit()
   
   user = session.user
   can_validate, error_message = user.can_perform_validation()
@@ -40,6 +802,125 @@ def validate_idea() -> Any:
   data: Dict[str, Any] = request.get_json(force=True, silent=True) or {}
   category_answers = data.get("category_answers", {})
   idea_explanation = data.get("idea_explanation", "").strip()
+  
+  # PRE-CHECK: Skip vague idea check for now - let AI judge with structured data
+  # The new 3-screen form provides enough structure to let AI properly evaluate
+  # Only check for completely empty submissions
+  if not idea_explanation or len(idea_explanation.strip()) < 3:
+    return jsonify({
+      "success": False,
+      "error": "Please provide a description of your idea. Use the structured format to describe your problem, solution, and target users.",
+    }), 400
+  
+  # PRE-CHECK: If idea is vague/nonsensical, return harsh default score immediately (no AI call)
+  # DISABLED - Let AI judge instead since we have structured data from form
+  # if _is_idea_vague_or_nonsensical(idea_explanation):
+    current_app.logger.info(f"Vague/nonsensical idea detected, returning default low score: '{idea_explanation[:100]}'")
+    
+    # Return a default harsh validation without AI call
+    validation_id = f"val_{int(time.time())}"
+    default_validation = {
+      "overall_score": 1,
+      "scores": {
+        "market_opportunity": 1,
+        "problem_solution_fit": 1,
+        "competitive_landscape": 1,
+        "target_audience_clarity": 1,
+        "business_model_viability": 1,
+        "technical_feasibility": 5,  # Technically feasible but not a business
+        "financial_sustainability": 1,
+        "scalability_potential": 1,
+        "risk_assessment": 2,
+        "go_to_market_strategy": 1,
+      },
+      "details": {
+        "Market Opportunity": f"This idea ('{idea_explanation[:100]}') is too vague or nonsensical to evaluate as a business concept. No clear market opportunity exists because the idea lacks a concrete business model, target customers, or value proposition.",
+        "Problem-Solution Fit": "No clear problem is being solved. This appears to be a question, phrase, or concept rather than an actual business idea. Real business ideas solve specific problems for specific customers.",
+        "Competitive Landscape": "Cannot evaluate competition because this is not a clear business concept.",
+        "Target Audience Clarity": "No target audience can be identified. This idea is too vague to determine who would be the customer.",
+        "Business Model Viability": "No clear business model exists. This is not a viable business concept as presented.",
+        "Technical Feasibility": "While technically anything could be built, this is not a coherent business idea to evaluate.",
+        "Financial Sustainability": "No financial model can be evaluated because this is not a clear business concept.",
+        "Scalability Potential": "Cannot evaluate scalability for a non-existent business model.",
+        "Risk Assessment": "The primary risk is that this is not a coherent business idea with a clear path forward.",
+        "Go-to-Market Strategy": "No go-to-market strategy can be developed because the business concept is unclear or nonsensical.",
+      },
+      "recommendations": f"""
+## Critical Assessment
+
+**This idea is too vague or nonsensical to evaluate as a business.**
+
+What you provided: "{idea_explanation}"
+
+### Why this scored 1/10:
+
+1. **Not a Business Concept**: This appears to be a question, phrase, or abstract concept rather than an actual business idea.
+2. **No Clear Value Proposition**: There's no clear problem being solved or value being created.
+3. **No Target Market**: We cannot identify who would pay for this.
+4. **No Business Model**: There's no clear way this makes money or creates value.
+
+### What You Need to Provide:
+
+A real business idea should include:
+- **The Problem**: What specific problem are you solving?
+- **The Solution**: How does your product/service solve it?
+- **Target Customers**: Who specifically will pay for this?
+- **Revenue Model**: How will you make money?
+- **Why Now**: Why is this needed now?
+
+### Examples of Better Idea Descriptions:
+
+❌ **Bad**: "Making money online"
+✅ **Good**: "A SaaS platform that helps freelancers automatically track and invoice their billable hours, solving the problem of manual time tracking and missed billings. Target customers: Freelancers earning $50K+. Revenue: $29/month subscription."
+
+❌ **Bad**: "A business"
+✅ **Good**: "An AI-powered meal planning app for busy professionals that generates personalized weekly meal plans based on dietary restrictions, schedule, and budget. Targets: 25-45 year old professionals. Revenue: Freemium model with $9.99/month premium."
+
+❌ **Bad**: "Sell ice to eskimos"
+✅ **Good**: "A sales training consultancy that teaches B2B sales teams advanced consultative selling techniques, using frameworks like 'how to sell to customers who think they don't need it.' Targets: Mid-size B2B companies. Revenue: $5,000-$20,000 per training engagement."
+
+### Next Steps:
+
+1. **Refine Your Idea**: Clearly articulate what problem you're solving and for whom.
+2. **Do Research**: Understand your target market and competition.
+3. **Define Your Value Proposition**: What makes your solution better than alternatives?
+4. **Test the Concept**: Talk to potential customers before building.
+
+Once you have a clear business concept with these elements, we can provide a meaningful validation.
+      """,
+      "next_steps": [
+        "1. **Define the problem clearly**: What specific pain point are you solving?",
+        "2. **Identify your target customer**: Who specifically needs this solution?",
+        "3. **Articulate your solution**: How does your product/service solve the problem?",
+        "4. **Explain your business model**: How will you make money?",
+        "5. **Re-submit with details**: Once you have a clear business concept, submit it again for validation.",
+      ],
+    }
+    
+    # Save to database if user is authenticated
+    if session:
+      user = session.user
+      user_validation = UserValidation(
+        user_id=user.id,
+        validation_id=validation_id,
+        category_answers=json.dumps(category_answers),
+        idea_explanation=idea_explanation,
+        validation_result=json.dumps(default_validation),
+        status="completed",  # Explicitly set status
+        is_deleted=False,  # Explicitly set is_deleted
+      )
+      db.session.add(user_validation)
+      user.increment_validation_usage()
+      if session:
+        session.last_activity = datetime.utcnow()
+      db.session.commit()
+    
+    return jsonify({
+      "success": True,
+      "validation_id": validation_id,
+      "validation": default_validation,
+      "note": "Idea was identified as vague/nonsensical. Score capped at 1/10. Please provide a clear business concept for meaningful validation.",
+    })
   
   # Build explanation from category answers if idea_explanation is empty or very short
   if not idea_explanation or len(idea_explanation) < 10:
@@ -57,7 +938,7 @@ def validate_idea() -> Any:
     return jsonify({"success": False, "error": "Please provide category answers or idea explanation"}), 400
   
   try:
-    client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+    client, model_name, is_claude = _get_validation_client()
     
     # Get user's latest intake data from their most recent run
     user_intake = {}
@@ -72,202 +953,79 @@ def validate_idea() -> Any:
         current_app.logger.warning(f"Failed to parse user intake data for user {user.id}")
         user_intake = {}
     
-    # Build context from category answers and user intake
-    context_parts = []
+    # Build structured data for the 14-field validation system
+    # Map available data to the structured format expected by the new validation prompt
     
-    # Add user intake data if available
-    if user_intake:
-      intake_fields = {
-        "goal_type": "Goal Type",
-        "time_commitment": "Time Commitment",
-        "budget_range": "Budget Range",
-        "interest_area": "Interest Area",
-        "sub_interest_area": "Sub-Interest Area",
-        "work_style": "Work Style",
-        "skill_strength": "Skill Strength",
-        "experience_summary": "Experience Summary"
-      }
-      for key, label in intake_fields.items():
-        if user_intake.get(key):
-          context_parts.append(f"{label}: {user_intake[key]}")
-    
-    # Add category answers
-    for key, value in category_answers.items():
-      context_parts.append(f"{key.replace('_', ' ').title()}: {value}")
-    
-    context = "\n".join(context_parts) if context_parts else "No additional context provided."
-    
-    validation_prompt = f"""You are a critical, experienced startup advisor with a track record of identifying fatal flaws in startup ideas. Your role is to be brutally honest and rigorous in your assessment. Most ideas fail—your job is to identify why THIS idea might fail before the founder wastes time and money.
-
-CRITICAL EVALUATION FRAMEWORK:
-- Be skeptical. Assume the idea will fail unless proven otherwise.
-- Score conservatively. Only give high scores (8-10) if the idea demonstrates exceptional strength with clear evidence.
-- Give medium scores (5-7) for ideas with potential but significant gaps or risks.
-- Give low scores (0-4) for ideas with fundamental flaws, weak market signals, or execution risks.
-- Average scores should typically fall between 4-7 unless the idea is truly exceptional.
-- Consider the founder's profile (goal, time commitment, budget, skills) when assessing feasibility and fit.
-
-Founder Profile & Context:
-{context}
-
-Idea Explanation:
-{idea_explanation}
-
-EVALUATION CRITERIA (be strict):
-
-1. **Market Opportunity (0-10)**: 
-   - 8-10: Large, growing market with clear demand signals, underserved segments, or emerging trends
-   - 5-7: Moderate market size, some competition, unclear demand signals
-   - 0-4: Saturated market, declining trends, or no clear market need
-
-2. **Problem-Solution Fit (0-10)**:
-   - 8-10: Solves a burning, urgent problem with a clear, superior solution
-   - 5-7: Addresses a problem but solution may not be clearly differentiated
-   - 0-4: Problem is unclear, not urgent, or solution doesn't fit
-
-3. **Competitive Landscape (0-10)**:
-   - 8-10: Clear differentiation, weak or fragmented competition, defensible moat
-   - 5-7: Some differentiation but strong competitors exist
-   - 0-4: Highly competitive with established players, no clear advantage
-
-4. **Target Audience Clarity (0-10)**:
-   - 8-10: Well-defined, accessible audience with clear pain points and buying power
-   - 5-7: Audience exists but may be hard to reach or has unclear needs
-   - 0-4: Vague audience definition, unclear who would pay, or audience too small
-
-5. **Business Model Viability (0-10)**:
-   - 8-10: Clear, proven revenue model with realistic unit economics and path to profitability
-   - 5-7: Revenue model exists but unit economics unclear or challenging
-   - 0-4: Unclear how to make money, poor unit economics, or unsustainable model
-
-6. **Technical Feasibility (0-10)**:
-   - 8-10: Technically straightforward, can be built with available resources/skills
-   - 5-7: Some technical challenges but manageable
-   - 0-4: Significant technical barriers, requires expertise/resources not available
-
-7. **Financial Sustainability (0-10)**:
-   - 8-10: Low capital requirements, clear path to profitability, sustainable burn rate
-   - 5-7: Moderate capital needs, profitability timeline uncertain
-   - 0-4: High capital requirements, unclear path to profitability, or unsustainable burn
-
-8. **Scalability Potential (0-10)**:
-   - 8-10: Highly scalable without proportional cost increases, network effects, or viral growth potential
-   - 5-7: Some scalability but may hit constraints
-   - 0-4: Limited scalability, high marginal costs, or requires linear resource growth
-
-9. **Risk Assessment (0-10)**:
-   - 8-10: Low risk, manageable challenges, clear mitigation strategies
-   - 5-7: Moderate risks that can be addressed
-   - 0-4: High risk, multiple critical failure points, or unmitigatable risks
-
-10. **Go-to-Market Strategy (0-10)**:
-    - 8-10: Clear, cost-effective acquisition channels, proven demand, or existing distribution
-    - 5-7: Some channels identified but untested or expensive
-    - 0-4: Unclear how to reach customers, expensive acquisition, or no distribution strategy
-
-Provide a detailed validation in the following JSON format:
-{{
-  "overall_score": <number 0-10, be conservative>,
-  "scores": {{
-    "market_opportunity": <number 0-10, be strict>,
-    "problem_solution_fit": <number 0-10, be strict>,
-    "competitive_landscape": <number 0-10, be strict>,
-    "target_audience_clarity": <number 0-10, be strict>,
-    "business_model_viability": <number 0-10, be strict>,
-    "technical_feasibility": <number 0-10, be strict>,
-    "financial_sustainability": <number 0-10, be strict>,
-    "scalability_potential": <number 0-10, be strict>,
-    "risk_assessment": <number 0-10, be strict>,
-    "go_to_market_strategy": <number 0-10, be strict>
-  }},
-  "details": {{
-    "Market Opportunity": "<critical assessment: Is the market real? Is it growing? What are the demand signals? Be specific about market size, growth rate, and why this timing matters.>",
-    "Problem-Solution Fit": "<critical assessment: Is the problem urgent and painful enough? Does the solution actually solve it better than alternatives? What evidence exists that people want this?>",
-    "Competitive Landscape": "<critical assessment: Who are the real competitors? What are their strengths? Why would customers switch? What's the defensible advantage? Be specific about competitive threats.>",
-    "Target Audience Clarity": "<critical assessment: Who exactly is the customer? Can you reach them? Do they have budget? What proof exists they want this? Be specific about customer segments and accessibility.>",
-    "Business Model Viability": "<critical assessment: How exactly does this make money? What are the unit economics? What's the path to profitability? What are the revenue risks? Be specific about pricing, margins, and economics.>",
-    "Technical Feasibility": "<critical assessment: Can this actually be built? What are the technical challenges? What skills/resources are needed? What are the blockers? Be specific about technical requirements and risks.>",
-    "Financial Sustainability": "<critical assessment: How much capital is needed? What's the burn rate? When does it become profitable? What are the financial risks? Be specific about funding needs and sustainability.>",
-    "Scalability Potential": "<critical assessment: How does this scale? What are the constraints? What are the marginal costs? Can it grow without proportional resource increases? Be specific about scaling challenges.>",
-    "Risk Assessment": "<critical assessment: What are the biggest risks? What could kill this idea? What are the failure modes? What can't be mitigated? Be specific about critical risks.>",
-    "Go-to-Market Strategy": "<critical assessment: How do you actually get customers? What are the acquisition channels? What's the cost? What proof exists this works? Be specific about distribution and acquisition challenges.>"
-  }},
-  "recommendations": "<detailed markdown-formatted recommendations. Be critical and direct. Focus on:
-  - Critical flaws that must be addressed
-  - Specific risks that could kill the idea
-  - What evidence is missing
-  - What assumptions need validation
-  - What would need to change for this to succeed
-  - Specific, actionable steps to improve each weak area
-  - Concrete examples of what success looks like
-  - Resources, frameworks, or tools that could help
-  - Honest assessment of whether this idea is worth pursuing
-  Be constructive but don't sugarcoat. If the idea has fundamental issues, say so clearly.>",
-  "next_steps": "<Provide 3-5 specific, actionable next steps in markdown format. Each step should be:
-  - Specific and concrete (not vague like 'research market')
-  - Include resources, links, or templates when possible
-  - Have a clear timeline (e.g., 'This week', 'Within 30 days')
-  - Be immediately actionable
-  Format as a numbered list with clear action items. Examples:
-  1. **Contact 10 potential customers this week**: Use this email template [provide template] and reach out to [specific audience] on LinkedIn groups: [list 3-5 relevant groups]
-  2. **Validate problem-solution fit within 14 days**: Create a simple landing page using [tool suggestion] and run $50 in Google Ads targeting [specific keywords] to measure interest
-  3. **Research top 3 competitors**: Analyze [Company A], [Company B], and [Company C]. Document their pricing, strengths, and weaknesses. Use this comparison template [link]
-  Make each step specific to the user's idea and industry.>"
-}}
-
-REMEMBER:
-- Most ideas score 4-6. Only exceptional ideas score 8+.
-- Be specific in your details—vague feedback is useless.
-- Focus on what could go wrong, not just what's good.
-- If you see red flags, call them out clearly.
-- Better to be harsh now than let someone waste years on a bad idea."""
-    
-    response = client.chat.completions.create(
-      model="gpt-4o-mini",
-      messages=[
-        {"role": "system", "content": "You are a critical, experienced startup advisor. Your job is to identify fatal flaws and be brutally honest. Most ideas fail—help founders avoid wasting time on bad ideas by being rigorous and specific in your assessment. Score conservatively and focus on risks and weaknesses."},
-        {"role": "user", "content": validation_prompt}
+    structured_data = {
+      "industry": category_answers.get("industry") or user_intake.get("interest_area") or "Not specified",
+      "geography": category_answers.get("geography") or "Global",
+      "stage": user_intake.get("time_commitment") or category_answers.get("stage") or "Early",
+      "commitment": user_intake.get("time_commitment") or category_answers.get("commitment") or "Part-time",
+      "problem_category": category_answers.get("problem_category") or category_answers.get("industry") or "General",
+      "solution_type": category_answers.get("solution_type") or category_answers.get("business_model") or "Product",
+      "user_type": category_answers.get("target_audience") or category_answers.get("user_type") or "General users",
+      "revenue_model": category_answers.get("revenue_model") or category_answers.get("business_model") or "Subscription",
+      "unique_moat": category_answers.get("unique_moat") or category_answers.get("unique_value") or "Not specified",
+      "description_structured": idea_explanation,
+      "initial_budget": user_intake.get("budget_range") or category_answers.get("budget") or "Not specified",
+      "constraints": [
+        user_intake.get("time_commitment", ""),
+        user_intake.get("budget_range", ""),
+        user_intake.get("work_style", ""),
       ],
-      temperature=0.5,
-      max_tokens=2500,
+      "competitors": category_answers.get("competitors") or category_answers.get("competition") or "Unknown",
+      "business_archetype": category_answers.get("business_archetype") or "Not specified",
+      "delivery_channel": category_answers.get("delivery_channel") or "Not specified",
+    }
+    
+    # Filter out empty constraints
+    structured_data["constraints"] = [c for c in structured_data["constraints"] if c]
+    
+    # Build the structured JSON data string for the prompt
+    structured_json = json.dumps(structured_data, indent=2)
+    business_profile = _match_archetype_profile(structured_data.get("business_archetype"))
+    delivery_channel_value = structured_data.get("delivery_channel")
+    validation_prompt = _build_validation_prompt(structured_json, business_profile, delivery_channel_value)
+    
+    system_prompt = VALIDATION_SYSTEM_PROMPT
+    
+    content = _call_ai_validation(
+      client=client,
+      model_name=model_name,
+      is_claude=is_claude,
+      system_prompt=system_prompt,
+      user_prompt=validation_prompt,
+      temperature=0.7,
+      max_tokens=4000  # Increased for Markdown format output
     )
     
-    content = response.choices[0].message.content.strip()
+    # Parse Markdown response and convert to JSON format
+    validation_data = _parse_markdown_validation(content)
     
-    # Try to parse JSON from the response
+    if not validation_data:
+      # Fallback: try to parse as JSON (backward compatibility)
+      try:
+        json_match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', content, re.DOTALL)
+        if json_match:
+          content = json_match.group(1)
+        else:
+          json_match = re.search(r'\{.*?\}', content, re.DOTALL)
+          if json_match:
+            content = json_match.group(0)
+        
+        validation_data = json.loads(content)
+      except:
+        current_app.logger.error(f"Failed to parse validation (both Markdown and JSON failed). Raw content: {content[:500]}")
+        return jsonify({
+          "success": False,
+          "error": "We couldn't generate a properly structured validation for your idea. Please try again or provide more details about your business concept.",
+          "error_type": "invalid_response",
+          "suggestion": "Make sure your idea description is clear and includes: what problem you're solving, who your customers are, and how your solution works.",
+        }), 422
     
-    # Extract JSON from markdown code blocks if present
-    json_match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', content, re.DOTALL)
-    if json_match:
-      content = json_match.group(1)
-    else:
-      # Try to find JSON object directly
-      json_match = re.search(r'\{.*\}', content, re.DOTALL)
-      if json_match:
-        content = json_match.group(0)
-    
-    try:
-      validation_data = json.loads(content)
-    except json.JSONDecodeError:
-      # Fallback: create structured response from text (conservative scores)
-      validation_data = {
-        "overall_score": 5,
-        "scores": {
-          "market_opportunity": 5,
-          "problem_solution_fit": 5,
-          "competitive_landscape": 5,
-          "target_audience_clarity": 5,
-          "business_model_viability": 5,
-          "technical_feasibility": 5,
-          "financial_sustainability": 5,
-          "scalability_potential": 5,
-          "risk_assessment": 5,
-          "go_to_market_strategy": 5,
-        },
-        "details": {},
-        "recommendations": content,
-        "next_steps": "1. **Review the detailed analysis above** to understand your idea's strengths and weaknesses.\n2. **Address critical flaws** identified in the recommendations section.\n3. **Validate key assumptions** by talking to potential customers.\n4. **Refine your idea** based on feedback and re-validate.",
-      }
+    # POST-PROCESSING: Skip capping - let AI scores stand with structured data
+    # if validation_data and isinstance(validation_data, dict):
+    #     validation_data = _cap_scores_for_vague_idea(validation_data, idea_explanation)
     
     # Validate that we got meaningful validation results
     if not validation_data or not isinstance(validation_data, dict):
@@ -320,6 +1078,8 @@ REMEMBER:
         category_answers=json.dumps(category_answers),
         idea_explanation=idea_explanation,
         validation_result=json.dumps(validation_data),
+        status="completed",  # Explicitly set status
+        is_deleted=False,  # Explicitly set is_deleted
       )
       db.session.add(user_validation)
       # Increment usage counter
@@ -354,6 +1114,234 @@ REMEMBER:
     
   except Exception as exc:
     current_app.logger.exception("Idea validation failed: %s", exc)
+    return jsonify({
+      "success": False,
+      "error": str(exc),
+    }), 500
+
+
+@bp.put("/api/validate-idea/<validation_id>")
+@require_auth
+def update_validation(validation_id: str) -> Any:
+  """Update/edit an existing validation with a new idea explanation."""
+  session = get_current_session()
+  if not session:
+    return jsonify({"success": False, "error": "Not authenticated"}), 401
+  
+  user = session.user
+  
+  # Check if validation exists and belongs to user (exclude deleted)
+  user_validation = UserValidation.query.filter_by(
+    user_id=user.id,
+    validation_id=validation_id,
+    is_deleted=False
+  ).first()
+  
+  if not user_validation:
+    return jsonify({
+      "success": False,
+      "error": "Validation not found or access denied"
+    }), 404
+  
+  data: Dict[str, Any] = request.get_json(force=True, silent=True) or {}
+  new_idea_explanation = data.get("idea_explanation", "").strip()
+  new_category_answers = data.get("category_answers", {})
+  
+  if not new_idea_explanation and not new_category_answers:
+    return jsonify({
+      "success": False,
+      "error": "Please provide a new idea_explanation or category_answers"
+    }), 400
+  
+  # Use new idea explanation or build from category answers
+  if new_idea_explanation:
+    idea_explanation = new_idea_explanation
+  elif new_category_answers:
+    explanation_parts = []
+    for key, value in new_category_answers.items():
+      if value:
+        explanation_parts.append(f"{key.replace('_', ' ').title()}: {value}")
+    idea_explanation = "\n".join(explanation_parts) if explanation_parts else user_validation.idea_explanation
+  else:
+    idea_explanation = user_validation.idea_explanation
+  
+  # Check usage limits (re-validation counts as a new validation)
+  can_validate, error_message = user.can_perform_validation()
+  if not can_validate:
+    return jsonify({
+      "success": False,
+      "error": error_message,
+      "usage_limit_reached": True,
+      "upgrade_required": True,
+    }), 403
+  
+  # PRE-CHECK: If idea is vague/nonsensical, return harsh default score immediately
+  if _is_idea_vague_or_nonsensical(idea_explanation):
+    current_app.logger.info(f"Vague/nonsensical idea detected in edit, returning default low score: '{idea_explanation[:100]}'")
+    
+    default_validation = {
+      "overall_score": 1,
+      "scores": {
+        "market_opportunity": 1,
+        "problem_solution_fit": 1,
+        "competitive_landscape": 1,
+        "target_audience_clarity": 1,
+        "business_model_viability": 1,
+        "technical_feasibility": 5,
+        "financial_sustainability": 1,
+        "scalability_potential": 1,
+        "risk_assessment": 2,
+        "go_to_market_strategy": 1,
+      },
+      "details": {
+        "Market Opportunity": f"This idea is too vague or nonsensical to evaluate as a business. No clear market exists.",
+        "Problem-Solution Fit": "No clear problem is being solved. This appears to be a question/phrase rather than a business idea.",
+        "Competitive Landscape": "Cannot evaluate - not a clear business concept.",
+        "Target Audience Clarity": "No target audience can be identified - idea is too vague.",
+        "Business Model Viability": "No clear business model exists.",
+        "Technical Feasibility": "Technically possible but not a coherent business idea.",
+        "Financial Sustainability": "No financial model can be evaluated - not a clear business.",
+        "Scalability Potential": "Cannot evaluate scalability for non-existent business model.",
+        "Risk Assessment": "Primary risk: this is not a coherent business idea.",
+        "Go-to-Market Strategy": "No GTM strategy possible - business concept is unclear.",
+      },
+      "recommendations": f"## Critical Issue\n\n**This idea ('{idea_explanation}') is too vague or nonsensical to evaluate as a business.**\n\nPlease provide a clear business description with: problem, solution, target customers, and revenue model.",
+      "next_steps": [
+        "1. Define the problem clearly",
+        "2. Identify your target customer",
+        "3. Articulate your solution",
+        "4. Explain your business model",
+        "5. Re-submit with details",
+      ],
+    }
+    
+    # Update validation record
+    user_validation.idea_explanation = idea_explanation
+    user_validation.category_answers = json.dumps(new_category_answers if new_category_answers else user_validation.category_answers or {})
+    user_validation.validation_result = json.dumps(default_validation)
+    user_validation.created_at = datetime.utcnow()  # Update timestamp
+    
+    user.increment_validation_usage()
+    db.session.commit()
+    
+    return jsonify({
+      "success": True,
+      "validation_id": validation_id,
+      "validation": default_validation,
+      "note": "Idea identified as vague/nonsensical. Score: 1/10.",
+    })
+  
+  # Otherwise, run full validation (same logic as create)
+  try:
+    client, model_name, is_claude = _get_validation_client()
+    
+    # Get user's latest intake data
+    user_intake = {}
+    latest_run = UserRun.query.filter_by(user_id=user.id).order_by(UserRun.created_at.desc()).first()
+    if latest_run and latest_run.inputs:
+      try:
+        if isinstance(latest_run.inputs, str):
+          user_intake = json.loads(latest_run.inputs)
+        else:
+          user_intake = latest_run.inputs
+      except (json.JSONDecodeError, TypeError):
+        pass
+    
+    # Build structured data (same as create endpoint)
+    category_answers = new_category_answers if new_category_answers else {}
+    if user_validation.category_answers:
+      try:
+        existing_answers = json.loads(user_validation.category_answers)
+        category_answers = {**existing_answers, **category_answers}  # Merge
+      except:
+        pass
+    
+    structured_data = {
+      "industry": category_answers.get("industry") or user_intake.get("interest_area") or "Not specified",
+      "geography": category_answers.get("geography") or "Global",
+      "stage": user_intake.get("time_commitment") or category_answers.get("stage") or "Early",
+      "commitment": user_intake.get("time_commitment") or category_answers.get("commitment") or "Part-time",
+      "problem_category": category_answers.get("problem_category") or category_answers.get("industry") or "General",
+      "solution_type": category_answers.get("solution_type") or category_answers.get("business_model") or "Product",
+      "user_type": category_answers.get("target_audience") or category_answers.get("user_type") or "General users",
+      "revenue_model": category_answers.get("revenue_model") or category_answers.get("business_model") or "Subscription",
+      "unique_moat": category_answers.get("unique_moat") or category_answers.get("unique_value") or "Not specified",
+      "description_structured": idea_explanation,
+      "initial_budget": user_intake.get("budget_range") or category_answers.get("budget") or "Not specified",
+      "constraints": [
+        user_intake.get("time_commitment", ""),
+        user_intake.get("budget_range", ""),
+        user_intake.get("work_style", ""),
+      ],
+      "competitors": category_answers.get("competitors") or "Not specified",
+      "business_archetype": category_answers.get("business_archetype") or "Not specified",
+      "delivery_channel": category_answers.get("delivery_channel") or "Not specified",
+      "timeline": user_intake.get("time_commitment") or "Not specified",
+    }
+    
+    structured_data["constraints"] = [c for c in structured_data["constraints"] if c]
+    structured_json = json.dumps(structured_data, indent=2)
+    business_profile = _match_archetype_profile(structured_data.get("business_archetype"))
+    delivery_channel_value = structured_data.get("delivery_channel")
+    
+    validation_prompt = _build_validation_prompt(structured_json, business_profile, delivery_channel_value)
+    system_prompt = VALIDATION_SYSTEM_PROMPT
+    
+    content = _call_ai_validation(
+      client=client,
+      model_name=model_name,
+      is_claude=is_claude,
+      system_prompt=system_prompt,
+      user_prompt=validation_prompt,
+      temperature=0.7,
+      max_tokens=4000  # Increased for Markdown format output
+    )
+    
+    # Parse Markdown response and convert to JSON format (same as create)
+    validation_data = _parse_markdown_validation(content)
+    
+    if not validation_data:
+      # Fallback: try to parse as JSON (backward compatibility)
+      try:
+        json_match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', content, re.DOTALL)
+        if json_match:
+          content = json_match.group(1)
+        else:
+          json_match = re.search(r'\{.*?\}', content, re.DOTALL)
+          if json_match:
+            content = json_match.group(0)
+        
+        validation_data = json.loads(content)
+      except:
+        current_app.logger.error(f"Failed to parse validation (both Markdown and JSON failed) in edit. Raw content: {content[:500]}")
+        return jsonify({
+          "success": False,
+          "error": "We couldn't generate a properly structured validation. Please try again.",
+          "error_type": "invalid_response",
+        }), 422
+    
+    # POST-PROCESSING: Cap scores for vague/nonsensical ideas
+    validation_data = _cap_scores_for_vague_idea(validation_data, idea_explanation)
+    
+    # Update validation record
+    user_validation.idea_explanation = idea_explanation
+    user_validation.category_answers = json.dumps(new_category_answers if new_category_answers else (user_validation.category_answers or {}))
+    user_validation.validation_result = json.dumps(validation_data)
+    user_validation.created_at = datetime.utcnow()  # Update timestamp
+    
+    user.increment_validation_usage()
+    db.session.commit()
+    
+    return jsonify({
+      "success": True,
+      "validation_id": validation_id,
+      "validation": validation_data,
+      "message": "Validation updated successfully",
+    })
+    
+  except Exception as exc:
+    current_app.logger.exception("Validation update failed: %s", exc)
+    db.session.rollback()
     return jsonify({
       "success": False,
       "error": str(exc),

@@ -8,6 +8,7 @@ import { useAuth } from "../../context/AuthContext.jsx";
 import { mapValidationToIntake, getExperienceSummaryFromValidation } from "../../utils/mappers/validationToIntakeMapper.js";
 import { buildValidationConclusion } from "../../utils/formatters/validationConclusion.js";
 import { validationQuestions } from "../../config/validationQuestions.js";
+import Celebration, { getCelebrationMessage } from "../../components/common/Celebration.jsx";
 
 const VALIDATION_PARAMETERS = [
   "Market Opportunity",
@@ -22,89 +23,267 @@ const VALIDATION_PARAMETERS = [
   "Go-to-Market Strategy",
 ];
 
-function ScoreBadge({ score, parameter }) {
-  const getScoreColor = (score) => {
-    if (score >= 8) return "bg-emerald-100 text-emerald-700 border-emerald-300";
-    if (score >= 6) return "bg-amber-100 text-amber-700 border-amber-300";
-    return "bg-coral-100 text-coral-700 border-coral-300";
+const PARAMETER_GROUPS_LAYOUT = [
+  {
+    id: "market",
+    title: "Market Viability",
+    description: "Is there demand, reachability, and audience clarity?",
+    parameters: [
+      "Market Opportunity",
+      "Target Audience Clarity",
+      "Go-to-Market Strategy",
+    ],
+  },
+  {
+    id: "product",
+    title: "Core Product & Moat",
+    description: "Is your solution compelling, defensible, and buildable?",
+    parameters: [
+      "Problem-Solution Fit",
+      "Competitive Landscape",
+      "Technical Feasibility",
+      "Scalability Potential",
+    ],
+  },
+  {
+    id: "execution",
+    title: "Execution & Risk",
+    description: "Can you build, scale, and operate this idea realistically?",
+    parameters: [
+      "Business Model Viability",
+      "Financial Sustainability",
+      "Risk Assessment",
+    ],
+  },
+];
+
+const RADAR_AXES = [
+  { label: "Market", parameter: "Market Opportunity" },
+  { label: "Audience", parameter: "Target Audience Clarity" },
+  { label: "GTM", parameter: "Go-to-Market Strategy" },
+  { label: "PS Fit", parameter: "Problem-Solution Fit" },
+  { label: "Competition", parameter: "Competitive Landscape" },
+  { label: "Tech", parameter: "Technical Feasibility" },
+  { label: "Scalability", parameter: "Scalability Potential" },
+  { label: "Biz Model", parameter: "Business Model Viability" },
+  { label: "Financials", parameter: "Financial Sustainability" },
+  { label: "Risk", parameter: "Risk Assessment" },
+];
+
+const SCORE_LEGEND = [
+  { range: "0 – 3", label: "Needs Work", color: "bg-coral-500" },
+  { range: "4 – 6", label: "Fair", color: "bg-amber-500" },
+  { range: "7 – 8", label: "Strong", color: "bg-emerald-500" },
+  { range: "9 – 10", label: "Excellent", color: "bg-emerald-700" },
+];
+
+const FALLBACK_DETAIL =
+  "See detailed analysis in the 'Detailed Analysis & Recommendations' tab for the complete breakdown.";
+
+const SCORE_BUCKETS = [
+  { min: 9, label: "Excellent", badge: "bg-emerald-100 text-emerald-700", progress: "bg-emerald-600" },
+  { min: 7, label: "Strong", badge: "bg-emerald-100 text-emerald-700", progress: "bg-emerald-500" },
+  { min: 6, label: "Good", badge: "bg-amber-100 text-amber-700", progress: "bg-amber-500" },
+  { min: 4, label: "Fair", badge: "bg-amber-100 text-amber-700", progress: "bg-amber-400" },
+  { min: 0, label: "Needs Work", badge: "bg-coral-100 text-coral-700", progress: "bg-coral-500" },
+];
+
+const normalizeKey = (name = "") =>
+  name
+    .toLowerCase()
+    .replace(/&/g, "and")
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_|_$/g, "");
+
+const getScoreMeta = (score = 0) =>
+  SCORE_BUCKETS.find((bucket) => score >= bucket.min) || SCORE_BUCKETS[SCORE_BUCKETS.length - 1];
+
+const formatDetails = (details) => {
+  if (!details) return FALLBACK_DETAIL;
+  const text = String(details)
+    .replace(/\*\*/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!text) return FALLBACK_DETAIL;
+  return text.length > 320 ? `${text.slice(0, 317).trim()}...` : text;
+};
+
+const getScoreFromScores = (scores = {}, parameter = "") => {
+  if (!scores) return 0;
+  const normalized = normalizeKey(parameter);
+  const candidates = [
+    normalized,
+    normalized.replace(/_/g, ""),
+    parameter,
+    parameter?.toLowerCase?.(),
+  ];
+  for (const key of candidates) {
+    if (scores[key] !== undefined) {
+      return Number(scores[key]) ?? 0;
+    }
+  }
+  return 0;
+};
+
+function RadarChart({ axes }) {
+  const size = 420;
+  const center = size / 2;
+  const radius = size / 2 - 32;
+  const levels = 4;
+  const axisCount = axes.length;
+  const angleStep = (Math.PI * 2) / axisCount;
+
+  const getCoordinates = (index, fraction) => {
+    const angle = angleStep * index - Math.PI / 2;
+    const r = radius * fraction;
+    return {
+      x: center + r * Math.cos(angle),
+      y: center + r * Math.sin(angle),
+    };
   };
 
+  const polygonPoints = axes
+    .map((axis, index) => {
+      const valueFraction = Math.max(0, Math.min(1, (axis.value || 0) / 10));
+      const { x, y } = getCoordinates(index, valueFraction);
+      return `${x},${y}`;
+    })
+    .join(" ");
+
   return (
-    <div className={`rounded-lg border-2 p-3 text-center ${getScoreColor(score)}`}>
-      <div className="text-2xl font-bold">{score}</div>
-      <div className="text-xs font-medium">/ 10</div>
+    <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-soft">
+      <h3 className="mb-4 text-lg font-semibold text-slate-900">Idea Shape Across 10 Validation Pillars</h3>
+      <div className="aspect-square" style={{ minHeight: 380 }}>
+        <svg viewBox={`0 0 ${size} ${size}`} className="h-full w-full">
+          {/* concentric levels */}
+          {Array.from({ length: levels }).map((_, levelIndex) => {
+            const fraction = (levelIndex + 1) / levels;
+            const points = axes
+              .map((_, idx) => {
+                const { x, y } = getCoordinates(idx, fraction);
+                return `${x},${y}`;
+              })
+              .join(" ");
+            return (
+              <polygon
+                key={`level-${levelIndex}`}
+                points={points}
+                fill="none"
+                stroke="#e2e8f0"
+                strokeWidth={1}
+                opacity={0.8}
+              />
+            );
+          })}
+
+          {/* axis lines */}
+          {axes.map((_, idx) => {
+            const { x, y } = getCoordinates(idx, 1);
+            return (
+              <line
+                key={`axis-${idx}`}
+                x1={center}
+                y1={center}
+                x2={x}
+                y2={y}
+                stroke="#cbd5f5"
+                strokeWidth={1}
+                opacity={0.7}
+              />
+            );
+          })}
+
+          {/* data polygon */}
+          <polygon points={polygonPoints} fill="rgba(59,130,246,0.2)" stroke="#2563eb" strokeWidth={2} />
+
+          {/* axis labels */}
+          {axes.map((axis, idx) => {
+            const { x, y } = getCoordinates(idx, 1.18);
+            return (
+              <text
+                key={`label-${axis.label}`}
+                x={x}
+                y={y}
+                textAnchor="middle"
+                dominantBaseline="middle"
+                fontSize="12"
+                fontWeight="600"
+                fill="#475569"
+                paintOrder="stroke"
+                stroke="#f8fafc"
+                strokeWidth="3"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                {axis.label}
+              </text>
+            );
+          })}
+        </svg>
+      </div>
+    </div>
+  );
+}
+
+function ScoreLegendCard() {
+  return (
+    <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-soft">
+      <h3 className="text-lg font-semibold text-slate-900">Score Legend</h3>
+      <p className="mb-4 text-sm text-slate-500">How to interpret each parameter score.</p>
+      <div className="space-y-3">
+        {SCORE_LEGEND.map((item) => (
+          <div key={item.range} className="flex items-center gap-3">
+            <span className={`h-2.5 w-2.5 rounded-full ${item.color}`} />
+            <p className="text-sm font-medium text-slate-700">
+              <span className="font-semibold text-slate-900">{item.range}</span> — {item.label}
+            </p>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
 
 function ParameterCard({ parameter, score, details }) {
-  const getScoreInfo = (score) => {
-    if (score >= 8) {
-      return {
-        bgGradient: "from-emerald-50 to-emerald-100/50",
-        borderColor: "border-emerald-200",
-        progressColor: "bg-emerald-500",
-        labelColor: "text-emerald-700",
-        label: "Strong",
-        icon: "✓"
-      };
-    }
-    if (score >= 6) {
-      return {
-        bgGradient: "from-amber-50 to-amber-100/50",
-        borderColor: "border-amber-200",
-        progressColor: "bg-amber-500",
-        labelColor: "text-amber-700",
-        label: "Good",
-        icon: "→"
-      };
-    }
-    return {
-      bgGradient: "from-coral-50 to-coral-100/50",
-      borderColor: "border-coral-200",
-      progressColor: "bg-coral-500",
-      labelColor: "text-coral-700",
-      label: "Needs Work",
-      icon: "!"
-    };
-  };
-
-  const scoreInfo = getScoreInfo(score);
-  const percentage = (score / 10) * 100;
-
+  const safeScore = typeof score === "number" ? score : 0;
+  const meta = getScoreMeta(safeScore);
+  const percentage = Math.max(0, Math.min(100, (safeScore / 10) * 100));
+  const assessment = formatDetails(details);
   return (
-    <div className={`group relative overflow-hidden rounded-2xl border-2 ${scoreInfo.borderColor} bg-gradient-to-br ${scoreInfo.bgGradient} p-5 shadow-sm transition-all duration-300 hover:shadow-md hover:-translate-y-1`}>
-      {/* Score indicator in top right */}
-      <div className="absolute top-3 right-3">
-        <div className={`flex h-12 w-12 items-center justify-center rounded-full ${scoreInfo.progressColor} text-lg font-bold text-white shadow-sm`}>
-          {score}
+    <div className="flex h-full flex-col rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="mb-4 flex items-start justify-between gap-3">
+        <div>
+          <p className="text-sm font-semibold text-slate-900">{parameter}</p>
+          <p className="text-xs uppercase text-slate-400 tracking-wide">{meta.label}</p>
+        </div>
+        <div className={`rounded-full px-3 py-1 text-xs font-semibold ${meta.badge}`}>
+          {safeScore.toFixed(1)} / 10
         </div>
       </div>
 
-      {/* Parameter name */}
-      <div className="mb-4 pr-16">
-        <h3 className="text-base font-bold text-slate-900 leading-tight">{parameter}</h3>
-        <div className="mt-1 flex items-center gap-2">
-          <span className={`text-xs font-semibold ${scoreInfo.labelColor}`}>{scoreInfo.label}</span>
-          <span className="text-xs text-slate-500">•</span>
-          <span className="text-xs text-slate-500">{score}/10</span>
-        </div>
-      </div>
-
-      {/* Progress bar */}
-      <div className="mb-3 h-2 overflow-hidden rounded-full bg-white/60">
+      <div className="mb-4 h-1.5 overflow-hidden rounded-full bg-slate-100">
         <div
-          className={`h-full ${scoreInfo.progressColor} transition-all duration-500 ease-out`}
+          className={`h-full ${meta.progress}`}
           style={{ width: `${percentage}%` }}
         />
       </div>
 
-      {/* Details */}
-      {details && (
-        <div className="mt-3 rounded-lg bg-white/60 p-3">
-          <p className="text-xs leading-relaxed text-slate-700">{details}</p>
-        </div>
-      )}
+      <div className="mt-auto">
+        <p className="text-sm text-slate-700">
+          <span className="font-semibold text-slate-900">Assessment:</span>{" "}
+          <span
+            style={{
+              display: "-webkit-box",
+              WebkitLineClamp: 4,
+              WebkitBoxOrient: "vertical",
+              overflow: "hidden",
+            }}
+          >
+            {assessment}
+          </span>
+        </p>
+      </div>
     </div>
   );
 }
@@ -122,7 +301,10 @@ export default function ValidationResult() {
   const [previousScore, setPreviousScore] = useState(null);
   const [previousValidationId, setPreviousValidationId] = useState(null);
   const [downloadingPDF, setDownloadingPDF] = useState(false);
+  const [viewFilter, setViewFilter] = useState("all");
+  const [sortOption, setSortOption] = useState("category");
   const pdfRef = useRef(null);
+  const downloadButtonRef = useRef(null);
 
   useEffect(() => {
     const validationId = searchParams.get("id");
@@ -147,7 +329,71 @@ export default function ValidationResult() {
   const validation = currentValidation?.validation || null;
   const scores = validation?.scores || {};
   const overallScore = validation?.overall_score || 0;
+  const [showCelebration, setShowCelebration] = useState(false);
+  
+  // Show celebration for high scores
+  useEffect(() => {
+    if (overallScore >= 8 && validation) {
+      setShowCelebration(true);
+      // Auto-hide after 5 seconds
+      const timer = setTimeout(() => setShowCelebration(false), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [overallScore, validation]);
   const rawRecommendations = validation?.recommendations || "";
+
+  const parameterLookup = useMemo(() => {
+    const detailsMap = validation?.details || {};
+    const lookup = {};
+    VALIDATION_PARAMETERS.forEach((parameter) => {
+      lookup[parameter] = {
+        score: getScoreFromScores(scores, parameter),
+        details: detailsMap?.[parameter],
+      };
+    });
+    return lookup;
+  }, [scores, validation?.details]);
+
+  const radarData = useMemo(
+    () =>
+      RADAR_AXES.map((axis) => ({
+        label: axis.label,
+        value: parameterLookup[axis.parameter]?.score ?? 0,
+      })),
+    [parameterLookup]
+  );
+
+  const parameterGroups = useMemo(() => {
+    return PARAMETER_GROUPS_LAYOUT.map((group) => {
+      const cards = group.parameters
+        .map((name, index) => {
+          const data = parameterLookup[name] || { score: 0, details: null };
+          return {
+            name,
+            score: data.score ?? 0,
+            details: data.details,
+            order: index,
+          };
+        })
+        .filter((item) => (viewFilter === "red" ? item.score <= 3 : true));
+
+      const sortedCards = [...cards];
+      if (sortOption === "score-asc") {
+        sortedCards.sort((a, b) => a.score - b.score);
+      } else if (sortOption === "score-desc") {
+        sortedCards.sort((a, b) => b.score - a.score);
+      } else {
+        sortedCards.sort((a, b) => a.order - b.order);
+      }
+
+      return { ...group, cards: sortedCards };
+    }).filter((group) => group.cards.length > 0);
+  }, [parameterLookup, viewFilter, sortOption]);
+
+  const overallStatus = getScoreMeta(overallScore);
+  const overallScorePercent = Math.round(
+    Math.max(0, Math.min(100, (overallScore / 10) * 100))
+  );
   
   // Format recommendations to ensure proper bullet points with sub-bullets
   const recommendations = useMemo(() => {
@@ -505,6 +751,18 @@ export default function ValidationResult() {
     [validation, categoryAnswers, ideaExplanation]
   );
 
+  const effectiveCategoryAnswers = useMemo(() => {
+    if (categoryAnswers && Object.keys(categoryAnswers).length > 0) {
+      return categoryAnswers;
+    }
+    if (currentValidation?.categoryAnswers && Object.keys(currentValidation.categoryAnswers).length > 0) {
+      return currentValidation.categoryAnswers;
+    }
+    return {};
+  }, [categoryAnswers, currentValidation]);
+  const businessArchetypeLabel = effectiveCategoryAnswers?.business_archetype;
+  const deliveryChannelLabel = effectiveCategoryAnswers?.delivery_channel;
+
   // Early return AFTER all hooks have been called
   if (!validation) {
     return (
@@ -562,6 +820,7 @@ export default function ValidationResult() {
         </div>
         <div className="flex gap-3">
           <button
+            ref={downloadButtonRef}
             onClick={async () => {
               if (!pdfRef.current || downloadingPDF) return;
               try {
@@ -638,64 +897,29 @@ export default function ValidationResult() {
 
       {/* Tabbed Interface */}
       <div className="mb-8 no-print">
-        <div className="border-b border-slate-200">
-          <nav className="-mb-px flex space-x-6 overflow-x-auto">
-            <button
-              onClick={() => setActiveTab("input")}
-              className={`whitespace-nowrap border-b-2 py-4 px-1 text-sm font-semibold transition ${
-                activeTab === "input"
-                  ? "border-brand-500 text-brand-600"
-                  : "border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700"
-              }`}
-            >
-              Your Input
-            </button>
-            <button
-              onClick={() => setActiveTab("results")}
-              className={`whitespace-nowrap border-b-2 py-4 px-1 text-sm font-semibold transition ${
-                activeTab === "results"
-                  ? "border-brand-500 text-brand-600"
-                  : "border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700"
-              }`}
-            >
-              Validation Results
-            </button>
-            {recommendations && (
+        <nav className="flex flex-wrap gap-2 rounded-full bg-slate-100/80 p-1">
+          {[
+            { id: "input", label: "Your Input", hidden: false },
+            { id: "results", label: "Validation Results", hidden: false },
+            { id: "analysis", label: "Detailed Analysis & Recommendations", hidden: !recommendations },
+            { id: "conclusion", label: "Final Validation Conclusion & Decision", hidden: !finalConclusion },
+            { id: "nextsteps", label: "Next Steps", hidden: false },
+          ]
+            .filter((tab) => !tab.hidden)
+            .map((tab) => (
               <button
-                onClick={() => setActiveTab("analysis")}
-                className={`whitespace-nowrap border-b-2 py-4 px-1 text-sm font-semibold transition ${
-                  activeTab === "analysis"
-                    ? "border-brand-500 text-brand-600"
-                    : "border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700"
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`rounded-full px-4 py-2 text-sm font-medium transition ${
+                  activeTab === tab.id
+                    ? "bg-white text-slate-900 shadow-sm shadow-slate-300"
+                    : "text-slate-500 hover:text-slate-800"
                 }`}
               >
-                Detailed Analysis & Recommendations
+                {tab.label}
               </button>
-            )}
-            {finalConclusion && (
-              <button
-                onClick={() => setActiveTab("conclusion")}
-                className={`whitespace-nowrap border-b-2 py-4 px-1 text-sm font-semibold transition ${
-                  activeTab === "conclusion"
-                    ? "border-brand-500 text-brand-600"
-                    : "border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700"
-                }`}
-              >
-                Final Validation Conclusion & Decision
-              </button>
-            )}
-            <button
-              onClick={() => setActiveTab("nextsteps")}
-              className={`whitespace-nowrap border-b-2 py-4 px-1 text-sm font-semibold transition ${
-                activeTab === "nextsteps"
-                  ? "border-brand-500 text-brand-600"
-                  : "border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700"
-              }`}
-            >
-              Next Steps
-            </button>
-          </nav>
-        </div>
+            ))}
+        </nav>
       </div>
 
       {/* PDF Export Container */}
@@ -703,6 +927,7 @@ export default function ValidationResult() {
       {/* Tab Content: Your Input */}
       {activeTab === "input" && (
         <div className="space-y-6">
+          <p className="text-sm text-slate-600">These are the inputs you provided during validation.</p>
           {/* Category Questions */}
           {validationQuestions.category_questions && validationQuestions.category_questions.length > 0 && (
             <div className="rounded-3xl border border-slate-200 bg-white/95 p-6 shadow-soft">
@@ -774,6 +999,24 @@ export default function ValidationResult() {
       {/* Tab Content: Validation Results */}
       {activeTab === "results" && (
         <div className="space-y-6">
+          {/* Celebration Banner for High Scores */}
+          {overallScore >= 8 && (
+            <div className="relative overflow-hidden rounded-3xl border-2 border-emerald-300 bg-gradient-to-br from-emerald-50 via-emerald-100/50 to-emerald-50 p-6 shadow-lg">
+              <Celebration score={overallScore} show={showCelebration} />
+              <div className="relative z-10 flex items-center gap-4">
+                <div className="text-4xl">{getCelebrationMessage(overallScore).emoji}</div>
+                <div className="flex-1">
+                  <h3 className="text-xl font-bold text-emerald-900">
+                    {getCelebrationMessage(overallScore).message}
+                  </h3>
+                  <p className="mt-1 text-sm text-emerald-700">
+                    Your idea scored {overallScore.toFixed(1)}/10 - That's impressive! 🎉
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+          
           {/* Re-Validation Comparison Banner */}
           {previousScore !== null && previousScore !== undefined && (
             <div className="rounded-3xl border-2 border-emerald-300 bg-gradient-to-br from-emerald-50 to-white p-6 shadow-soft">
@@ -808,106 +1051,167 @@ export default function ValidationResult() {
             </div>
           )}
 
-          {/* Parameter Scores - Visual Display */}
-      <div className="mb-8">
-            <div className="mb-6 flex items-center justify-between">
-              <div>
-                <h2 className="text-2xl font-semibold text-slate-900">Validation Parameters</h2>
-                <p className="mt-1 text-sm text-slate-600">Your idea evaluated across 10 key dimensions</p>
-              </div>
-              <div className="rounded-xl border-2 border-brand-200 bg-gradient-to-br from-brand-50 to-brand-100/50 px-4 py-2 text-center">
-                <div className="text-2xl font-bold text-brand-700">{overallScore.toFixed(1)}</div>
-                <div className="text-xs font-semibold text-brand-600">Overall Score</div>
-              </div>
-            </div>
-
-            {/* Group parameters by score range for better visual organization */}
-            {(() => {
-              const groupedParams = VALIDATION_PARAMETERS.map((parameter) => {
-            const keyVariations = [
-              parameter.toLowerCase().replace(/\s+/g, "_"),
-              parameter.toLowerCase().replace(/\s+/g, "-"),
-              parameter,
-            ];
-            let score = 0;
-            for (const key of keyVariations) {
-              if (scores[key] !== undefined) {
-                score = scores[key];
-                break;
-              }
-            }
-                return { parameter, score, details: validation.details?.[parameter] };
-              }).sort((a, b) => b.score - a.score); // Sort by score descending
-
-              const strongParams = groupedParams.filter(p => p.score >= 8);
-              const goodParams = groupedParams.filter(p => p.score >= 6 && p.score < 8);
-              const needsWorkParams = groupedParams.filter(p => p.score < 6);
-            
-            return (
-                <div className="space-y-6">
-                  {/* Strong Parameters (8-10) */}
-                  {strongParams.length > 0 && (
-                    <div>
-                      <div className="mb-3 flex items-center gap-2">
-                        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-500 text-sm font-bold text-white">✓</div>
-                        <h3 className="text-lg font-semibold text-slate-900">Strong Areas ({strongParams.length})</h3>
-                      </div>
-                      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                        {strongParams.map(({ parameter, score, details }) => (
-                          <ParameterCard
-                            key={parameter}
-                            parameter={parameter}
-                            score={score}
-                            details={details}
-                          />
-                        ))}
-                      </div>
+          {/* Diagnostic Layout */}
+          <div className="space-y-8">
+            {/* Title + Summary Row */}
+            <div className="rounded-3xl border border-slate-200 bg-white p-8 shadow-soft">
+              <div className="grid gap-6 lg:grid-cols-12">
+                <div className="space-y-4 lg:col-span-8">
+                  <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+                    Validation Results
+                  </p>
+                  <h2 className="text-4xl font-bold text-slate-900">Idea Validation Results</h2>
+                  <p className="text-base text-slate-600">
+                    Diagnostic breakdown across 10 validation pillars. This page shows scores and short insights only.
+                  </p>
+                </div>
+                <div className="space-y-4 lg:col-span-4">
+                  <div className="rounded-2xl border border-transparent bg-gradient-to-br from-brand-50 to-white px-5 py-4 text-center shadow-sm">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      Overall Score
+                    </p>
+                    <p className="text-4xl font-bold text-slate-900">{overallScorePercent}</p>
+                    <p className="text-xs text-slate-500">out of 100</p>
+                    <div className={`mt-3 inline-flex rounded-full px-4 py-1 text-xs font-semibold ${overallStatus.badge}`}>
+                      {overallStatus.label}
                     </div>
-                  )}
-
-                  {/* Good Parameters (6-7.9) */}
-                  {goodParams.length > 0 && (
-                    <div>
-                      <div className="mb-3 flex items-center gap-2">
-                        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-amber-500 text-sm font-bold text-white">→</div>
-                        <h3 className="text-lg font-semibold text-slate-900">Good Areas ({goodParams.length})</h3>
-                      </div>
-                      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                        {goodParams.map(({ parameter, score, details }) => (
-                          <ParameterCard
-                            key={parameter}
-                            parameter={parameter}
-                            score={score}
-                            details={details}
-                          />
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Needs Work Parameters (<6) */}
-                  {needsWorkParams.length > 0 && (
-                    <div>
-                      <div className="mb-3 flex items-center gap-2">
-                        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-coral-500 text-sm font-bold text-white">!</div>
-                        <h3 className="text-lg font-semibold text-slate-900">Areas to Strengthen ({needsWorkParams.length})</h3>
-                      </div>
-                      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                        {needsWorkParams.map(({ parameter, score, details }) => (
-                          <ParameterCard
-                key={parameter}
-                            parameter={parameter}
-                            score={score}
-                            details={details}
-                          />
-                        ))}
-                      </div>
+                  </div>
+                  {(businessArchetypeLabel || deliveryChannelLabel) && (
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-left text-sm text-slate-600">
+                      {businessArchetypeLabel && (
+                        <p>
+                          <span className="font-semibold text-slate-900">Business Type:</span> {businessArchetypeLabel}
+                        </p>
+                      )}
+                      {deliveryChannelLabel && (
+                        <p className="mt-1">
+                          <span className="font-semibold text-slate-900">Delivery Channel:</span> {deliveryChannelLabel}
+                        </p>
+                      )}
                     </div>
                   )}
                 </div>
-              );
-            })()}
               </div>
+            </div>
+
+            {/* Radar + Legend */}
+            <p className="text-base font-medium text-slate-600 mb-2">Diagnostic Overview Across 10 Validation Pillars</p>
+            <div className="grid gap-6 lg:grid-cols-12">
+              <div className="lg:col-span-8">
+                <RadarChart axes={radarData} />
+              </div>
+              <div className="lg:col-span-4">
+                <ScoreLegendCard />
+              </div>
+            </div>
+
+            {/* Filter / Sort Row */}
+            <p className="mb-2 text-sm text-slate-600">View parameter-by-parameter breakdown and insights.</p>
+            <div className="flex flex-col gap-4 rounded-3xl border border-slate-200 bg-white p-5 shadow-soft md:flex-row md:items-center md:justify-between">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">View</p>
+                <div className="mt-2 inline-flex overflow-hidden rounded-full border border-slate-200">
+                  <button
+                    type="button"
+                    onClick={() => setViewFilter("all")}
+                    className={`px-4 py-2 text-sm font-semibold transition ${
+                      viewFilter === "all"
+                        ? "bg-slate-900 text-white"
+                        : "text-slate-500 hover:text-slate-900"
+                    }`}
+                  >
+                    All Parameters
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setViewFilter("red")}
+                    className={`px-4 py-2 text-sm font-semibold transition ${
+                      viewFilter === "red"
+                        ? "bg-slate-900 text-white"
+                        : "text-slate-500 hover:text-slate-900"
+                    }`}
+                  >
+                    Red Flags Only
+                  </button>
+                </div>
+              </div>
+              <div className="w-full md:w-auto">
+                <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                  Sort by
+                </label>
+                <select
+                  value={sortOption}
+                  onChange={(event) => setSortOption(event.target.value)}
+                  className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-100 md:w-56"
+                >
+                  <option value="category">Category Order</option>
+                  <option value="score-asc">Score: Low → High</option>
+                  <option value="score-desc">Score: High → Low</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Parameter Groups */}
+            <div className="space-y-12">
+              {parameterGroups.length > 0 ? (
+                parameterGroups.map((group) => (
+                  <div key={group.id}>
+                    <div className="mb-4">
+                      <h3 className="text-xl font-semibold text-slate-900">{group.title}</h3>
+                      <p className="text-sm text-slate-500">{group.description}</p>
+                    </div>
+                    <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+                      {group.cards.map((card) => (
+                        <ParameterCard
+                          key={card.name}
+                          parameter={card.name}
+                          score={card.score}
+                          details={card.details}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="rounded-2xl border border-slate-200 bg-white p-6 text-center text-sm text-slate-600">
+                  No parameters match the selected filter.
+                </div>
+              )}
+            </div>
+
+            {/* Footer Nav */}
+            <div className="flex flex-col gap-4 rounded-3xl border border-slate-200 bg-white p-6 shadow-soft lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <p className="text-sm font-semibold text-slate-900">This page shows your diagnostic scores only.</p>
+                <p className="text-sm text-slate-600">
+                  To explore next steps and recommendations, go to the relevant sections.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("analysis")}
+                  className="rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-brand-300 hover:text-brand-600"
+                >
+                  Recommendations
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("nextsteps")}
+                  className="rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-brand-300 hover:text-brand-600"
+                >
+                  Action Plan
+                </button>
+                <button
+                  type="button"
+                  onClick={() => downloadButtonRef.current?.click()}
+                  className="rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-brand-300 hover:text-brand-600"
+                >
+                  Download Full Report
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
@@ -919,17 +1223,11 @@ export default function ValidationResult() {
             <ReactMarkdown
               components={{
                 p: ({ node, ...props }) => {
-                  // Check if paragraph contains bullet-like content that should be converted
-                  const text = node.children?.[0]?.value || '';
-                  if (text && text.length > 50 && !text.includes('\n')) {
-                    // Long paragraph without breaks - might need splitting
-                    return (
-                      <p className="text-slate-700 leading-relaxed mb-4" {...props} />
-                    );
+                  const text = node.children?.[0]?.value || "";
+                  if (text && text.length > 50 && !text.includes("\n")) {
+                    return <p className="text-slate-700 leading-relaxed mb-4" {...props} />;
                   }
-                  return (
-                  <p className="text-slate-700 leading-relaxed mb-4" {...props} />
-                  );
+                  return <p className="text-slate-700 leading-relaxed mb-4" {...props} />;
                 },
                 ul: ({ node, ...props }) => (
                   <ul className="list-disc list-outside space-y-2 text-slate-700 mb-4 ml-6" style={{ listStyleType: 'disc', paddingLeft: '1.5rem' }} {...props} />

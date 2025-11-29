@@ -3,8 +3,10 @@ from flask import Blueprint, request, jsonify, current_app
 from typing import Any, Dict
 from datetime import datetime, timedelta
 import os
+import json
+import secrets
 
-from app.models.database import db, User, Payment, SubscriptionCancellation
+from app.models.database import db, User, Payment, SubscriptionCancellation, StripeEvent
 from app.utils import get_current_session, require_auth
 from app.services.email_service import email_service
 from app.services.email_templates import (
@@ -16,6 +18,16 @@ from app.services.email_templates import (
 bp = Blueprint("payment", __name__)
 
 # Note: Rate limits will be applied after blueprint registration in api.py
+
+def is_development_mode() -> bool:
+    """Check if we're in development mode."""
+    flask_env = os.environ.get("FLASK_ENV", "").lower()
+    debug = os.environ.get("DEBUG", "false").lower()
+    
+    # Also check if running on localhost (development indicator)
+    is_localhost = request.host.startswith("localhost") or request.host.startswith("127.0.0.1")
+    
+    return flask_env == "development" or debug == "true" or is_localhost
 
 
 @bp.get("/api/subscription/status")
@@ -264,6 +276,157 @@ def change_subscription_plan() -> Any:
         return jsonify({"success": False, "error": "Failed to change subscription"}), 500
 
 
+@bp.post("/api/subscription/activate-dev")
+@require_auth
+def activate_subscription_dev() -> Any:
+    """Activate subscription in development mode without payment (DEVELOPMENT ONLY)."""
+    print("\n" + "="*60)
+    print("ACTIVATE-DEV ENDPOINT CALLED")
+    print("="*60)
+    
+    try:
+        print("Checking development mode...")
+        is_dev = is_development_mode()
+        print(f"Development mode check result: {is_dev}")
+        
+        if not is_dev:
+            error_msg = "This endpoint is only available in development mode"
+            print(f"ERROR: {error_msg}")
+            return jsonify({
+                "success": False,
+                "error": error_msg,
+                "debug_info": {
+                    "flask_env": os.environ.get("FLASK_ENV", "not set"),
+                    "debug": os.environ.get("DEBUG", "not set"),
+                    "host": request.host if hasattr(request, 'host') else "unknown"
+                }
+            }), 403
+        
+        print("Getting current session...")
+        session = get_current_session()
+        if not session:
+            print("ERROR: Not authenticated")
+            return jsonify({"success": False, "error": "Not authenticated"}), 401
+        print(f"Session found for user_id: {session.user.id}")
+    except Exception as e:
+        print(f"EXCEPTION in check phase: {type(e).__name__}: {e}")
+        import traceback
+        print(traceback.format_exc())
+        current_app.logger.exception("Error in activate_subscription_dev check: %s", e)
+        return jsonify({
+            "success": False,
+            "error": f"Server error during initialization: {str(e)}"
+        }), 500
+    
+    print("Parsing request data...")
+    data: Dict[str, Any] = request.get_json(force=True, silent=True) or {}
+    subscription_type = data.get("subscription_type", "").strip()
+    print(f"Subscription type requested: {subscription_type}")
+    
+    # Valid subscription types: starter, pro, annual
+    if subscription_type not in ["starter", "pro", "annual"]:
+        error_msg = f"Invalid subscription type: {subscription_type}. Must be: starter, pro, or annual"
+        print(f"ERROR: {error_msg}")
+        return jsonify({"success": False, "error": error_msg}), 400
+    
+    user = session.user
+    print(f"User: {user.email} (id: {user.id})")
+    
+    # Amounts in cents (for reference)
+    amounts = {
+        "starter": 900,   # $9.00/month
+        "pro": 1500,      # $15.00/month
+        "annual": 12000,  # $120.00/year
+    }
+    
+    duration_days = {
+        "starter": 30,
+        "pro": 30,
+        "annual": 365,
+    }
+    
+    try:
+        # Activate subscription directly without payment
+        print(f"Activating subscription: {subscription_type} for {duration_days[subscription_type]} days...")
+        try:
+            user.activate_subscription(subscription_type, duration_days[subscription_type])
+            print("✓ Subscription activated successfully")
+        except Exception as e:
+            print(f"EXCEPTION activating subscription: {type(e).__name__}: {e}")
+            import traceback
+            print(traceback.format_exc())
+            current_app.logger.exception("Error activating subscription: %s", e)
+            raise
+        
+        # Record a development payment entry for tracking
+        print("Creating payment record...")
+        try:
+            payment = Payment(
+                user_id=user.id,
+                amount=amounts[subscription_type] / 100,
+                subscription_type=subscription_type,
+                stripe_payment_intent_id=f"dev_{secrets.token_urlsafe(16)}",
+                status="completed",
+                completed_at=datetime.utcnow(),
+            )
+            db.session.add(payment)
+            db.session.commit()
+            print("✓ Payment record created")
+        except Exception as e:
+            print(f"WARNING: Error creating payment record: {type(e).__name__}: {e}")
+            import traceback
+            print(traceback.format_exc())
+            current_app.logger.exception("Error creating payment record: %s", e)
+            db.session.rollback()
+            # Don't fail the whole request if payment record fails - subscription is already activated
+        
+        # Send subscription activated email (optional in dev, but good for testing)
+        try:
+            html_content, text_content = subscription_activated_email(
+                user_name=user.email,
+                subscription_type=subscription_type,
+            )
+            email_service.send_email(
+                to_email=user.email,
+                subject="🎉 Your Subscription is Active! (Dev Mode)",
+                html_content=html_content,
+                text_content=text_content,
+            )
+        except Exception as e:
+            current_app.logger.warning(f"Failed to send subscription activated email: {e}")
+            # Don't fail the whole request if email fails
+        
+        current_app.logger.info(f"Dev subscription activated: user_id={user.id}, type={subscription_type}")
+        
+        # Refresh user to get latest data
+        db.session.refresh(user)
+        
+        return jsonify({
+            "success": True,
+            "message": f"Subscription activated in development mode: {subscription_type}",
+            "user": user.to_dict(),
+            "dev_mode": True,
+        })
+    except Exception as exc:
+        print(f"\n{'='*60}")
+        print(f"EXCEPTION CAUGHT: {type(exc).__name__}")
+        print(f"Error message: {exc}")
+        print(f"{'='*60}")
+        import traceback
+        print("FULL TRACEBACK:")
+        print(traceback.format_exc())
+        print(f"{'='*60}\n")
+        
+        db.session.rollback()
+        current_app.logger.exception("Dev subscription activation failed: %s", exc)
+        error_msg = str(exc)
+        return jsonify({
+            "success": False,
+            "error": f"Failed to activate subscription: {error_msg}",
+            "error_type": type(exc).__name__
+        }), 500
+
+
 @bp.post("/api/payment/create-intent")
 @require_auth
 def create_payment_intent() -> Any:
@@ -470,7 +633,21 @@ def stripe_webhook() -> Any:
             payload, sig_header, webhook_secret
         )
         
-        current_app.logger.info(f"Stripe webhook received: {event['type']}")
+        event_id = event.get('id')
+        event_type = event.get('type')
+        
+        current_app.logger.info(f"Stripe webhook received: {event_type} (ID: {event_id})")
+        
+        # Check for idempotency - prevent duplicate processing
+        if event_id:
+            existing_event = StripeEvent.query.filter_by(stripe_event_id=event_id).first()
+            if existing_event:
+                current_app.logger.info(f"Stripe event {event_id} already processed at {existing_event.processed_at}")
+                return jsonify({
+                    "success": True,
+                    "message": "Event already processed",
+                    "processed_at": existing_event.processed_at.isoformat()
+                }), 200
         
         # Handle different event types
         if event['type'] == 'payment_intent.succeeded':
@@ -495,7 +672,15 @@ def stripe_webhook() -> Any:
                         "weekly": 7,
                     }
                     duration_days = duration_days_map.get(subscription_type, 30)
+                    old_subscription_type = user.subscription_type or "free"
                     user.activate_subscription(subscription_type, duration_days)
+                    
+                    # Log subscription change and payment
+                    try:
+                        log_subscription_change(user.id, old_subscription_type, subscription_type)
+                        log_payment(user.id, payment.id, float(payment.amount))
+                    except:
+                        pass  # Don't fail if audit logging fails
                     
                     # Send activation email
                     try:
@@ -544,6 +729,20 @@ def stripe_webhook() -> Any:
                     current_app.logger.warning(f"Failed to send payment failure email: {e}")
                 
                 current_app.logger.info(f"Payment {payment_intent_id} failed via webhook")
+        
+        # Record event for idempotency (only if we successfully processed it)
+        if event_id:
+            try:
+                stripe_event = StripeEvent(
+                    stripe_event_id=event_id,
+                    event_type=event_type,
+                    details=json.dumps(event.get('data', {}))
+                )
+                db.session.add(stripe_event)
+                db.session.commit()
+            except Exception as e:
+                current_app.logger.warning(f"Failed to record Stripe event for idempotency: {e}")
+                # Don't fail the webhook if we can't record the event
         
         return jsonify({"success": True}), 200
         

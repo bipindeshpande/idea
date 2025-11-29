@@ -9,21 +9,28 @@ bp = Blueprint("health", __name__)
 @bp.get("/api/health")
 def health_check():
     """Health check endpoint for monitoring services."""
+    from flask import current_app
     try:
         # Check database connection
         db.session.execute(db.text("SELECT 1"))
-        return jsonify({
+        status = {
             "status": "healthy",
             "database": "connected",
             "timestamp": datetime.now().isoformat()
-        }), 200
+        }
+        current_app.logger.info(f"Health check passed: {status}")
+        print(f"[HEALTH] Health check passed at {datetime.now().strftime('%H:%M:%S')}", flush=True)
+        return jsonify(status), 200
     except Exception as e:
-        return jsonify({
+        status = {
             "status": "unhealthy",
             "database": "disconnected",
             "error": str(e),
             "timestamp": datetime.now().isoformat()
-        }), 503
+        }
+        current_app.logger.error(f"Health check failed: {status}")
+        print(f"[HEALTH] Health check FAILED: {e}", flush=True)
+        return jsonify(status), 503
 
 
 @bp.get("/health")

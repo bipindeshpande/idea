@@ -13,15 +13,8 @@ const SCREEN2_QUESTIONS = validationQuestions.screen2_questions || validationQue
 const OPTIONAL_FIELDS = validationQuestions.optional_fields || [];
 
 export default function IdeaValidator() {
-  // TEST LOG - This should always appear
-  console.log('🎬 [IdeaValidator] Component rendered/updated');
-  console.warn('⚠️ TEST: If you see this, console logging is working!');
-  console.error('❌ TEST: Error logging test');
-  
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  
-  console.log('🔗 [IdeaValidator] URL search params:', Object.fromEntries(searchParams.entries()));
   const { validateIdea, loading, error, setError, setCategoryAnswers, setIdeaExplanation, categoryAnswers } = useValidation();
   const { inputs, loadRunById } = useReports();
   const { getAuthHeaders, isAuthenticated } = useAuth();
@@ -36,7 +29,6 @@ export default function IdeaValidator() {
   const [structuredDescription, setStructuredDescription] = useState("");
   const [optionalAnswers, setOptionalAnswers] = useState({
     initial_budget: "",
-    delivery_channel: "",
     constraints: [],
     competitors: "",
   });
@@ -51,12 +43,6 @@ export default function IdeaValidator() {
   const [isFirstValidation, setIsFirstValidation] = useState(false);
   const [previousValidationData, setPreviousValidationData] = useState(null);
   const isRevalidate = searchParams.get("revalidate") === "true";
-  const editValidationIdRaw = searchParams.get("edit");
-  // Keep the full validation_id (including val_ prefix if present)
-  // We'll handle matching with/without prefix in the lookup logic
-  const editValidationId = editValidationIdRaw || null;
-  const [isEditMode, setIsEditMode] = useState(!!editValidationId);
-  const [loadingValidationData, setLoadingValidationData] = useState(false);
 
   // Check if this is user's first validation
   useEffect(() => {
@@ -113,7 +99,9 @@ export default function IdeaValidator() {
           }
         }
       } catch (err) {
-        console.error("❌ Failed to load user intake:", err);
+        if (process.env.NODE_ENV === 'development') {
+          console.error("Failed to load user intake:", err);
+        }
       } finally {
         setLoadingIntake(false);
       }
@@ -121,248 +109,6 @@ export default function IdeaValidator() {
 
     loadUserIntake();
   }, [isAuthenticated, getAuthHeaders, inputs]);
-
-  // Load validation data when editing
-  useEffect(() => {
-    console.log('⚡ [IdeaValidator] useEffect triggered for edit mode');
-    console.log('⚡ [IdeaValidator] editValidationId:', editValidationId);
-    console.log('⚡ [IdeaValidator] isAuthenticated:', isAuthenticated);
-    
-    const loadValidationForEdit = async () => {
-      console.log('🚀 [Edit Mode] loadValidationForEdit started');
-      console.log('🔑 [Edit Mode] editValidationId:', editValidationId);
-      console.log('👤 [Edit Mode] isAuthenticated:', isAuthenticated);
-      
-      if (!editValidationId) {
-        console.log('⏭️ [Edit Mode] No editValidationId provided, skipping load');
-        return;
-      }
-      
-      if (!isAuthenticated) {
-        console.warn('🔒 [Edit Mode] User not authenticated, cannot load validation');
-        setError("You must be logged in to edit validations. Please log in and try again.");
-        return;
-      }
-
-      setLoadingValidationData(true);
-      setError(null); // Clear any previous errors
-      console.log('🌐 [Edit Mode] Fetching from /api/user/activity...');
-      try {
-        // Fetch validation from API
-        const response = await fetch(`/api/user/activity`, {
-          headers: getAuthHeaders(),
-        });
-        console.log('📥 [Edit Mode] Response status:', response.status, response.ok ? 'OK' : 'ERROR');
-
-        if (response.ok) {
-          const data = await response.json();
-          const validations = data.activity?.validations || [];
-          
-          // Always log for debugging (remove NODE_ENV check)
-          console.log('📡 [Edit Mode] API Response received');
-          console.log('📊 [Edit Mode] Total validations returned:', validations.length);
-          console.log('📋 [Edit Mode] Available validations:', validations.map(v => ({ 
-            validation_id: v.validation_id,
-            id: v.id,
-            overall_score: v.overall_score
-          })));
-          
-          // If no validations found at all, check if it's an authentication issue
-          if (validations.length === 0) {
-            console.warn('⚠️ [Edit Mode] No validations returned from API. Possible reasons:');
-            console.warn('  - User has no validations');
-            console.warn('  - Authentication issue');
-            console.warn('  - All validations are filtered out (not completed or deleted)');
-          }
-          
-          // Find the validation we want to edit
-          // Try multiple matching strategies to handle different ID formats
-          let validationToEdit = null;
-          if (editValidationId) {
-            validationToEdit = validations.find(v => {
-              const vid = v.validation_id || v.id;
-              const searchId = editValidationId;
-              
-              // Strategy 1: Exact match
-              if (vid === searchId) return true;
-              
-              // Strategy 2: Match with val_ prefix (if searchId doesn't have it)
-              if (!searchId.startsWith('val_') && vid === `val_${searchId}`) return true;
-              
-              // Strategy 3: Match without val_ prefix (if searchId has it)
-              if (searchId.startsWith('val_') && vid === searchId.replace(/^val_/, '')) return true;
-              
-              // Strategy 4: Match by numeric part only (strip prefixes)
-              const vidNum = String(vid).replace(/^val_/, '');
-              const searchIdNum = String(searchId).replace(/^val_/, '');
-              if (vidNum === searchIdNum && vidNum) return true;
-              
-              // Strategy 5: Match by database ID as fallback
-              if (String(v.id) === String(searchId)) return true;
-              
-              return false;
-            });
-          }
-          
-          // Always log for debugging (remove NODE_ENV check)
-          console.log('🔍 [Edit Mode] Searching for validation_id:', editValidationId);
-          console.log('📊 [Edit Mode] Total validations available:', validations.length);
-          console.log('📋 [Edit Mode] Available validation_ids:', validations.map(v => ({
-            id: v.id,
-            validation_id: v.validation_id,
-            has_category_answers: !!v.category_answers
-          })));
-          console.log('✅ [Edit Mode] Found validation:', validationToEdit ? 'YES' : 'NO');
-          if (validationToEdit) {
-            console.log('📝 [Edit Mode] Validation details:', {
-              id: validationToEdit.id,
-              validation_id: validationToEdit.validation_id,
-              has_category_answers: !!validationToEdit.category_answers,
-              category_answers_type: typeof validationToEdit.category_answers
-            });
-          } else {
-            console.warn('⚠️ [Edit Mode] Validation NOT FOUND! Check if:');
-            console.warn('  - Validation exists in database');
-            console.warn('  - Validation belongs to current user');
-            console.warn('  - Validation status is "completed"');
-            console.warn('  - Validation is not deleted');
-          }
-
-          if (validationToEdit) {
-            // Parse category_answers if it's a string
-            let categoryAnswersData = {};
-            if (validationToEdit.category_answers) {
-              if (typeof validationToEdit.category_answers === 'string') {
-                try {
-                  categoryAnswersData = JSON.parse(validationToEdit.category_answers);
-                } catch (e) {
-                  console.error("Failed to parse category_answers", e);
-                }
-              } else {
-                categoryAnswersData = validationToEdit.category_answers;
-              }
-            }
-            
-            // Always log for debugging
-            console.log('📦 [Edit Mode] Raw category_answers from API:', validationToEdit.category_answers);
-            console.log('🔓 [Edit Mode] Parsed categoryAnswersData:', categoryAnswersData);
-
-            // Pre-fill Screen 1 answers (About Your Idea - 4 dropdowns)
-            // Direct mapping - use exact field names from form
-            const screen1Data = {};
-            const screen1Fields = ['industry', 'geography', 'stage', 'commitment'];
-            
-            screen1Fields.forEach(field => {
-              // Try direct match first
-              if (categoryAnswersData[field]) {
-                screen1Data[field] = categoryAnswersData[field];
-              }
-            });
-            
-            // Always log for debugging
-            console.log('📝 [Edit Mode] Screen 1 data to set:', screen1Data);
-            
-            // Set screen1 answers - set immediately even if only partial data
-            // This ensures dropdowns show values as soon as they're loaded
-            if (Object.keys(screen1Data).length > 0) {
-              setScreen1Answers(prev => ({ ...prev, ...screen1Data }));
-              console.log('✅ [Edit Mode] Set screen1Answers:', screen1Data);
-            } else {
-              console.warn('⚠️ [Edit Mode] No screen1 data found in category_answers');
-            }
-
-            // Pre-fill Screen 2 answers (How Your Idea Works - 5 dropdowns)
-            // Direct mapping with fallbacks for legacy field names
-            const screen2Data = {};
-            const screen2FieldMap = {
-              'problem_category': ['problem_category', 'problem'],
-              'solution_type': ['solution_type', 'solution'],
-              'user_type': ['user_type', 'target_audience', 'user'],
-              'revenue_model': ['revenue_model', 'business_model', 'revenue'],
-              'unique_moat': ['unique_moat', 'uniqueness', 'unique_value'],
-              'business_archetype': ['business_archetype', 'business_type', 'business_nature'],
-            };
-            
-            Object.keys(screen2FieldMap).forEach(standardField => {
-              const possibleNames = screen2FieldMap[standardField];
-              for (const fieldName of possibleNames) {
-                if (categoryAnswersData[fieldName]) {
-                  screen2Data[standardField] = categoryAnswersData[fieldName];
-                  break; // Use first match
-                }
-              }
-            });
-            
-            // Always log for debugging
-            console.log('📝 [Edit Mode] Screen 2 data to set:', screen2Data);
-            
-            // Set screen2 answers - set immediately even if only partial data
-            if (Object.keys(screen2Data).length > 0) {
-              setScreen2Answers(prev => ({ ...prev, ...screen2Data }));
-              console.log('✅ [Edit Mode] Set screen2Answers:', screen2Data);
-            } else {
-              console.warn('⚠️ [Edit Mode] No screen2 data found in category_answers');
-            }
-
-            // Pre-fill Screen 3 (Tell Us More)
-            if (validationToEdit.idea_explanation) {
-              setStructuredDescription(validationToEdit.idea_explanation);
-            }
-
-            // Pre-fill optional fields with all possible field name variations
-            setOptionalAnswers({
-              initial_budget: categoryAnswersData.initial_budget || categoryAnswersData.budget || categoryAnswersData.budget_range || "",
-              delivery_channel: categoryAnswersData.delivery_channel || "",
-              constraints: Array.isArray(categoryAnswersData.constraints) 
-                ? categoryAnswersData.constraints 
-                : (categoryAnswersData.constraints ? [categoryAnswersData.constraints] : []),
-              competitors: categoryAnswersData.competitors || categoryAnswersData.competition || "",
-            });
-
-            // Set category answers in context
-            setCategoryAnswers(categoryAnswersData);
-            setIdeaExplanation(validationToEdit.idea_explanation || "");
-            
-            // Always log for debugging
-            console.log('✅ [Edit Mode] Pre-filled data summary:', {
-              categoryAnswersData,
-              screen1Answers: screen1Data,
-              screen2Answers: screen2Data,
-              structuredDescription: validationToEdit.idea_explanation,
-              optionalAnswers
-            });
-          } else {
-            console.error('❌ [Edit Mode] Validation not found for ID:', editValidationId);
-            console.error('🔍 [Edit Mode] This could mean:');
-            console.error('  1. Validation does not exist');
-            console.error('  2. Validation belongs to different user');
-            console.error('  3. Validation status is not "completed"');
-            console.error('  4. Validation is deleted');
-            console.error('  5. ID format mismatch');
-            setError(`Validation not found or access denied. The validation with ID "${editValidationId}" could not be loaded. Please check that it exists and belongs to your account.`);
-          }
-        } else {
-          console.error('❌ [Edit Mode] API response not OK:', response.status, response.statusText);
-          setError("Failed to load validation data from server.");
-        }
-      } catch (err) {
-        console.error('💥 [Edit Mode] Exception caught while loading validation:', err);
-        console.error('💥 [Edit Mode] Error details:', {
-          message: err.message,
-          stack: err.stack,
-          name: err.name
-        });
-        setError("Failed to load validation data. Please try again.");
-      } finally {
-        console.log('🏁 [Edit Mode] loadValidationForEdit finished');
-        setLoadingValidationData(false);
-      }
-    };
-
-    if (editValidationId && isAuthenticated) {
-      loadValidationForEdit();
-    }
-  }, [editValidationId, isAuthenticated, getAuthHeaders, setCategoryAnswers, setIdeaExplanation]);
 
   const handleScreen1Answer = (questionId, answer) => {
     setScreen1Answers((prev) => ({
@@ -439,7 +185,6 @@ export default function IdeaValidator() {
       ...screen1Answers,
       ...screen2Answers,
       initial_budget: optionalAnswers.initial_budget,
-      delivery_channel: optionalAnswers.delivery_channel,
       constraints: optionalAnswers.constraints,
       competitors: optionalAnswers.competitors,
     };
@@ -447,8 +192,7 @@ export default function IdeaValidator() {
     setCategoryAnswers(mergedCategoryAnswers);
     setIdeaExplanation(structuredDescription);
     
-    // Use edit mode if validation ID is present
-    const result = await validateIdea(mergedCategoryAnswers, structuredDescription, editValidationId || undefined);
+    const result = await validateIdea(mergedCategoryAnswers, structuredDescription);
     
     if (result.success) {
       if (isRevalidate && previousValidationData) {
@@ -470,26 +214,6 @@ export default function IdeaValidator() {
       />
 
       {loading && <ValidationLoadingIndicator />}
-
-      {loadingValidationData && (
-        <div className="mb-6 rounded-2xl border border-amber-200/60 bg-amber-50/80 dark:bg-amber-900/20 p-6 text-center">
-          <p className="text-sm font-semibold text-amber-800 dark:text-amber-200">Loading validation data...</p>
-        </div>
-      )}
-
-      {isEditMode && editValidationId && !loadingValidationData && (
-        <div className="mb-6 rounded-2xl border border-brand-200/60 bg-brand-50/80 dark:bg-brand-900/20 p-4">
-          <p className="text-sm font-semibold text-brand-800 dark:text-brand-200">
-            ✏️ Editing Validation: {editValidationId}
-          </p>
-        </div>
-      )}
-
-      {error && !loading && (
-        <div className="mb-6 rounded-2xl border border-red-200/60 bg-red-50/80 dark:bg-red-900/20 p-4">
-          <p className="text-sm font-semibold text-red-800 dark:text-red-200">⚠️ {error}</p>
-        </div>
-      )}
 
       {/* Progress Indicator */}
       <div className="mb-10">
@@ -658,7 +382,7 @@ export default function IdeaValidator() {
 
             {/* Optional Fields */}
             {OPTIONAL_FIELDS.map((field) => {
-              if (["initial_budget", "delivery_channel"].includes(field.id)) {
+              if (field.id === "initial_budget") {
                 return (
                   <div key={field.id}>
                     <label htmlFor={field.id} className="mb-2 block text-base font-semibold text-slate-900 dark:text-slate-100">

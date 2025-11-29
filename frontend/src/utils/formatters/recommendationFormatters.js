@@ -156,15 +156,37 @@ function extractListFromText(text = "") {
   const items = [];
   lines.forEach((line) => {
     const trimmed = line.trim();
+    // Skip lines that are section headers like "Execution Path:" or "Days 0-30:"
+    if (/^(execution\s+path|days\s+0[-\s]?30)[:\s]*$/i.test(trimmed)) {
+      return;
+    }
     if (/^[-*+]\s+/.test(trimmed)) {
-      items.push(trimmed.replace(/^[-*+]\s+/, "").trim());
+      const item = trimmed.replace(/^[-*+]\s+/, "").trim();
+      // Skip if it's just "Execution Path:" or similar
+      if (!/^(execution\s+path|days\s+0[-\s]?30)[:\s]*$/i.test(item)) {
+        items.push(item);
+      }
     } else if (/^\d+[\.\)]\s+/.test(trimmed)) {
-      items.push(trimmed.replace(/^\d+[\.\)]\s+/, "").trim());
+      const item = trimmed.replace(/^\d+[\.\)]\s+/, "").trim();
+      // Skip if it's just "Execution Path:" or similar
+      if (!/^(execution\s+path|days\s+0[-\s]?30)[:\s]*$/i.test(item)) {
+        items.push(item);
+      }
     }
   });
 
   if (items.length > 0) {
-    return items.map((item) => personalizeCopy(item));
+    return items.map((item) => {
+      // Clean item - remove "Execution Path:" prefix if present
+      const cleaned = personalizeCopy(item)
+        .replace(/^execution\s+path[:\s]*/i, "")
+        .replace(/^[-*]\s*\*\*execution\s+path\*\*[:\s]*/i, "")
+        .replace(/^[-*]\s*execution\s+path[:\s]*/i, "")
+        .replace(/\*\*execution\s+path\*\*[:\s]*/gi, "")
+        .replace(/^[-*]\s*/g, "")
+        .trim();
+      return cleaned;
+    });
   }
 
   // Fallback: split into sentences if bullets are missing.
@@ -364,19 +386,66 @@ export function buildFinancialSnapshots(sectionText = "", ideaTitle = "", budget
   // Parse actual financial data from agent output
   const text = sectionText.toLowerCase();
   
-  // Extract startup costs
-  const startupCostMatch = sectionText.match(/startup\s+costs?[:\-]?\s*(.+?)(?:\n|$)/i);
-  if (startupCostMatch) {
-    const costText = startupCostMatch[1];
+  // Extract startup costs - try multiple patterns to catch all variations
+  let startupCostValue = null;
+  let startupCostText = null;
+  
+  // Pattern 1: "Startup costs: $25,000"
+  const startupCostMatch1 = sectionText.match(/startup\s+costs?[:\-]?\s*(.+?)(?:\n|$)/i);
+  if (startupCostMatch1) {
+    const costText = startupCostMatch1[1];
     const costValue = extractCurrency(costText);
     if (costValue) {
-      entries.push({
-        focus: "Startup costs",
-        estimate: personalizeCopy(startupCostMatch[1].trim()),
-        metric: formatCurrency(costValue),
-      });
-      seen.add("startup costs");
+      startupCostValue = costValue;
+      startupCostText = costText.trim();
     }
+  }
+  
+  // Pattern 2: "Estimated Startup Costs: $25,000" or "Startup investment: $25,000"
+  if (!startupCostValue) {
+    const startupCostMatch2 = sectionText.match(/(?:estimated\s+)?(?:startup\s+)?(?:costs?|investment)[:\-]?\s*(.+?)(?:\n|$)/i);
+    if (startupCostMatch2) {
+      const costText = startupCostMatch2[1];
+      const costValue = extractCurrency(costText);
+      if (costValue) {
+        startupCostValue = costValue;
+        startupCostText = costText.trim();
+      }
+    }
+  }
+  
+  // Pattern 3: Look for any currency amount near "startup" keyword
+  if (!startupCostValue) {
+    const startupContextMatch = sectionText.match(/startup[^:]*?(\$[\d,]+(?:\s*(?:K|thousand))?)/i);
+    if (startupContextMatch) {
+      const costValue = extractCurrency(startupContextMatch[1]);
+      if (costValue) {
+        startupCostValue = costValue;
+        startupCostText = startupContextMatch[1];
+      }
+    }
+  }
+  
+  // Pattern 4: Look for "$25,000" or "$25K" in the first few lines (common format)
+  if (!startupCostValue) {
+    const firstLines = sectionText.split('\n').slice(0, 5).join('\n');
+    const currencyMatch = firstLines.match(/\$[\d,]+(?:\s*(?:K|thousand))?/i);
+    if (currencyMatch) {
+      const costValue = extractCurrency(currencyMatch[0]);
+      if (costValue && costValue >= 1000) { // Only if it's a reasonable startup cost
+        startupCostValue = costValue;
+        startupCostText = currencyMatch[0];
+      }
+    }
+  }
+  
+  if (startupCostValue) {
+    entries.push({
+      focus: "Estimated startup investment",
+      estimate: startupCostText ? personalizeCopy(startupCostText) : `Initial setup costs for ${normalizedTitle}`,
+      metric: formatCurrency(startupCostValue),
+    });
+    seen.add("startup costs");
   }
 
   // Extract revenue projections

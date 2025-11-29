@@ -89,8 +89,8 @@ def get_current_session() -> Optional[UserSession]:
     if not session or not session.is_valid():
         return None
     
-    # Check for inactivity timeout (5 minutes)
-    INACTIVITY_TIMEOUT_MINUTES = 5
+    # Check for inactivity timeout (15 minutes - increased for long operations like validation)
+    INACTIVITY_TIMEOUT_MINUTES = 15
     if session.last_activity:
         time_since_activity = datetime.utcnow() - session.last_activity
         if time_since_activity > timedelta(minutes=INACTIVITY_TIMEOUT_MINUTES):

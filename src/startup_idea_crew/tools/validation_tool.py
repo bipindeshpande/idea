@@ -19,97 +19,180 @@ def _get_openai_client() -> OpenAI:
 
 
 @tool("Idea Validation Tool")
-def validate_startup_idea(idea: str, target_market: str = "", business_model: str = "") -> str:
+def validate_startup_idea(
+    idea: str, 
+    target_market: str = "", 
+    business_model: str = "",
+    user_profile: Optional[Dict[str, Any]] = None
+) -> str:
     """
-    Validate a startup idea by checking various feasibility factors.
+    Validate a startup idea using AI to assess feasibility factors specific to THIS idea.
     
     Args:
         idea: Description of the startup idea (required)
-        target_market: Target customer market (optional, can be empty)
-        business_model: Proposed business model e.g., SaaS, marketplace, e-commerce (optional, can be empty)
+        target_market: Target customer market (optional)
+        business_model: Proposed business model e.g., SaaS, marketplace, e-commerce (optional)
+        user_profile: Dictionary with user profile data (optional)
     
     Returns:
-        Validation report with feasibility scores and recommendations
+        Personalized validation report with feasibility scores and recommendations
     """
     # Ensure idea is a string
     if isinstance(idea, dict):
         idea = str(idea)
     idea = str(idea).strip()
     
-    # Handle empty strings for optional parameters
+    if not idea:
+        return "Error: Startup idea is required for validation."
+    
+    # Handle optional parameters
     if not target_market or (isinstance(target_market, str) and target_market.strip() == ""):
-        target_market = "To be defined"
+        target_market = "To be determined based on idea analysis"
     else:
         target_market = str(target_market).strip()
     
     if not business_model or (isinstance(business_model, str) and business_model.strip() == ""):
-        business_model = "To be defined"
+        business_model = "To be determined based on idea analysis"
     else:
         business_model = str(business_model).strip()
     
-    validation_report = f"""
-    STARTUP IDEA VALIDATION REPORT
-    {'=' * 60}
+    # Build user profile context
+    profile_context = ""
+    if user_profile and isinstance(user_profile, dict):
+        profile_parts = []
+        if user_profile.get("goal_type"):
+            profile_parts.append(f"Goal: {user_profile.get('goal_type')}")
+        if user_profile.get("time_commitment"):
+            profile_parts.append(f"Time Commitment: {user_profile.get('time_commitment')}")
+        if user_profile.get("budget_range"):
+            profile_parts.append(f"Budget: {user_profile.get('budget_range')}")
+        if user_profile.get("skill_strength"):
+            profile_parts.append(f"Skills: {user_profile.get('skill_strength')}")
+        if user_profile.get("work_style"):
+            profile_parts.append(f"Work Style: {user_profile.get('work_style')}")
+        
+        if profile_parts:
+            profile_context = "\n".join(profile_parts)
     
-    Idea: {idea}
-    Target Market: {target_market}
-    Business Model: {business_model}
-    
-    Feasibility Assessment:
-    
-    1. Problem Validation (Score: 7/10):
-       ✓ Problem appears to address a real need
-       ✓ Target market likely exists
-       ? Need to validate problem urgency with potential customers
-       → Action: Conduct customer interviews
-    
-    2. Market Feasibility (Score: 8/10):
-       ✓ Market size appears sufficient
-       ✓ Growth trends are positive
-       ? Need deeper market research
-       → Action: Analyze competitor pricing and positioning
-    
-    3. Technical Feasibility (Score: 8/10):
-       ✓ Technology stack is accessible
-       ✓ Can be built with available resources
-       ? May require specific expertise
-       → Action: Assess technical requirements
-    
-    4. Business Model Viability (Score: 7/10):
-       ✓ Revenue model is clear
-       ? Customer acquisition cost needs validation
-       ? Unit economics need to be proven
-       → Action: Create financial projections
-    
-    5. Competitive Position (Score: 7/10):
-       ✓ Differentiation opportunities exist
-       ? Need stronger unique value proposition
-       → Action: Refine positioning strategy
-    
-    Overall Feasibility Score: 7.4/10
-    
-    Strengths:
-    - Addresses a real market need
-    - Technically feasible
-    - Market opportunity exists
-    
-    Risks & Concerns:
-    - Need customer validation
-    - Competitive differentiation needs strengthening
-    - Business model needs validation
-    
-    Next Steps for Validation:
-    1. Interview 10-20 potential customers
-    2. Build a simple MVP or prototype
-    3. Test willingness to pay
-    4. Analyze competitor pricing
-    5. Create detailed financial projections
-    
-    RECOMMENDATION: This idea shows promise but requires validation 
-    before full commitment. Focus on customer discovery and MVP testing.
-    """
-    
-    return validation_report.strip()
+    # Create AI prompt for personalized validation
+    prompt = f"""Validate THIS specific startup idea. Provide real assessment scores, not generic templates.
+
+Startup Idea: {idea}
+Target Market: {target_market}
+Business Model: {business_model}
+
+Founder Profile:
+{profile_context if profile_context else "No specific founder constraints provided"}
+
+IMPORTANT: Analyze THIS exact idea and provide:
+- REAL scores (0-10) based on actual assessment, not always 7-8
+- SPECIFIC strengths tied to this idea
+- SPECIFIC concerns relevant to this idea
+- Actionable recommendations tailored to this idea
+
+Your response MUST follow this EXACT format:
+
+STARTUP IDEA VALIDATION REPORT
+{'=' * 60}
+
+Idea: {idea}
+Target Market: {target_market}
+Business Model: {business_model}
+
+Feasibility Assessment:
+
+1. Problem Validation (Score: [X]/10):
+   [✓ or ✗] [Specific assessment: Does THIS idea address a REAL problem? What problem specifically?]
+   [✓ or ✗] [Specific assessment: Is THIS problem urgent/painful enough?]
+   [?] [What needs validation for THIS specific problem?]
+   → Action: [Specific action for THIS idea]
+
+2. Market Feasibility (Score: [X]/10):
+   [✓ or ✗] [Specific assessment: What is the market size for THIS idea?]
+   [✓ or ✗] [Specific assessment: Are there growth trends for THIS market?]
+   [?] [What market research is needed for THIS idea?]
+   → Action: [Specific action for THIS idea]
+
+3. Technical Feasibility (Score: [X]/10):
+   [✓ or ✗] [Specific assessment: Can THIS idea be built with current tech?]
+   [✓ or ✗] [Specific assessment: What technical challenges exist for THIS idea?]
+   [?] [What technical expertise is needed for THIS idea?]
+   → Action: [Specific technical action for THIS idea]
+
+4. Business Model Viability (Score: [X]/10):
+   [✓ or ✗] [Specific assessment: How does THIS idea make money?]
+   [✓ or ✗] [Specific assessment: Are unit economics viable for THIS idea?]
+   [?] [What needs validation for THIS business model?]
+   → Action: [Specific action for THIS business model]
+
+5. Competitive Position (Score: [X]/10):
+   [✓ or ✗] [Specific assessment: Who are competitors for THIS idea?]
+   [✓ or ✗] [Specific assessment: What differentiation exists for THIS idea?]
+   [?] [What competitive risks exist for THIS idea?]
+   → Action: [Specific action to improve competitive position]
+
+Overall Feasibility Score: [X.X]/10
+
+Strengths (specific to THIS idea):
+- [Strength #1 specific to this idea]
+- [Strength #2 specific to this idea]
+- [At least 2-3 specific strengths]
+
+Risks & Concerns (specific to THIS idea):
+- [Concern #1 specific to this idea]
+- [Concern #2 specific to this idea]
+- [At least 2-3 specific concerns]
+
+Next Steps for Validation (specific to THIS idea):
+1. [Specific action #1 for this idea]
+2. [Specific action #2 for this idea]
+3. [At least 3-5 specific next steps]
+
+RECOMMENDATION: [Specific recommendation for THIS idea - should this founder pursue it given their constraints?]
+"""
+
+    try:
+        client = _get_openai_client()
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You are an expert startup validator. Provide real, specific assessments for each unique idea. Don't use generic scores - actually evaluate each idea based on its merits and risks. Be honest and specific."
+                },
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ],
+            temperature=0.7,
+            max_tokens=2000,
+        )
+        
+        validation_content = response.choices[0].message.content.strip()
+        return validation_content
+        
+    except Exception as e:
+        # Fallback message if AI call fails
+        return f"""STARTUP IDEA VALIDATION REPORT
+{'=' * 60}
+
+Idea: {idea}
+Target Market: {target_market}
+Business Model: {business_model}
+
+Error: Unable to generate personalized validation at this time. Please try again or contact support.
+
+Note: AI-powered validation requires OPENAI_API_KEY to be configured.
+Error details: {str(e)}
+
+Generic Assessment:
+- This idea requires validation across problem, market, technical, business model, and competitive factors.
+- Conduct customer interviews to validate the problem.
+- Research market size and competition.
+- Assess technical feasibility based on available skills/resources.
+- Validate business model and unit economics.
+"""
 
 
 @tool("Domain Availability Checker")

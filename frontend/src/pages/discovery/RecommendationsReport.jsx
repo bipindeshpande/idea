@@ -26,6 +26,10 @@ export default function RecommendationsReport() {
   const [smartRecommendations, setSmartRecommendations] = useState(null);
   const [ideasWithActions, setIdeasWithActions] = useState(new Set());
   const [ideasWithNotes, setIdeasWithNotes] = useState(new Set());
+  const [enhancements, setEnhancements] = useState(null);
+  const [enhancementsLoading, setEnhancementsLoading] = useState(false);
+  const [enhancementsStarted, setEnhancementsStarted] = useState(false);
+  const abortControllerRef = useRef(null);
   const isPro = subscription && (subscription.subscription_type === "pro" || subscription.subscription_type === "weekly");
 
   useEffect(() => {
@@ -122,6 +126,89 @@ export default function RecommendationsReport() {
       loadActionsAndNotes();
     }
   }, [isAuthenticated, getAuthHeaders]);
+
+  // Smart detection for enhancements: Start if user scrolls or stays >30s
+  useEffect(() => {
+    if (!isAuthenticated || !runId || enhancementsStarted || !reports?.personalized_recommendations) {
+      return;
+    }
+
+    let scrollTimer;
+    let stayTimer;
+    let hasScrolled = false;
+
+    const handleScroll = () => {
+      if (!hasScrolled && window.scrollY > 500) {
+        hasScrolled = true;
+        clearTimeout(scrollTimer);
+        startEnhancements();
+      }
+    };
+
+    const handleStay = () => {
+      if (!enhancementsStarted) {
+        startEnhancements();
+      }
+    };
+
+    // Start enhancements if user stays >30 seconds
+    stayTimer = setTimeout(handleStay, 30000);
+
+    // Start enhancements if user scrolls past 500px
+    window.addEventListener('scroll', handleScroll, { passive: true });
+
+    return () => {
+      clearTimeout(stayTimer);
+      clearTimeout(scrollTimer);
+      window.removeEventListener('scroll', handleScroll);
+      // Cancel enhancements if user leaves
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, [isAuthenticated, runId, enhancementsStarted, reports]);
+
+  const startEnhancements = async () => {
+    if (enhancementsStarted || !runId) return;
+    
+    setEnhancementsStarted(true);
+    setEnhancementsLoading(true);
+    
+    // Create abort controller for cancellation
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
+    try {
+      const response = await fetch("/api/enhance-report", {
+        method: "POST",
+        headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify({ run_id: runId }),
+        signal: controller.signal,
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          setEnhancements(data.enhancements);
+          if (process.env.NODE_ENV === 'development') {
+            console.log("Enhancements loaded:", data.metadata);
+          }
+        }
+      }
+    } catch (error) {
+      if (error.name === 'AbortError') {
+        if (process.env.NODE_ENV === 'development') {
+          console.log("Enhancements cancelled");
+        }
+      } else {
+        if (process.env.NODE_ENV === 'development') {
+          console.error("Failed to load enhancements:", error);
+        }
+      }
+    } finally {
+      setEnhancementsLoading(false);
+    }
+  };
 
   const markdown = useMemo(() => {
     try {

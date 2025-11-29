@@ -294,10 +294,11 @@ export function AuthProvider({ children }) {
       resetPassword,
       changePassword,
       refreshSubscription,
+      checkSubscription,
       checkAuth,
       getAuthHeaders,
     }),
-    [user, subscription, sessionToken, loading, register, login, logout, forgotPassword, resetPassword, changePassword, refreshSubscription, checkAuth, getAuthHeaders]
+    [user, subscription, sessionToken, loading, register, login, logout, forgotPassword, resetPassword, changePassword, refreshSubscription, checkSubscription, checkAuth, getAuthHeaders]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

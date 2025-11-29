@@ -1,0 +1,108 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://startupideaadvisor.com/schemas/validation-result.json",
+  "title": "ValidationResult",
+  "description": "Canonical shape returned by the validation service and consumed by the Validation Results UI.",
+  "type": "object",
+  "required": ["id", "overall_score", "scores", "details", "recommendations", "next_steps", "generated_at", "model"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "Unique validation identifier; prefixed with `val_` for new runs."
+    },
+    "overall_score": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 10,
+      "description": "Rounded aggregate score across pillars (0–10)."
+    },
+    "scores": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 10
+      },
+      "description": "Numeric score per pillar. Keys should match normalized parameter names (`market_opportunity`, `business_model_viability`, etc.)."
+    },
+    "details": {
+      "type": "object",
+      "default": {},
+      "description": "Short insight per parameter, used directly in parameter cards.",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "recommendations": {
+      "type": "string",
+      "description": "Markdown string containing executive summary, deep dive analysis, and critical assumptions."
+    },
+    "next_steps": {
+      "description": "Ordered list of actionable steps. The UI will accept either a markdown string or array of strings.",
+      "oneOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      ]
+    },
+    "category_answers": {
+      "type": "object",
+      "description": "Snapshot of structured answers submitted with the validation request."
+    },
+    "idea_explanation": {
+      "type": "string",
+      "description": "Raw idea narrative used for the run."
+    },
+    "model": {
+      "type": "object",
+      "properties": {
+        "provider": { "type": "string", "enum": ["anthropic", "openai", "other"] },
+        "name": { "type": "string" }
+      },
+      "required": ["provider", "name"]
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Timestamp when the validation was generated."
+    },
+    "comparison": {
+      "type": "object",
+      "description": "Optional payload used when comparing to a previous validation.",
+      "properties": {
+        "previous_validation_id": { "type": "string" },
+        "previous_score": { "type": "number", "minimum": 0, "maximum": 10 },
+        "delta": { "type": "number" }
+      },
+      "required": ["previous_validation_id", "previous_score", "delta"]
+    },
+    "metadata": {
+      "type": "object",
+      "description": "Implementation-specific metadata (tracing IDs, latency, prompt tokens, etc.)."
+    }
+  },
+  "definitions": {
+    "parameterName": {
+      "type": "string",
+      "enum": [
+        "Market Opportunity",
+        "Problem-Solution Fit",
+        "Competitive Landscape",
+        "Target Audience Clarity",
+        "Business Model Viability",
+        "Technical Feasibility",
+        "Financial Sustainability",
+        "Scalability Potential",
+        "Risk Assessment",
+        "Go-to-Market Strategy"
+      ]
+    }
+  }
+}
+

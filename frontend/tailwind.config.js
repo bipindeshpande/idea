@@ -1,8 +1,10 @@
 /** @type {import('tailwindcss').Config} */
 import typography from "@tailwindcss/typography";
+import validationPreset from "./tailwind.validation.preset.js";
 
 export default {
   darkMode: "class", // Enable class-based dark mode
+  presets: [validationPreset],
   content: [
     "./index.html",
     "./src/**/*.{js,jsx,ts,tsx}",

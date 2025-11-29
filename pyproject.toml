@@ -13,6 +13,8 @@ dependencies = [
     "Flask-Limiter>=3.5.0,<4.0.0",
     "Werkzeug>=3.0.0,<4.0.0",
     "stripe>=7.0.0,<8.0.0",
+    "psycopg2-binary>=2.9.0",  # PostgreSQL driver
+    "anthropic>=0.34.0,<1.0.0",  # Claude API for validation
 ]
 
 [project.scripts]

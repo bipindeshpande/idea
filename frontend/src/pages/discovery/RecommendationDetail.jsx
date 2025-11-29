@@ -447,17 +447,29 @@ export default function RecommendationDetail() {
   );
 
   const heroStatement = useMemo(() => {
+    let statement = "";
     if (whyFit.length > 0) {
-      return whyFit[0];
-    }
-    if (sections.intro) {
+      statement = whyFit[0];
+    } else if (sections.intro) {
       const introText = personalizeCopy(sections.intro);
       const firstSentence = introText.split(/(?<=[.!?])\s+/)[0];
       if (firstSentence) {
-        return firstSentence;
+        statement = firstSentence;
       }
     }
-    return "This idea aligns with your goals, strengths, and capacity.";
+    
+    // Clean statement - remove "Execution Path:" and other section headers
+    if (statement) {
+      statement = statement
+        .replace(/^execution\s+path[:\s]*/i, "")
+        .replace(/^[-*]\s*\*\*execution\s+path\*\*[:\s]*/i, "")
+        .replace(/^[-*]\s*execution\s+path[:\s]*/i, "")
+        .replace(/\*\*execution\s+path\*\*[:\s]*/gi, "")
+        .replace(/^[-*]\s*/g, "")
+        .trim();
+    }
+    
+    return statement || "This idea aligns with your goals, strengths, and capacity.";
   }, [whyFit, sections]);
 
   const fitHighlights = useMemo(() => {
@@ -1362,3 +1374,4 @@ function truncateNarrative(text = "", limit = 140) {
   if (normalized.length <= limit) return normalized;
   return `${normalized.slice(0, limit).trimEnd()}...`;
 }
+

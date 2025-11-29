@@ -4,6 +4,7 @@ Database models and setup for user authentication and subscriptions.
 from datetime import datetime, timedelta
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
+from sqlalchemy import Index, Enum as SQLEnum
 import secrets
 
 db = SQLAlchemy()
@@ -417,23 +418,29 @@ class UserSession(db.Model):
     __tablename__ = "user_sessions"
     
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
     session_token = db.Column(db.String(255), unique=True, nullable=False, index=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    expires_at = db.Column(db.DateTime, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+    expires_at = db.Column(db.DateTime, nullable=False, index=True)
     last_activity = db.Column(db.DateTime, default=datetime.utcnow)
     ip_address = db.Column(db.String(45), nullable=True)
     user_agent = db.Column(db.String(255), nullable=True)
+    
+    # Composite indexes for common queries
+    __table_args__ = (
+        Index('idx_session_user_created', 'user_id', 'created_at'),
+        Index('idx_session_user_expires', 'user_id', 'expires_at'),
+    )
     
     def is_valid(self) -> bool:
         """Check if session is still valid (not expired and not inactive)."""
         if datetime.utcnow() >= self.expires_at:
             return False
         
-        # Check for inactivity timeout (5 minutes)
+        # Check for inactivity timeout (15 minutes - increased for long operations like validation)
         if self.last_activity:
             time_since_activity = datetime.utcnow() - self.last_activity
-            if time_since_activity > timedelta(minutes=5):
+            if time_since_activity > timedelta(minutes=15):
                 return False
         
         return True
@@ -449,12 +456,21 @@ class UserRun(db.Model):
     __tablename__ = "user_runs"
     
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
     run_id = db.Column(db.String(255), unique=True, nullable=False, index=True)
     inputs = db.Column(db.Text)  # JSON string
     reports = db.Column(db.Text)  # JSON string
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    status = db.Column(db.String(50), default="pending", index=True)  # pending, processing, completed, failed
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    is_deleted = db.Column(db.Boolean, default=False, index=True)
+    archived_at = db.Column(db.DateTime, nullable=True)
+    
+    # Composite indexes for common queries
+    __table_args__ = (
+        Index('idx_run_user_created', 'user_id', 'created_at'),
+        Index('idx_run_user_status', 'user_id', 'status'),
+    )
 
 
 class UserValidation(db.Model):
@@ -462,13 +478,21 @@ class UserValidation(db.Model):
     __tablename__ = "user_validations"
     
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
     validation_id = db.Column(db.String(255), unique=True, nullable=False, index=True)
     category_answers = db.Column(db.Text)  # JSON string
     idea_explanation = db.Column(db.Text)
     validation_result = db.Column(db.Text)  # JSON string
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    status = db.Column(db.String(50), default="completed", index=True)  # pending, completed, failed
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    is_deleted = db.Column(db.Boolean, default=False, index=True)
+    archived_at = db.Column(db.DateTime, nullable=True)
+    
+    # Composite indexes for common queries
+    __table_args__ = (
+        Index('idx_validation_user_created', 'user_id', 'created_at'),
+    )
 
 
 class UserAction(db.Model):
@@ -479,11 +503,13 @@ class UserAction(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
     idea_id = db.Column(db.String(255), nullable=False, index=True)  # Can be run_id or validation_id
     action_text = db.Column(db.Text, nullable=False)
-    status = db.Column(db.String(50), default="pending")  # pending, in_progress, completed, blocked
+    status = db.Column(db.String(50), default="pending", index=True)  # pending, in_progress, completed, blocked
     due_date = db.Column(db.DateTime, nullable=True)
     completed_at = db.Column(db.DateTime, nullable=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    is_deleted = db.Column(db.Boolean, default=False, index=True)
+    archived_at = db.Column(db.DateTime, nullable=True)
     
     # Relationships
     user = db.relationship("User", backref="actions")
@@ -498,8 +524,10 @@ class UserNote(db.Model):
     idea_id = db.Column(db.String(255), nullable=False, index=True)  # Can be run_id or validation_id
     content = db.Column(db.Text, nullable=False)
     tags = db.Column(db.Text)  # JSON string array of tags
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    is_deleted = db.Column(db.Boolean, default=False, index=True)
+    archived_at = db.Column(db.DateTime, nullable=True)
     
     # Relationships
     user = db.relationship("User", backref="notes")
@@ -611,15 +639,21 @@ class Payment(db.Model):
     __tablename__ = "payments"
     
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
     amount = db.Column(db.Numeric(10, 2), nullable=False)
     currency = db.Column(db.String(3), default="USD")
     subscription_type = db.Column(db.String(50), nullable=False)  # weekly, monthly
     payment_method = db.Column(db.String(50), default="stripe")
     stripe_payment_intent_id = db.Column(db.String(255), nullable=True, unique=True)
-    status = db.Column(db.String(50), default="pending")  # pending, completed, failed, refunded
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    status = db.Column(db.String(50), default="pending", index=True)  # pending, completed, failed, refunded
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
     completed_at = db.Column(db.DateTime, nullable=True)
+    
+    # Composite indexes for common queries
+    __table_args__ = (
+        Index('idx_payment_user_created', 'user_id', 'created_at'),
+        Index('idx_payment_user_status', 'user_id', 'status'),
+    )
 
 
 class SubscriptionCancellation(db.Model):
@@ -636,3 +670,81 @@ class SubscriptionCancellation(db.Model):
     
     # Relationship
     user = db.relationship("User", backref="cancellations")
+
+
+# Enums for better data integrity
+class SubscriptionTier(str):
+    """Subscription tier enum."""
+    FREE = "free"
+    FREE_TRIAL = "free_trial"
+    STARTER = "starter"
+    PRO = "pro"
+    ANNUAL = "annual"
+
+
+class PaymentStatus(str):
+    """Payment status enum."""
+    PENDING = "pending"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    REFUNDED = "refunded"
+
+
+class RunStatus(str):
+    """Run status enum."""
+    PENDING = "pending"
+    PROCESSING = "processing"
+    COMPLETED = "completed"
+    FAILED = "failed"
+
+
+class ValidationStatus(str):
+    """Validation status enum."""
+    PENDING = "pending"
+    COMPLETED = "completed"
+    FAILED = "failed"
+
+
+class ActionStatus(str):
+    """Action status enum."""
+    PENDING = "pending"
+    IN_PROGRESS = "in_progress"
+    COMPLETED = "completed"
+    BLOCKED = "blocked"
+
+
+class StripeEvent(db.Model):
+    """Stripe webhook events for idempotency."""
+    __tablename__ = "stripe_events"
+    
+    id = db.Column(db.Integer, primary_key=True)
+    stripe_event_id = db.Column(db.String(255), unique=True, nullable=False, index=True)
+    event_type = db.Column(db.String(100), nullable=False, index=True)
+    processed_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+    details = db.Column(db.Text)  # JSON string of event data
+    
+    def __repr__(self):
+        return f"<StripeEvent {self.stripe_event_id} {self.event_type}>"
+
+
+class AuditLog(db.Model):
+    """Audit log for security and compliance."""
+    __tablename__ = "audit_logs"
+    
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True, index=True)
+    admin_id = db.Column(db.Integer, db.ForeignKey("admins.id"), nullable=True, index=True)
+    action = db.Column(db.String(100), nullable=False, index=True)  # login, password_reset, subscription_change, etc.
+    resource_type = db.Column(db.String(50), nullable=True)  # user, payment, run, validation, etc.
+    resource_id = db.Column(db.Integer, nullable=True)
+    details = db.Column(db.Text, nullable=True)  # JSON string with additional context
+    ip_address = db.Column(db.String(45), nullable=True)
+    user_agent = db.Column(db.String(255), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+    
+    # Composite indexes for common queries
+    __table_args__ = (
+        Index('idx_audit_user_action', 'user_id', 'action', 'created_at'),
+        Index('idx_audit_admin_action', 'admin_id', 'action', 'created_at'),
+        Index('idx_audit_resource', 'resource_type', 'resource_id', 'created_at'),
+    )

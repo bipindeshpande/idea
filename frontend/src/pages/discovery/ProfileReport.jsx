@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useLocation } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import ReactMarkdown from "react-markdown";
 import { useReports } from "../../context/ReportsContext.jsx";
 import Seo from "../../components/common/Seo.jsx";
@@ -264,144 +264,89 @@ function parseProfileSections(markdown = "") {
   return sections;
 }
 
-function getSectionTheme(title = "") {
+function getSectionTheme(title = "", index = 0) {
   const lowerTitle = title.toLowerCase();
+  
+  // Simplified: Use only 2 color schemes for a cleaner, more professional look
+  // Alternate between brand (blue) and slate (neutral) with subtle variations
+  
+  // Primary sections (alternating pattern for visual separation)
+  const isEven = index % 2 === 0;
   
   if (lowerTitle.includes("motivation") || lowerTitle.includes("goal") || lowerTitle.includes("objective")) {
     return {
       icon: "🎯",
-      border: "border-brand-300",
-      bg: "bg-brand-50",
-      headerBg: "bg-brand-100",
-      text: "text-brand-800",
+      border: "border-brand-300 dark:border-brand-600",
+      bg: "bg-brand-50 dark:bg-brand-900/20",
+      headerBg: "bg-brand-100 dark:bg-brand-900/30",
+      text: "text-brand-800 dark:text-brand-300",
       borderColor: "#A5B6E0",
+      borderColorDark: "#4C5FA8",
       bgColor: "#E8ECF7",
+      bgColorDark: "#1E2A4A",
       headerBgColor: "#D0D9F0",
+      headerBgColorDark: "#2A3A5C",
       textColor: "#1B4091",
+      textColorDark: "#93B0E8",
     };
   }
   
-  if (lowerTitle.includes("constraint") || lowerTitle.includes("limit") || lowerTitle.includes("challenge")) {
-    return {
-      icon: "⏳",
-      border: "border-coral-300",
-      bg: "bg-coral-50",
-      headerBg: "bg-coral-100",
-      text: "text-coral-800",
-      borderColor: "#FFB6A9",
-      bgColor: "#FFF0EC",
-      headerBgColor: "#FFDCD4",
-      textColor: "#D03D33",
-    };
-  }
-  
-  if (lowerTitle.includes("opportunity") || lowerTitle.includes("angle") || lowerTitle.includes("potential")) {
-    return {
-      icon: "💡",
-      border: "border-aqua-300",
-      bg: "bg-aqua-50",
-      headerBg: "bg-aqua-100",
-      text: "text-aqua-800",
-      borderColor: "#A3EAFF",
-      bgColor: "#E8FBFF",
-      headerBgColor: "#CFF5FF",
-      textColor: "#229EE0",
-    };
-  }
-  
-  if (lowerTitle.includes("strength") || lowerTitle.includes("skill") || lowerTitle.includes("advantage")) {
-    return {
-      icon: "💪",
-      border: "border-sand-300",
-      bg: "bg-sand-50",
-      headerBg: "bg-sand-100",
-      text: "text-sand-800",
-      borderColor: "#E8C79A",
-      bgColor: "#FBF7F2",
-      headerBgColor: "#F7EDE0",
-      textColor: "#925C32",
-    };
-  }
-  
-  if (lowerTitle.includes("strategic") || lowerTitle.includes("consideration") || lowerTitle.includes("recommendation")) {
-    return {
-      icon: "🧭",
-      border: "border-violet-300",
-      bg: "bg-violet-50",
-      headerBg: "bg-violet-100",
-      text: "text-violet-800",
-      borderColor: "#C4B5FD",
-      bgColor: "#F5F3FF",
-      headerBgColor: "#EDE9FE",
-      textColor: "#6D28D9",
-    };
-  }
-  
-  if (lowerTitle.includes("follow") || lowerTitle.includes("next") || lowerTitle.includes("action")) {
-    return {
-      icon: "🚀",
-      border: "border-emerald-300",
-      bg: "bg-emerald-50",
-      headerBg: "bg-emerald-100",
-      text: "text-emerald-800",
-      borderColor: "#86EFAC",
-      bgColor: "#ECFDF5",
-      headerBgColor: "#D1FAE5",
-      textColor: "#047857",
-    };
-  }
-  
+  // Use neutral slate for most sections - cleaner, more professional
   return {
-    icon: "📋",
-    border: "border-slate-300",
-    bg: "bg-slate-50",
-    headerBg: "bg-slate-100",
-    text: "text-slate-800",
+    icon: isEven ? "📋" : "✨",
+    border: "border-slate-300 dark:border-slate-600",
+    bg: "bg-slate-50 dark:bg-slate-800/50",
+    headerBg: "bg-slate-100 dark:bg-slate-700/50",
+    text: "text-slate-800 dark:text-slate-200",
     borderColor: "#CAD2DA",
+    borderColorDark: "#475569",
     bgColor: "#F8FAFC",
+    bgColorDark: "#1E293B",
     headerBgColor: "#EEF2F6",
+    headerBgColorDark: "#334155",
     textColor: "#47505B",
+    textColorDark: "#CBD5E1",
   };
 }
 
 function CollapsibleSubsection({ subsection, isOpen, onToggle }) {
   return (
-    <div className="rounded-lg border border-slate-200 bg-white/80 overflow-hidden shadow-sm">
+    <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white/80 dark:bg-slate-800/80 overflow-hidden shadow-sm">
       <button
         onClick={onToggle}
-        className="w-full flex items-center justify-between gap-3 px-4 py-3 bg-slate-50 hover:bg-slate-100 transition-colors"
+        className="w-full flex items-center justify-between gap-3 px-4 py-3 bg-slate-50 dark:bg-slate-700/50 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
       >
-        <h3 className="text-sm font-semibold text-slate-900 text-left">
+        <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100 text-left">
           {subsection.title}
         </h3>
-        <span className={`text-xs transition-transform flex-shrink-0 ${isOpen ? "rotate-180" : ""}`}>
+        <span className={`text-xs transition-transform flex-shrink-0 text-slate-600 dark:text-slate-400 ${isOpen ? "rotate-180" : ""}`}>
           ▼
         </span>
       </button>
       
       {isOpen && (
-        <div className="p-4 bg-white">
+        <div className="p-4 bg-white dark:bg-slate-800/50">
           {subsection.content ? (
-            <div className="prose prose-slate max-w-none text-sm">
+            <div className="prose prose-slate dark:prose-invert max-w-none text-sm">
               <ReactMarkdown
                 components={{
                   p: ({ node, ...props }) => (
-                    <p className="text-slate-700 leading-relaxed mb-3" {...props} />
+                    <p className="text-slate-700 dark:text-slate-300 leading-relaxed mb-3" {...props} />
                   ),
                   ul: ({ node, ...props }) => (
-                    <ul className="list-disc list-outside space-y-2 text-slate-700 mb-3 ml-5" {...props} />
+                    <ul className="list-disc list-outside space-y-2 text-slate-700 dark:text-slate-300 mb-3 ml-5" {...props} />
                   ),
                   ol: ({ node, ...props }) => (
-                    <ol className="list-decimal list-outside space-y-2 text-slate-700 mb-3 ml-5" {...props} />
+                    <ol className="list-decimal list-outside space-y-2 text-slate-700 dark:text-slate-300 mb-3 ml-5" {...props} />
                   ),
                   li: ({ node, ...props }) => (
                     <li className="leading-relaxed pl-1" {...props} />
                   ),
                   strong: ({ node, ...props }) => (
-                    <strong className="font-semibold text-slate-900" {...props} />
+                    <strong className="font-semibold text-slate-900 dark:text-slate-100" {...props} />
                   ),
                   em: ({ node, ...props }) => (
-                    <em className="italic text-slate-600" {...props} />
+                    <em className="italic text-slate-600 dark:text-slate-400" {...props} />
                   ),
                 }}
               >
@@ -409,7 +354,7 @@ function CollapsibleSubsection({ subsection, isOpen, onToggle }) {
               </ReactMarkdown>
             </div>
           ) : (
-            <p className="text-slate-500 text-sm italic">No content available</p>
+            <p className="text-slate-500 dark:text-slate-400 text-sm italic">No content available</p>
           )}
         </div>
       )}
@@ -420,62 +365,51 @@ function CollapsibleSubsection({ subsection, isOpen, onToggle }) {
 function Section({ section, theme, openSubsections, toggleSubsection, sectionNumber, isOpen, onToggle }) {
   return (
     <div
-      className={`rounded-2xl border-2 ${theme.border} ${theme.bg} p-0 overflow-hidden shadow-md`}
-      style={{
-        borderColor: theme.borderColor,
-        backgroundColor: theme.bgColor,
-      }}
+      className={`rounded-2xl border-2 ${theme.border} ${theme.bg} p-0 overflow-hidden shadow-md dark:shadow-slate-900/50`}
     >
       <button
         onClick={onToggle}
-        className={`w-full flex items-center justify-between gap-3 px-6 py-4 ${theme.headerBg} border-b-2 hover:opacity-90 transition-opacity`}
-        style={{
-          backgroundColor: theme.headerBgColor,
-          borderBottomColor: theme.borderColor,
-        }}
+        className={`w-full flex items-center justify-between gap-3 px-6 py-4 ${theme.headerBg} border-b-2 ${theme.border} hover:opacity-90 transition-opacity`}
       >
         <div className="flex items-center gap-3">
           <span className="text-2xl">{theme.icon}</span>
           <div className="flex items-baseline gap-2">
-            <span className="text-sm font-bold" style={{ color: theme.textColor, opacity: 0.7 }}>
+            <span className={`text-sm font-bold ${theme.text} opacity-70`}>
               {sectionNumber}.
             </span>
-            <h2
-              className={`text-lg font-bold text-left ${theme.text}`}
-              style={{ color: theme.textColor }}
-            >
+            <h2 className={`text-lg font-bold text-left ${theme.text}`}>
               {section.title}
             </h2>
           </div>
         </div>
-        <span className={`text-xl transition-transform flex-shrink-0 ${isOpen ? "rotate-180" : ""}`}>
+        <span className={`text-xl transition-transform flex-shrink-0 text-slate-600 dark:text-slate-400 ${isOpen ? "rotate-180" : ""}`}>
           ▼
         </span>
       </button>
       
       {isOpen && (
-      <div className="p-6 space-y-5 bg-white">
+      <div className="p-6 space-y-5 bg-white dark:bg-slate-800/50">
         {section.intro && section.intro.trim() && (
-          <div className="prose prose-slate max-w-none">
+          <div className="prose prose-slate dark:prose-invert max-w-none">
             <ReactMarkdown
               components={{
                 p: ({ node, ...props }) => (
-                  <p className="text-slate-700 leading-relaxed mb-4 text-base" {...props} />
+                  <p className="text-slate-700 dark:text-slate-300 leading-relaxed mb-4 text-base" {...props} />
                 ),
                 ul: ({ node, ...props }) => (
-                  <ul className="list-disc list-outside space-y-2.5 text-slate-700 mb-4 ml-6" {...props} />
+                  <ul className="list-disc list-outside space-y-2.5 text-slate-700 dark:text-slate-300 mb-4 ml-6" {...props} />
                 ),
                 ol: ({ node, ...props }) => (
-                  <ol className="list-decimal list-outside space-y-2.5 text-slate-700 mb-4 ml-6" {...props} />
+                  <ol className="list-decimal list-outside space-y-2.5 text-slate-700 dark:text-slate-300 mb-4 ml-6" {...props} />
                 ),
                 li: ({ node, ...props }) => (
                   <li className="leading-relaxed pl-1" {...props} />
                 ),
                 strong: ({ node, ...props }) => (
-                  <strong className="font-semibold text-slate-900" {...props} />
+                  <strong className="font-semibold text-slate-900 dark:text-slate-100" {...props} />
                 ),
                 em: ({ node, ...props }) => (
-                  <em className="italic text-slate-600" {...props} />
+                  <em className="italic text-slate-600 dark:text-slate-400" {...props} />
                 ),
               }}
             >
@@ -485,7 +419,7 @@ function Section({ section, theme, openSubsections, toggleSubsection, sectionNum
         )}
         
         {section.subsections && section.subsections.length > 0 && (
-          <div className={`space-y-3 ${section.intro && section.intro.trim() ? 'border-t border-slate-200 pt-4' : ''}`}>
+          <div className={`space-y-3 ${section.intro && section.intro.trim() ? 'border-t border-slate-200 dark:border-slate-700 pt-4' : ''}`}>
             {section.subsections.map((subsection, subIndex) => {
               const subsectionKey = `${section.title}-${subIndex}`;
               const isSubOpen = openSubsections.has(subsectionKey);
@@ -503,7 +437,7 @@ function Section({ section, theme, openSubsections, toggleSubsection, sectionNum
         )}
         
         {(!section.intro || !section.intro.trim()) && (!section.subsections || section.subsections.length === 0) && (
-          <p className="text-slate-500 text-sm italic">No content available for this section</p>
+          <p className="text-slate-500 dark:text-slate-400 text-sm italic">No content available for this section</p>
         )}
       </div>
       )}
@@ -511,26 +445,63 @@ function Section({ section, theme, openSubsections, toggleSubsection, sectionNum
   );
 }
 
+// Sample profile analysis data
+const SAMPLE_PROFILE_ANALYSIS = `## 1. Core Motivations and Objective Framing
+
+You're looking to generate extra income while maintaining flexibility. Your interest in technology and automation suggests you value efficiency and scalable solutions.
+
+## 2. Operating Constraints
+
+- **Time**: Limited to ≤ 5 hours/week, requiring solutions that can be built and managed part-time
+- **Budget**: Working with a lean budget, prioritizing cost-effective tools and strategies
+- **Work style**: Prefer structured, systematic approaches that allow for incremental progress
+
+## 3. Opportunity Angles
+
+Given your technical background and interest in automation, there are several opportunity angles:
+- SaaS products that solve specific workflow problems
+- Tools that leverage AI to reduce manual work
+- Platforms that connect service providers with customers
+
+## 4. Strengths
+
+- Technical skills enable rapid prototyping and iteration
+- Understanding of product development and user needs
+- Ability to work independently and systematically
+
+## 5. Strategic Considerations
+
+Focus on ideas that:
+- Can be validated quickly with minimal investment
+- Have clear monetization paths
+- Leverage your existing skills and knowledge
+- Can scale without requiring full-time commitment initially`;
+
 export default function ProfileReport() {
   const { reports, loadRunById } = useReports();
   const query = useQuery();
   const runId = query.get("id");
+  const isSample = query.get("sample") === "true";
   const [openSubsections, setOpenSubsections] = useState(new Set());
   const [openSections, setOpenSections] = useState(new Set());
 
   useEffect(() => {
-    if (runId) {
+    // Only load if not in sample mode
+    if (!isSample && runId) {
       loadRunById(runId);
     }
-  }, [runId, loadRunById]);
+  }, [runId, isSample, loadRunById]);
+
+  // Use sample data if in sample mode
+  const effectiveProfileAnalysis = isSample ? SAMPLE_PROFILE_ANALYSIS : reports?.profile_analysis;
 
   const sections = useMemo(() => {
-    if (!reports?.profile_analysis) {
+    if (!effectiveProfileAnalysis) {
       return [];
     }
-    const parsed = parseProfileSections(reports.profile_analysis);
+    const parsed = parseProfileSections(effectiveProfileAnalysis);
     return parsed;
-  }, [reports?.profile_analysis]);
+  }, [effectiveProfileAnalysis]);
 
   const toggleSubsection = (subsectionKey) => {
     setOpenSubsections((prev) => {
@@ -566,73 +537,93 @@ export default function ProfileReport() {
         path="/results/profile"
       />
       
-      <article className="rounded-3xl border border-slate-200 bg-white/95 p-6 shadow-soft">
-        <h1 className="text-3xl font-semibold text-slate-900 mb-2">Profile Analysis</h1>
-        <p className="text-sm text-slate-500 mb-4">
-          Comprehensive analysis of your entrepreneurial profile, strengths, and opportunities
-        </p>
+      {isSample && (
+        <div className="rounded-2xl border border-brand-200 dark:border-brand-700 bg-brand-50 dark:bg-brand-900/20 p-4 text-center">
+          <p className="text-sm font-semibold text-brand-700 dark:text-brand-300">
+            📋 Sample Profile Analysis — This is a demonstration of what you'll receive
+          </p>
+        </div>
+      )}
+
+      <article className="rounded-3xl border border-slate-200 dark:border-slate-700 bg-white/95 dark:bg-slate-800/95 p-6 shadow-soft">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h1 className="text-3xl font-semibold text-slate-900 dark:text-slate-50 mb-2">Profile Analysis</h1>
+            <p className="text-sm text-slate-500 dark:text-slate-400">
+              Comprehensive analysis of your entrepreneurial profile, strengths, and opportunities
+            </p>
+          </div>
+          {isSample && (
+            <Link 
+              to="/product" 
+              className="inline-flex items-center gap-2 text-sm text-brand-700 dark:text-brand-300 hover:text-brand-800 dark:hover:text-brand-400"
+            >
+              <span aria-hidden="true">←</span> Back to product
+            </Link>
+          )}
+        </div>
         
-        {reports?.personalized_recommendations && (
-          <div className="mb-6 rounded-xl border border-emerald-200 bg-emerald-50/80 p-4 text-emerald-800 shadow-sm">
+        {!isSample && reports?.personalized_recommendations && (
+          <div className="mb-6 rounded-xl border border-emerald-200 dark:border-emerald-700 bg-emerald-50/80 dark:bg-emerald-900/20 p-4 text-emerald-800 dark:text-emerald-300 shadow-sm">
             <div className="flex items-start gap-3">
               <span className="text-xl flex-shrink-0">✨</span>
               <div>
-                <p className="font-semibold text-sm mb-1">Your personalized reports are ready!</p>
-                <p className="text-xs text-emerald-700">
-                  View your <a href={`/results/recommendations${runId ? `?id=${runId}` : ''}`} className="underline font-medium hover:text-emerald-900">startup recommendations</a> and detailed analysis reports.
+                <p className="font-semibold text-sm mb-1 dark:text-emerald-300">Your personalized reports are ready!</p>
+                <p className="text-xs text-emerald-700 dark:text-emerald-400">
+                  View your <a href={`/results/recommendations${runId ? `?id=${runId}` : ''}`} className="underline font-medium hover:text-emerald-900 dark:hover:text-emerald-300">startup recommendations</a> and detailed analysis reports.
                 </p>
               </div>
             </div>
           </div>
         )}
         
-        {!reports?.profile_analysis ? (
-          <div className="rounded-2xl border border-amber-200 bg-amber-50/80 p-6 text-amber-800">
+        {!effectiveProfileAnalysis ? (
+          <div className="rounded-2xl border border-amber-200 dark:border-amber-700 bg-amber-50/80 dark:bg-amber-900/20 p-6 text-amber-800 dark:text-amber-300">
             <p className="text-sm">No profile analysis available. Please run a new analysis first.</p>
-            <p className="text-xs mt-2">Reports object: {JSON.stringify(reports, null, 2)}</p>
+            {!isSample && <p className="text-xs mt-2 text-amber-700 dark:text-amber-400">Reports object: {JSON.stringify(reports, null, 2)}</p>}
           </div>
         ) : sections.length === 0 ? (
-          <div className="rounded-2xl border border-amber-200 bg-amber-50/80 p-6 text-amber-800">
+          <div className="rounded-2xl border border-amber-200 dark:border-amber-700 bg-amber-50/80 dark:bg-amber-900/20 p-6 text-amber-800 dark:text-amber-300">
             <p className="text-sm mb-4">Could not parse sections from markdown. Displaying raw content:</p>
-            <div className="prose prose-slate max-w-none bg-white p-4 rounded-lg border border-amber-300">
+            <div className="prose prose-slate dark:prose-invert max-w-none bg-white dark:bg-slate-800/50 p-4 rounded-lg border border-amber-300 dark:border-amber-700">
               <ReactMarkdown
                 components={{
                   p: ({ node, ...props }) => (
-                    <p className="text-slate-700 leading-relaxed mb-4" {...props} />
+                    <p className="text-slate-700 dark:text-slate-300 leading-relaxed mb-4" {...props} />
                   ),
                   ul: ({ node, ...props }) => (
-                    <ul className="list-disc list-outside space-y-2 text-slate-700 mb-4 ml-6" {...props} />
+                    <ul className="list-disc list-outside space-y-2 text-slate-700 dark:text-slate-300 mb-4 ml-6" {...props} />
                   ),
                   ol: ({ node, ...props }) => (
-                    <ol className="list-decimal list-outside space-y-2 text-slate-700 mb-4 ml-6" {...props} />
+                    <ol className="list-decimal list-outside space-y-2 text-slate-700 dark:text-slate-300 mb-4 ml-6" {...props} />
                   ),
                   li: ({ node, ...props }) => <li className="leading-relaxed" {...props} />,
                   strong: ({ node, ...props }) => (
-                    <strong className="font-semibold text-slate-900" {...props} />
+                    <strong className="font-semibold text-slate-900 dark:text-slate-100" {...props} />
                   ),
                   h1: ({ node, ...props }) => (
-                    <h1 className="text-3xl font-bold text-slate-900 mb-4 mt-6" {...props} />
+                    <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-100 mb-4 mt-6" {...props} />
                   ),
                   h2: ({ node, ...props }) => (
-                    <h2 className="text-2xl font-bold text-slate-900 mb-3 mt-5" {...props} />
+                    <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-100 mb-3 mt-5" {...props} />
                   ),
                   h3: ({ node, ...props }) => (
-                    <h3 className="text-xl font-semibold text-slate-800 mb-2 mt-4" {...props} />
+                    <h3 className="text-xl font-semibold text-slate-800 dark:text-slate-200 mb-2 mt-4" {...props} />
                   ),
                   h4: ({ node, ...props }) => (
-                    <h4 className="text-lg font-semibold text-slate-800 mb-2 mt-3" {...props} />
+                    <h4 className="text-lg font-semibold text-slate-800 dark:text-slate-200 mb-2 mt-3" {...props} />
                   ),
                 }}
               >
-                {reports.profile_analysis}
+                {effectiveProfileAnalysis}
               </ReactMarkdown>
             </div>
-            <p className="text-xs mt-4 text-amber-700">Markdown length: {reports.profile_analysis?.length || 0} characters</p>
+            <p className="text-xs mt-4 text-amber-700 dark:text-amber-400">Markdown length: {effectiveProfileAnalysis?.length || 0} characters</p>
           </div>
         ) : (
           <div className="grid gap-4">
             {sections.map((section, index) => {
-              const theme = getSectionTheme(section.title);
+              const theme = getSectionTheme(section.title, index);
               const sectionNumber = index + 1;
               const isSectionOpen = openSections.has(index);
               

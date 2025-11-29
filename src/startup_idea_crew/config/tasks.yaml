@@ -170,11 +170,15 @@ idea_research_task:
     - Close with a `### Validation Backlog` section containing bullet-point experiments
     - If you cannot meet this structure, you must explicitly state why and request another try. Never provide a one-line summary.
 
-    IMPORTANT: Use tools efficiently—only call them for your top 2-3 ideas to save time:
-    1. Use research_market_trends tool for top 2 ideas only
-    2. Use analyze_competitors tool for top 2 ideas only
-    3. Use estimate_market_size tool for top 2 ideas only
-    4. Use validate_startup_idea tool for top 1 idea only
+    IMPORTANT: Tool results have been pre-computed for your top ideas. Use the provided tool results context instead of calling tools directly. This saves significant time.
+    
+    The following tool results are available in your context:
+    - Market trends research (pre-computed)
+    - Competitor analysis (pre-computed)
+    - Market size estimates (pre-computed)
+    - Idea validation scores (pre-computed)
+    
+    Reference these pre-computed results in your analysis. Only call tools if you need additional information not in the context.
 
     Be concise. Produce the full report but keep each idea section focused. Every idea must be documented with sufficient depth to guide execution.
 
@@ -232,14 +236,18 @@ recommendation_task:
     - If inputs are minimal, still create detailed recommendations by making educated inferences from what's provided.
     - Before finalizing, check that each idea contains at least one execution milestone, risk, and validation prompt that references the idea's unique focus or audience; if not, rework that idea's section until all elements are distinct.
 
-    IMPORTANT: Use tools efficiently—only for the #1 recommended idea to save time:
-    1. Use assess_startup_risks tool for the #1 idea only
-    2. Use estimate_startup_costs tool for the #1 idea only
-    3. Use project_revenue tool for the #1 idea only
-    4. Use check_financial_viability tool for the #1 idea only
-    5. Use check_domain_availability tool for the #1 idea only
-    6. Use generate_customer_persona tool for the #1 idea only
-    7. Use generate_validation_questions tool for all 3 ideas (this is fast)
+    IMPORTANT: Tool results have been pre-computed for your top recommended idea. Use the provided tool results context instead of calling tools directly. This saves significant time.
+    
+    The following tool results are available in your context:
+    - Risk assessment (pre-computed)
+    - Startup cost estimates (pre-computed)
+    - Revenue projections (pre-computed)
+    - Financial viability analysis (pre-computed)
+    - Customer persona (pre-computed)
+    
+    Reference these pre-computed results in your analysis. Only call tools if you need additional information not in the context.
+    
+    You may still use generate_validation_questions tool for all 3 ideas (this is fast).
 
     Always return the full detailed recommendation in markdown. Be concise but complete. The output should contain detailed sections so the frontend can display structured insights.
   expected_output: >

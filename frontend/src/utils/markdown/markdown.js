@@ -242,8 +242,23 @@ export function parseTopIdeas(markdown = "", limit = 5) {
     const summaryMatch = body.replace(/\s+/g, " ").match(/([^.!?]+[.!?])/);
     let summary = summaryMatch ? summaryMatch[0].trim() : rawTitle;
     
-    // Remove "why it fits now" prefix from summary (case-insensitive)
-    summary = summary.replace(/^why\s+it\s+fits\s+now[:\s]*/i, "").trim();
+    // Remove common section headers and prefixes from summary
+    summary = summary
+      .replace(/^why\s+it\s+fits\s+now[:\s]*/i, "")
+      .replace(/^execution\s+path[:\s]*/i, "")
+      .replace(/^[-*]\s*\*\*execution\s+path\*\*[:\s]*/i, "")
+      .replace(/^[-*]\s*execution\s+path[:\s]*/i, "")
+      .replace(/\*\*execution\s+path\*\*[:\s]*/gi, "")
+      .replace(/[-*]\s*\*\*days\s+0[-\s]?30\*\*[:\s]*/gi, "")
+      .replace(/[-*]\s*days\s+0[-\s]?30[:\s]*/gi, "")
+      .replace(/\*\*days\s+0[-\s]?30\*\*[:\s]*/gi, "")
+      .replace(/days\s+0[-\s]?30[:\s]*/gi, "")
+      .replace(/^[-*]\s*/g, "")
+      // Remove any remaining markdown formatting that might be at the start
+      .replace(/^#+\s*/g, "")
+      .replace(/^\*\*/g, "")
+      .replace(/\*\*$/g, "")
+      .trim();
 
     ideas.push({
       index,
@@ -290,11 +305,29 @@ export function parseTopIdeas(markdown = "", limit = 5) {
         const end = nextItem ? nextItem.matchIndex : markdown.length;
         const body = markdown.slice(start, end).trim();
         
+        // Clean summary - remove section headers and roadmap markers
+        let cleanSummary = body.split(/[.!?]/)[0] || item.title;
+        cleanSummary = cleanSummary
+          .replace(/^execution\s+path[:\s]*/i, "")
+          .replace(/^[-*]\s*\*\*execution\s+path\*\*[:\s]*/i, "")
+          .replace(/^[-*]\s*execution\s+path[:\s]*/i, "")
+          .replace(/\*\*execution\s+path\*\*[:\s]*/gi, "")
+          .replace(/[-*]\s*\*\*days\s+0[-\s]?30\*\*[:\s]*/gi, "")
+          .replace(/[-*]\s*days\s+0[-\s]?30[:\s]*/gi, "")
+          .replace(/\*\*days\s+0[-\s]?30\*\*[:\s]*/gi, "")
+          .replace(/days\s+0[-\s]?30[:\s]*/gi, "")
+          .replace(/^[-*]\s*/g, "")
+          // Remove any remaining markdown formatting that might be at the start
+          .replace(/^#+\s*/g, "")
+          .replace(/^\*\*/g, "")
+          .replace(/\*\*$/g, "")
+          .trim();
+        
         ideas.push({
           index: item.index,
           title: item.title,
           body: body || item.title,
-          summary: body.split(/[.!?]/)[0] || item.title,
+          summary: cleanSummary || item.title,
           fullText: markdown.slice(item.matchIndex, end).trim(),
         });
       }

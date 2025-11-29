@@ -35,9 +35,9 @@ export function buildValidationConclusion(validation, categoryAnswers = {}, idea
   parameters.forEach(({ key, label }) => {
     const score = scores[key] || 0;
     if (score >= 8) {
-      strengths.push({ label, score, detail: details[label] || "" });
+      strengths.push({ label, score });
     } else if (score <= 5) {
-      weaknesses.push({ label, score, detail: details[label] || "" });
+      weaknesses.push({ label, score });
     }
   });
 
@@ -72,18 +72,18 @@ export function buildValidationConclusion(validation, categoryAnswers = {}, idea
 
   if (strengths.length > 0) {
     conclusion += `### Key Strengths\n\n`;
-    strengths.forEach(({ label, score, detail }) => {
-      conclusion += `- **${label}** (${score}/10): ${detail || "Strong performance in this area"}\n`;
+    strengths.forEach(({ label, score }) => {
+      conclusion += `- **${label}** (${score}/10)\n`;
     });
-    conclusion += `\nThese are your strongest areas. Leverage them to differentiate your idea and build your competitive advantage.\n\n`;
+    conclusion += `\nThese are your strongest areas. Leverage them to differentiate your idea and build your competitive advantage. See the "Detailed Analysis & Recommendations" tab for comprehensive insights.\n\n`;
   }
 
   if (weaknesses.length > 0) {
     conclusion += `### Critical Areas for Improvement\n\n`;
-    weaknesses.forEach(({ label, score, detail }) => {
-      conclusion += `- **${label}** (${score}/10): ${detail || "Needs significant improvement"}\n`;
+    weaknesses.forEach(({ label, score }) => {
+      conclusion += `- **${label}** (${score}/10)\n`;
     });
-    conclusion += `\nThese areas require immediate attention before moving forward. Address these gaps to improve your overall score.\n\n`;
+    conclusion += `\nThese areas require immediate attention before moving forward. See the "Detailed Analysis & Recommendations" tab above for detailed analysis of each area and specific recommendations for improvement.\n\n`;
   }
 
   conclusion += `### Next Steps\n\n`;

@@ -22,19 +22,23 @@ from startup_idea_crew.tools import (
 )
 
 
-def pre_execute_idea_research_tools(idea: str, interest_area: str = "", sub_interest: str = "") -> Dict[str, str]:
+def pre_execute_idea_research_tools(idea: str, interest_area: str = "", sub_interest: str = "", user_profile: dict = None) -> Dict[str, str]:
     """
     Pre-execute all idea research tools in parallel for a given idea.
     Returns a dictionary of tool results that can be provided as context.
     """
     results = {}
     
-    # Prepare tool calls
+    # Build user profile dict if not provided
+    if user_profile is None:
+        user_profile = {}
+    
+    # Prepare tool calls with user profile data
     tool_calls = {
-        "market_trends": lambda: research_market_trends(idea, interest_area),
-        "competitors": lambda: analyze_competitors(idea, interest_area),
-        "market_size": lambda: estimate_market_size(idea, interest_area),
-        "validation": lambda: validate_startup_idea(idea, interest_area),
+        "market_trends": lambda: research_market_trends(idea, market_segment=interest_area, user_profile=user_profile),
+        "competitors": lambda: analyze_competitors(idea, industry=interest_area, user_profile=user_profile),
+        "market_size": lambda: estimate_market_size(idea, target_audience=interest_area, user_profile=user_profile),
+        "validation": lambda: validate_startup_idea(idea, target_market=interest_area, business_model="", user_profile=user_profile),
     }
     
     # Execute in parallel

@@ -5,6 +5,7 @@ import { useAuth } from "./context/AuthContext.jsx";
 import { useTheme } from "./context/ThemeContext.jsx";
 import LoadingIndicator from "./components/common/LoadingIndicator.jsx";
 import Seo from "./components/common/Seo.jsx";
+import ErrorBoundary from "./components/common/ErrorBoundary.jsx";
 // Public pages
 import LandingPage from "./pages/public/Landing.jsx";
 import AboutPage from "./pages/public/About.jsx";
@@ -145,7 +146,7 @@ function Navigation() {
   }, [learnMenuOpen, reportsMenuOpen]);
 
   return (
-    <header className="sticky top-0 z-40 border-b border-slate-200/60 dark:border-slate-800/80 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md shadow-sm">
+    <header className="z-40 border-b-2 border-brand-200/60 dark:border-brand-800/60 bg-white/98 dark:bg-slate-900/98 backdrop-blur-lg shadow-lg shadow-brand-500/5 dark:shadow-brand-500/5">
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-6 py-4">
         <div className="flex items-center gap-4">
         <NavLink
@@ -485,7 +486,8 @@ export default function App() {
       {/* Don't show navigation for admin routes */}
       {!isAdminRoute && <Navigation />}
       <main className={isAdminRoute ? "min-h-screen bg-slate-100 dark:bg-slate-900" : "mx-auto max-w-6xl px-6 py-10 bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-slate-100"}>
-        <Routes>
+          <ErrorBoundary>
+            <Routes>
             <Route
               path="/"
               element={
@@ -632,7 +634,8 @@ export default function App() {
               }
             />
             <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
+            </Routes>
+          </ErrorBoundary>
         {loading && !isAdminRoute && <LoadingIndicator />}
       </main>
       {!isAdminRoute && <Footer />}
