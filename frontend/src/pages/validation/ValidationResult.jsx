@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, useRef } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import ReactMarkdown from "react-markdown";
+import { pdf } from "@react-pdf/renderer";
 import Seo from "../../components/common/Seo.jsx";
 import { useValidation } from "../../context/ValidationContext.jsx";
 import { useReports } from "../../context/ReportsContext.jsx";
@@ -9,6 +10,7 @@ import { mapValidationToIntake, getExperienceSummaryFromValidation } from "../..
 import { buildValidationConclusion } from "../../utils/formatters/validationConclusion.js";
 import { validationQuestions } from "../../config/validationQuestions.js";
 import Celebration, { getCelebrationMessage } from "../../components/common/Celebration.jsx";
+import ValidationReportPDF from "../../components/pdf/ValidationReportPDF.jsx";
 
 const VALIDATION_PARAMETERS = [
   "Market Opportunity",
@@ -58,16 +60,16 @@ const PARAMETER_GROUPS_LAYOUT = [
 ];
 
 const RADAR_AXES = [
-  { label: "Market", parameter: "Market Opportunity" },
-  { label: "Audience", parameter: "Target Audience Clarity" },
-  { label: "GTM", parameter: "Go-to-Market Strategy" },
-  { label: "PS Fit", parameter: "Problem-Solution Fit" },
-  { label: "Competition", parameter: "Competitive Landscape" },
-  { label: "Tech", parameter: "Technical Feasibility" },
+  { label: "Market Opportunity", parameter: "Market Opportunity" },
+  { label: "Target Audience", parameter: "Target Audience Clarity" },
+  { label: "Go to Market", parameter: "Go-to-Market Strategy" },
+  { label: "Problem-Solution Fit", parameter: "Problem-Solution Fit" },
+  { label: "Competitive Landscape", parameter: "Competitive Landscape" },
+  { label: "Technical Feasibility", parameter: "Technical Feasibility" },
   { label: "Scalability", parameter: "Scalability Potential" },
-  { label: "Biz Model", parameter: "Business Model Viability" },
+  { label: "Business Model", parameter: "Business Model Viability" },
   { label: "Financials", parameter: "Financial Sustainability" },
-  { label: "Risk", parameter: "Risk Assessment" },
+  { label: "Risk Assessment", parameter: "Risk Assessment" },
 ];
 
 const SCORE_LEGEND = [
@@ -127,9 +129,9 @@ const getScoreFromScores = (scores = {}, parameter = "") => {
 };
 
 function RadarChart({ axes }) {
-  const size = 420;
+  const size = 320;
   const center = size / 2;
-  const radius = size / 2 - 32;
+  const radius = size / 2 - 60; // Increased padding to prevent label overlap
   const levels = 4;
   const axisCount = axes.length;
   const angleStep = (Math.PI * 2) / axisCount;
@@ -137,7 +139,7 @@ function RadarChart({ axes }) {
   const getCoordinates = (index, fraction) => {
     const angle = angleStep * index - Math.PI / 2;
     const r = radius * fraction;
-    return {
+      return {
       x: center + r * Math.cos(angle),
       y: center + r * Math.sin(angle),
     };
@@ -152,10 +154,11 @@ function RadarChart({ axes }) {
     .join(" ");
 
   return (
-    <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-soft">
-      <h3 className="mb-4 text-lg font-semibold text-slate-900">Idea Shape Across 10 Validation Pillars</h3>
-      <div className="aspect-square" style={{ minHeight: 380 }}>
-        <svg viewBox={`0 0 ${size} ${size}`} className="h-full w-full">
+    <div className="h-full flex flex-col">
+      <h3 className="mb-1 text-sm font-semibold text-slate-900 dark:text-slate-100">Idea Shape Across 10 Validation Pillars</h3>
+      <div className="flex-1 flex items-center justify-center" style={{ minHeight: 0, maxHeight: '270px' }}>
+        <div className="w-full h-full flex items-center justify-center" style={{ maxHeight: '270px', padding: '0 6px' }}>
+        <svg viewBox={`0 0 ${size} ${size}`} className="w-full h-full" style={{ overflow: 'visible', maxHeight: '270px', maxWidth: '100%' }}>
           {/* concentric levels */}
           {Array.from({ length: levels }).map((_, levelIndex) => {
             const fraction = (levelIndex + 1) / levels;
@@ -197,46 +200,148 @@ function RadarChart({ axes }) {
           {/* data polygon */}
           <polygon points={polygonPoints} fill="rgba(59,130,246,0.2)" stroke="#2563eb" strokeWidth={2} />
 
-          {/* axis labels */}
+          {/* axis labels with scores */}
           {axes.map((axis, idx) => {
-            const { x, y } = getCoordinates(idx, 1.18);
+            const labelPos = getCoordinates(idx, 1.08);
+            const scorePos = getCoordinates(idx, 1.16);
+            const score = (axis.value || 0).toFixed(1);
+            
+            // Calculate text anchor and position based on angle to prevent overlap
+            const angle = angleStep * idx - Math.PI / 2;
+            const normalizedAngle = ((angle % (Math.PI * 2)) + (Math.PI * 2)) % (Math.PI * 2);
+            
+            // Determine text anchor based on position around the circle
+            let textAnchor = "middle";
+            let dx = 0;
+            let dy = 0;
+            
+            if (normalizedAngle < Math.PI / 6 || normalizedAngle > Math.PI * 11/6) {
+              // Right side
+              textAnchor = "start";
+              dx = 3;
+            } else if (normalizedAngle > Math.PI * 5/6 && normalizedAngle < Math.PI * 7/6) {
+              // Left side
+              textAnchor = "end";
+              dx = -3;
+            } else if (normalizedAngle > Math.PI / 6 && normalizedAngle < Math.PI * 5/6) {
+              // Top half
+              textAnchor = "middle";
+              dy = -2;
+            } else {
+              // Bottom half
+              textAnchor = "middle";
+              dy = 2;
+            }
+            
             return (
-              <text
-                key={`label-${axis.label}`}
-                x={x}
-                y={y}
-                textAnchor="middle"
-                dominantBaseline="middle"
-                fontSize="12"
-                fontWeight="600"
-                fill="#475569"
-                paintOrder="stroke"
-                stroke="#f8fafc"
-                strokeWidth="3"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                {axis.label}
-              </text>
+              <g key={`label-${axis.label}`}>
+                {/* Label */}
+                <text
+                  x={labelPos.x + dx}
+                  y={labelPos.y + dy}
+                  textAnchor={textAnchor}
+                  dominantBaseline="middle"
+                  fontSize="7"
+                  fontWeight="600"
+                  fill="#475569"
+                  paintOrder="stroke"
+                  stroke="#ffffff"
+                  strokeWidth="3"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  style={{ pointerEvents: 'none' }}
+                >
+                  {axis.label}
+                </text>
+                {/* Score */}
+                <text
+                  x={scorePos.x}
+                  y={scorePos.y}
+                  textAnchor="middle"
+                  dominantBaseline="middle"
+                  fontSize="7"
+                  fontWeight="700"
+                  fill="#1e293b"
+                  paintOrder="stroke"
+                  stroke="#ffffff"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  style={{ pointerEvents: 'none' }}
+                >
+                  {score}
+                </text>
+              </g>
             );
           })}
         </svg>
+        </div>
       </div>
     </div>
   );
 }
 
-function ScoreLegendCard() {
+function ParameterScores({ parameterCards, parameterLookup }) {
+  const getScoreColor = (score) => {
+    if (score >= 9) return 'bg-green-500';
+    if (score >= 7) return 'bg-green-500';
+    if (score >= 4) return 'bg-yellow-400';
+    return 'bg-red-400';
+  };
+
+  const getScoreForParam = (paramName) => {
+    const card = parameterCards?.find(c => c.name === paramName);
+    if (card?.score !== undefined) return card.score;
+    const lookup = parameterLookup?.[paramName];
+    if (lookup?.score !== undefined) return lookup.score;
+    return 0;
+  };
+
+  // Map RADAR_AXES to get all parameters in order
+  const parameters = RADAR_AXES.map(axis => ({
+    label: axis.label,
+    fullName: axis.parameter,
+    score: getScoreForParam(axis.parameter),
+  }));
+
   return (
-    <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-soft">
-      <h3 className="text-lg font-semibold text-slate-900">Score Legend</h3>
-      <p className="mb-4 text-sm text-slate-500">How to interpret each parameter score.</p>
-      <div className="space-y-3">
+    <div className="h-full flex flex-col">
+      <h3 className="mb-3 text-sm font-semibold text-slate-900 dark:text-slate-100">Parameter Scores</h3>
+      <div className="flex-1 space-y-3">
+        {parameters.map((param) => {
+          const percentage = Math.max(0, Math.min(100, (param.score / 10) * 100));
+          return (
+            <div key={param.fullName} className="flex items-center gap-2">
+              <span className="text-xs font-medium text-slate-700 dark:text-slate-300 flex-shrink-0 text-left" style={{ width: 'auto', minWidth: '140px' }}>
+                {param.label}
+              </span>
+              <div className="flex-1 h-2 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-700">
+                <div
+                  className={`h-full ${getScoreColor(param.score)} transition-all`}
+                  style={{ width: `${percentage}%` }}
+                />
+              </div>
+              <span className="text-xs font-semibold text-slate-900 dark:text-slate-100 flex-shrink-0 text-right" style={{ width: '32px' }}>
+                {param.score.toFixed(1)}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function ScoreLegend() {
+  return (
+    <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4 shadow-soft">
+      <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-3">Score Legend</h3>
+      <div className="space-y-2">
         {SCORE_LEGEND.map((item) => (
-          <div key={item.range} className="flex items-center gap-3">
-            <span className={`h-2.5 w-2.5 rounded-full ${item.color}`} />
-            <p className="text-sm font-medium text-slate-700">
-              <span className="font-semibold text-slate-900">{item.range}</span> — {item.label}
+          <div key={item.range} className="flex items-center gap-2">
+            <span className={`h-2 w-2 rounded-full flex-shrink-0 ${item.color}`} />
+            <p className="text-xs font-medium text-slate-600 dark:text-slate-300 leading-tight">
+              <span className="font-semibold">{item.range}</span> — {item.label}
             </p>
           </div>
         ))}
@@ -251,37 +356,35 @@ function ParameterCard({ parameter, score, details }) {
   const percentage = Math.max(0, Math.min(100, (safeScore / 10) * 100));
   const assessment = formatDetails(details);
   return (
-    <div className="flex h-full flex-col rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+    <div className="flex h-full flex-col rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-5 shadow-sm">
       <div className="mb-4 flex items-start justify-between gap-3">
         <div>
-          <p className="text-sm font-semibold text-slate-900">{parameter}</p>
-          <p className="text-xs uppercase text-slate-400 tracking-wide">{meta.label}</p>
+          <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{parameter}</p>
+          <p className="text-xs uppercase text-slate-400 dark:text-slate-500 tracking-wide">{meta.label}</p>
         </div>
         <div className={`rounded-full px-3 py-1 text-xs font-semibold ${meta.badge}`}>
           {safeScore.toFixed(1)} / 10
         </div>
       </div>
 
-      <div className="mb-4 h-1.5 overflow-hidden rounded-full bg-slate-100">
+      <div className="mb-4 h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-700">
         <div
           className={`h-full ${meta.progress}`}
           style={{ width: `${percentage}%` }}
         />
       </div>
 
-      <div className="mt-auto">
-        <p className="text-sm text-slate-700">
-          <span className="font-semibold text-slate-900">Assessment:</span>{" "}
-          <span
-            style={{
-              display: "-webkit-box",
-              WebkitLineClamp: 4,
-              WebkitBoxOrient: "vertical",
-              overflow: "hidden",
-            }}
-          >
-            {assessment}
-          </span>
+      <div className="flex-1">
+        <p 
+          className="text-sm text-slate-700 dark:text-slate-300"
+          style={{
+            display: "-webkit-box",
+            WebkitLineClamp: 4,
+            WebkitBoxOrient: "vertical",
+            overflow: "hidden",
+          }}
+        >
+          {assessment}
         </p>
       </div>
     </div>
@@ -293,7 +396,7 @@ export default function ValidationResult() {
   const navigate = useNavigate();
   const { currentValidation, loadValidationById, categoryAnswers, ideaExplanation } = useValidation();
   const { setInputs } = useReports();
-  const { subscription } = useAuth();
+  const { subscription, user } = useAuth();
   const isPro = subscription?.subscription_type === "pro" || subscription?.subscription_type === "annual";
   const isFree = !subscription || subscription?.subscription_type === "free";
   const isStarter = subscription?.subscription_type === "starter";
@@ -303,7 +406,6 @@ export default function ValidationResult() {
   const [downloadingPDF, setDownloadingPDF] = useState(false);
   const [viewFilter, setViewFilter] = useState("all");
   const [sortOption, setSortOption] = useState("category");
-  const pdfRef = useRef(null);
   const downloadButtonRef = useRef(null);
 
   useEffect(() => {
@@ -402,6 +504,16 @@ export default function ValidationResult() {
     // Ensure it's a string
     let text = typeof rawRecommendations === 'string' ? rawRecommendations : String(rawRecommendations || "");
     
+    // Clean up stray ** markers that aren't part of proper markdown formatting
+    // First, normalize proper bold markdown patterns, then remove any remaining stray **
+    text = text
+      // Replace proper bold patterns temporarily (we'll restore them)
+      .replace(/\*\*([^*]+?)\*\*/g, '___BOLD___$1___BOLD___')
+      // Remove any remaining stray **
+      .replace(/\*\*/g, '')
+      // Restore proper bold markers
+      .replace(/___BOLD___/g, '**');
+    
     // Debug logging (only in development)
     if (process.env.NODE_ENV === 'development') {
       console.log('[Recommendations] Raw text preview:', text.substring(0, 500));
@@ -437,7 +549,7 @@ export default function ValidationResult() {
           const title = content.substring(0, colonIndex).trim();
           const description = content.substring(colonIndex + 1).trim();
           
-          // Add the main bullet with title (preserve bold if present)
+          // Add the main bullet with title (clean any stray **)
           const cleanTitle = title.replace(/\*\*/g, '').trim();
           processedLines.push(`- **${cleanTitle}**:`);
           
@@ -463,7 +575,9 @@ export default function ValidationResult() {
             if (numberedMatches[0].index > 0) {
               const beforeText = description.substring(0, numberedMatches[0].index).trim();
               if (beforeText.length > 10) {
-                processedLines.push(`  - ${beforeText}`);
+                // Clean any stray ** from description text
+                const cleanedBeforeText = beforeText.replace(/\*\*/g, '').trim();
+                processedLines.push(`  - ${cleanedBeforeText}`);
               }
             }
             
@@ -481,9 +595,12 @@ export default function ValidationResult() {
               }
               
               if (itemTitle) {
-                processedLines.push(`- **${itemTitle}**:`);
+                const cleanItemTitle = itemTitle.replace(/\*\*/g, '').trim();
+                processedLines.push(`- **${cleanItemTitle}**:`);
                 if (itemDescription && itemDescription.length > 10) {
-                  processedLines.push(`  - ${itemDescription}`);
+                  // Clean any stray ** from description text
+                  const cleanedDescription = itemDescription.replace(/\*\*/g, '').trim();
+                  processedLines.push(`  - ${cleanedDescription}`);
                 }
               }
             });
@@ -492,7 +609,9 @@ export default function ValidationResult() {
             const sentences = description.split(/(?<=[.!?])\s+(?=[A-Z])/).filter(s => s.trim().length > 20);
             if (sentences.length > 1) {
               sentences.forEach(sentence => {
-                processedLines.push(`  - ${sentence.trim()}`);
+                // Clean any stray ** from sentence text
+                const cleanedSentence = sentence.trim().replace(/\*\*/g, '');
+                processedLines.push(`  - ${cleanedSentence}`);
               });
             } else {
               // If single sentence, try splitting by common separators
@@ -515,21 +634,26 @@ export default function ValidationResult() {
                 const periodSplit = description.split(/\.\s+/).filter(s => s.trim().length > 20);
                 if (periodSplit.length > 1) {
                   periodSplit.forEach(part => {
-                    processedLines.push(`  - ${part.trim()}.`);
+                    // Clean any stray ** from part text
+                    const cleanedPart = part.trim().replace(/\*\*/g, '');
+                    processedLines.push(`  - ${cleanedPart}.`);
                   });
                 } else {
-                  // Keep as single sub-bullet
-                  processedLines.push(`  - ${description}`);
+                  // Keep as single sub-bullet, clean any stray **
+                  const cleanedDescription = description.replace(/\*\*/g, '').trim();
+                  processedLines.push(`  - ${cleanedDescription}`);
                 }
               }
             }
           } else {
-            // Short description, keep as single sub-bullet
-            processedLines.push(`  - ${description}`);
+            // Short description, keep as single sub-bullet, clean any stray **
+            const cleanedDescription = description.replace(/\*\*/g, '').trim();
+            processedLines.push(`  - ${cleanedDescription}`);
           }
         } else {
-          // No colon, convert numbered to bullet
-          processedLines.push(`- ${content}`);
+          // No colon, convert numbered to bullet, clean any stray **
+          const cleanedContent = content.replace(/\*\*/g, '').trim();
+          processedLines.push(`- ${cleanedContent}`);
         }
         continue;
       }
@@ -545,8 +669,9 @@ export default function ValidationResult() {
           const title = content.substring(0, colonIndex).trim();
           const description = content.substring(colonIndex + 1).trim();
           
-          // Add the main bullet with title
-          processedLines.push(`- **${title}**:`);
+          // Add the main bullet with title, clean any stray **
+          const cleanTitle2 = title.replace(/\*\*/g, '').trim();
+          processedLines.push(`- **${cleanTitle2}**:`);
           
           // Break down description into sub-bullets if it's long
           if (description.length > 50) {
@@ -554,7 +679,9 @@ export default function ValidationResult() {
             const sentences = description.split(/(?<=[.!?])\s+(?=[A-Z])/).filter(s => s.trim().length > 15);
             if (sentences.length > 1) {
               sentences.forEach(sentence => {
-                processedLines.push(`  - ${sentence.trim()}`);
+                // Clean any stray ** from sentence text
+                const cleanedSentence = sentence.trim().replace(/\*\*/g, '');
+                processedLines.push(`  - ${cleanedSentence}`);
               });
             } else {
               // If single sentence, try splitting by common separators
@@ -565,7 +692,9 @@ export default function ValidationResult() {
                   const parts = description.split(sep).filter(p => p.trim().length > 15);
                   if (parts.length > 1) {
                     parts.forEach(part => {
-                      processedLines.push(`  - ${part.trim()}`);
+                      // Clean any stray ** from part text
+                      const cleanedPart = part.trim().replace(/\*\*/g, '');
+                      processedLines.push(`  - ${cleanedPart}`);
                     });
                     split = true;
                     break;
@@ -573,17 +702,20 @@ export default function ValidationResult() {
                 }
               }
               if (!split) {
-                // Keep as single sub-bullet
-                processedLines.push(`  - ${description}`);
+                // Keep as single sub-bullet, clean any stray **
+                const cleanedDescription = description.replace(/\*\*/g, '').trim();
+                processedLines.push(`  - ${cleanedDescription}`);
               }
             }
           } else {
-            // Short description, keep as single sub-bullet
-            processedLines.push(`  - ${description}`);
+            // Short description, keep as single sub-bullet, clean any stray **
+            const cleanedDescription = description.replace(/\*\*/g, '').trim();
+            processedLines.push(`  - ${cleanedDescription}`);
           }
         } else {
-          // No colon, keep as is
-          processedLines.push(`- ${content}`);
+          // No colon, keep as is, but clean any stray **
+          const cleanedContent = content.replace(/\*\*/g, '').trim();
+          processedLines.push(`- ${cleanedContent}`);
         }
         continue;
       }
@@ -594,7 +726,9 @@ export default function ValidationResult() {
         const sentences = line.split(/(?<=[.!?])\s+(?=[A-Z])/).filter(s => s.trim().length > 20);
         if (sentences.length > 1) {
           sentences.forEach(sentence => {
-            processedLines.push(`- ${sentence.trim()}`);
+            // Clean any stray ** from sentence text
+            const cleanedSentence = sentence.trim().replace(/\*\*/g, '');
+            processedLines.push(`- ${cleanedSentence}`);
           });
         } else {
           // Try splitting by separators
@@ -605,7 +739,9 @@ export default function ValidationResult() {
               const parts = line.split(sep).filter(p => p.trim().length > 20);
               if (parts.length > 1) {
                 parts.forEach(part => {
-                  processedLines.push(`- ${part.trim()}`);
+                  // Clean any stray ** from part text
+                  const cleanedPart = part.trim().replace(/\*\*/g, '');
+                  processedLines.push(`- ${cleanedPart}`);
                 });
                 split = true;
                 break;
@@ -613,15 +749,30 @@ export default function ValidationResult() {
             }
           }
           if (!split) {
-            processedLines.push(`- ${line}`);
+            // Clean any stray ** from line text
+            const cleanedLine = line.replace(/\*\*/g, '').trim();
+            processedLines.push(`- ${cleanedLine}`);
           }
         }
       } else {
-        processedLines.push(`- ${line}`);
+        // Clean any stray ** from line text
+        const cleanedLine = line.replace(/\*\*/g, '').trim();
+        processedLines.push(`- ${cleanedLine}`);
       }
     }
     
-    const result = processedLines.join('\n');
+    let result = processedLines.join('\n');
+    
+    // Final cleanup: remove any remaining stray ** that aren't part of proper markdown bold syntax
+    // Match proper markdown bold: **text**, then remove any remaining **
+    result = result
+      // Temporarily protect proper bold patterns
+      .replace(/\*\*([^*\n]+?)\*\*/g, '___BOLD_START___$1___BOLD_END___')
+      // Remove any remaining stray **
+      .replace(/\*\*/g, '')
+      // Restore proper bold markers
+      .replace(/___BOLD_START___/g, '**')
+      .replace(/___BOLD_END___/g, '**');
     
     // Debug logging (only in development)
     if (process.env.NODE_ENV === 'development') {
@@ -815,80 +966,79 @@ export default function ValidationResult() {
       {/* Header */}
       <div className="mb-8 flex items-center justify-between no-print">
         <div>
-          <h1 className="text-3xl font-bold text-slate-900">Idea Validation Results</h1>
-          <p className="mt-2 text-slate-600">Your idea has been evaluated across 10 key parameters</p>
+          <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-100">Idea Validation Results</h1>
+          <p className="mt-2 text-slate-600 dark:text-slate-400">Your idea has been evaluated across 10 key parameters</p>
         </div>
         <div className="flex gap-3">
           <button
             ref={downloadButtonRef}
             onClick={async () => {
-              if (!pdfRef.current || downloadingPDF) return;
+              if (downloadingPDF) return;
               try {
                 setDownloadingPDF(true);
-                const [{ default: html2canvas }, { default: jsPDF }] = await Promise.all([
-                  import('html2canvas'),
-                  import('jspdf')
-                ]);
+                console.log("Starting PDF generation...");
                 
-                const elementsToHide = pdfRef.current.querySelectorAll('button, a, [role="button"], .no-print, nav');
-                elementsToHide.forEach(el => el.style.display = 'none');
+                // Flatten parameter groups to get all parameter cards
+                const allParameterCards = parameterGroups.flatMap(group => group.cards);
                 
-                const canvas = await html2canvas(pdfRef.current, {
-                  scale: 1.2,
-                  backgroundColor: "#ffffff",
-                  useCORS: true,
-                  logging: false,
-                  ignoreElements: (element) => {
-                    return element.tagName === 'BUTTON' || 
-                           element.tagName === 'A' || 
-                           element.classList?.contains('no-print') ||
-                           element.getAttribute('role') === 'button' ||
-                           element.tagName === 'NAV';
-                  }
+                // Prepare props
+                const pdfProps = {
+                  validation: validation,
+                  overallScore: overallScore,
+                  scores: scores,
+                  parameterCards: allParameterCards,
+                  recommendations: recommendations,
+                  nextSteps: nextSteps,
+                  categoryAnswers: effectiveCategoryAnswers || categoryAnswers,
+                  ideaExplanation: ideaExplanation,
+                  userName: user?.name || user?.email?.split('@')[0] || 'User',
+                  userEmail: user?.email || '',
+                  finalConclusion: finalConclusion
+                };
+                
+                console.log("PDF props:", {
+                  hasValidation: !!pdfProps.validation,
+                  overallScore: pdfProps.overallScore,
+                  paramCardsCount: pdfProps.parameterCards?.length || 0,
+                  hasRecommendations: !!pdfProps.recommendations,
+                  hasNextSteps: !!pdfProps.nextSteps
                 });
                 
-                elementsToHide.forEach(el => el.style.display = '');
-                const imgData = canvas.toDataURL("image/png");
-                const pdf = new jsPDF("p", "pt", "a4");
-                const pdfWidth = pdf.internal.pageSize.getWidth();
-                const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+                // Generate PDF using @react-pdf/renderer
+                console.log("Calling pdf() function...");
+                const pdfBlob = await pdf(
+                  <ValidationReportPDF {...pdfProps} />
+                ).toBlob();
                 
-                // Handle multi-page PDF with proper page breaks
-                const pageHeight = pdf.internal.pageSize.getHeight();
-                let heightLeft = pdfHeight;
-                let position = 0;
+                console.log("PDF generated successfully, size:", pdfBlob.size, "bytes");
                 
-                // Add first page
-                pdf.addImage(imgData, "PNG", 0, position, pdfWidth, pdfHeight);
-                heightLeft -= pageHeight;
-                
-                // Add additional pages if content exceeds one page
-                while (heightLeft >= 0) {
-                  position = heightLeft - pdfHeight;
-                  pdf.addPage();
-                  pdf.addImage(imgData, "PNG", 0, position, pdfWidth, pdfHeight);
-                  heightLeft -= pageHeight;
-                }
-                
-                const validationId = validation?.id || currentValidation?.id || Date.now();
-                pdf.save(`idea-validation-report-${validationId}.pdf`);
+                // Create download link and trigger download
+                const url = URL.createObjectURL(pdfBlob);
+                const link = document.createElement('a');
+                link.href = url;
+                const validationId = validation?.id || validation?.validation_id || currentValidation?.id || Date.now();
+                link.download = `idea-validation-report-${validationId}.pdf`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
+                console.log("PDF download triggered");
               } catch (err) {
-                if (process.env.NODE_ENV === 'development') {
-                  console.error("Failed to generate PDF", err);
-                }
-                alert("Failed to generate PDF. Please try again.");
+                console.error("Failed to generate PDF:", err);
+                console.error("Error stack:", err.stack);
+                alert("Failed to generate PDF: " + (err.message || "Please check the console for details."));
               } finally {
                 setDownloadingPDF(false);
               }
             }}
             disabled={downloadingPDF}
-            className="rounded-xl border border-brand-300 bg-white px-4 py-2 text-sm font-semibold text-brand-700 shadow-sm transition hover:border-brand-400 hover:bg-brand-50 whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
+            className="rounded-xl border border-brand-300 dark:border-brand-600 bg-white dark:bg-slate-800 px-4 py-2 text-sm font-semibold text-brand-700 dark:text-brand-400 shadow-sm transition hover:border-brand-400 dark:hover:border-brand-500 hover:bg-brand-50 dark:hover:bg-brand-900/20 whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {downloadingPDF ? "Generating PDF..." : "Download PDF"}
           </button>
           <Link
             to="/validate-idea"
-            className="rounded-xl border border-brand-300 bg-white px-4 py-2 text-sm font-semibold text-brand-700 shadow-sm transition hover:border-brand-400 hover:bg-brand-50 whitespace-nowrap"
+            className="rounded-xl border border-brand-300 dark:border-brand-600 bg-white dark:bg-slate-800 px-4 py-2 text-sm font-semibold text-brand-700 dark:text-brand-400 shadow-sm transition hover:border-brand-400 dark:hover:border-brand-500 hover:bg-brand-50 dark:hover:bg-brand-900/20 whitespace-nowrap"
           >
             Validate Another Idea
           </Link>
@@ -897,7 +1047,7 @@ export default function ValidationResult() {
 
       {/* Tabbed Interface */}
       <div className="mb-8 no-print">
-        <nav className="flex flex-wrap gap-2 rounded-full bg-slate-100/80 p-1">
+        <nav className="flex flex-wrap gap-2 rounded-full bg-slate-100/80 dark:bg-slate-800/80 p-1">
           {[
             { id: "input", label: "Your Input", hidden: false },
             { id: "results", label: "Validation Results", hidden: false },
@@ -907,39 +1057,37 @@ export default function ValidationResult() {
           ]
             .filter((tab) => !tab.hidden)
             .map((tab) => (
-              <button
+            <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
                 className={`rounded-full px-4 py-2 text-sm font-medium transition ${
                   activeTab === tab.id
-                    ? "bg-white text-slate-900 shadow-sm shadow-slate-300"
-                    : "text-slate-500 hover:text-slate-800"
+                    ? "bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 shadow-sm shadow-slate-300 dark:shadow-slate-700"
+                    : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200"
                 }`}
               >
                 {tab.label}
-              </button>
+            </button>
             ))}
-        </nav>
+          </nav>
       </div>
 
-      {/* PDF Export Container */}
-      <div ref={pdfRef}>
       {/* Tab Content: Your Input */}
       {activeTab === "input" && (
         <div className="space-y-6">
-          <p className="text-sm text-slate-600">These are the inputs you provided during validation.</p>
+          <p className="text-sm text-slate-600 dark:text-slate-400">These are the inputs you provided during validation.</p>
           {/* Category Questions */}
           {validationQuestions.category_questions && validationQuestions.category_questions.length > 0 && (
-            <div className="rounded-3xl border border-slate-200 bg-white/95 p-6 shadow-soft">
-              <h2 className="mb-6 text-2xl font-semibold text-slate-900">Category Information</h2>
+            <div className="rounded-3xl border border-slate-200 dark:border-slate-700 bg-white/95 dark:bg-slate-800/95 p-6 shadow-soft">
+              <h2 className="mb-6 text-2xl font-semibold text-slate-900 dark:text-slate-100">Category Information</h2>
               <div className="space-y-6">
                 {validationQuestions.category_questions.map((question) => {
                   const answer = categoryAnswers[question.id];
                   if (!answer) return null;
                   return (
-                    <div key={question.id} className="rounded-xl border border-slate-100 bg-slate-50/50 p-4">
-                      <h3 className="mb-2 text-sm font-semibold text-slate-700">{question.question}</h3>
-                      <p className="text-base text-slate-900">{answer}</p>
+                    <div key={question.id} className="rounded-xl border border-slate-100 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-700/50 p-4">
+                      <h3 className="mb-2 text-sm font-semibold text-slate-700 dark:text-slate-300">{question.question}</h3>
+                      <p className="text-base text-slate-900 dark:text-slate-100">{answer}</p>
                     </div>
                   );
                 })}
@@ -949,16 +1097,37 @@ export default function ValidationResult() {
 
           {/* Idea Explanation Questions */}
           {validationQuestions.idea_explanation_questions && validationQuestions.idea_explanation_questions.length > 0 && (
-            <div className="rounded-3xl border border-slate-200 bg-white/95 p-6 shadow-soft">
-              <h2 className="mb-6 text-2xl font-semibold text-slate-900">Idea Details</h2>
+            <div className="rounded-3xl border border-slate-200 dark:border-slate-700 bg-white/95 dark:bg-slate-800/95 p-6 shadow-soft">
+              <h2 className="mb-6 text-2xl font-semibold text-slate-900 dark:text-slate-100">Idea Details</h2>
               <div className="space-y-6">
                 {validationQuestions.idea_explanation_questions.map((question) => {
                   const answer = categoryAnswers[question.id];
                   if (!answer) return null;
                   return (
-                    <div key={question.id} className="rounded-xl border border-slate-100 bg-slate-50/50 p-4">
-                      <h3 className="mb-2 text-sm font-semibold text-slate-700">{question.question}</h3>
-                      <p className="text-base text-slate-900">{answer}</p>
+                    <div key={question.id} className="rounded-xl border border-slate-100 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-700/50 p-4">
+                      <h3 className="mb-2 text-sm font-semibold text-slate-700 dark:text-slate-300">{question.question}</h3>
+                      <p className="text-base text-slate-900 dark:text-slate-100">{answer}</p>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Optional Fields (Business Archetype, Delivery Channel, etc.) */}
+          {validationQuestions.optional_fields && validationQuestions.optional_fields.length > 0 && (
+            <div className="rounded-3xl border border-slate-200 dark:border-slate-700 bg-white/95 dark:bg-slate-800/95 p-6 shadow-soft">
+              <h2 className="mb-6 text-2xl font-semibold text-slate-900 dark:text-slate-100">Additional Information</h2>
+              <div className="space-y-6">
+                {validationQuestions.optional_fields.map((question) => {
+                  const answer = categoryAnswers[question.id];
+                  if (!answer) return null;
+                  // Handle multi-select fields (like constraints)
+                  const displayAnswer = Array.isArray(answer) ? answer.join(", ") : answer;
+                  return (
+                    <div key={question.id} className="rounded-xl border border-slate-100 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-700/50 p-4">
+                      <h3 className="mb-2 text-sm font-semibold text-slate-700 dark:text-slate-300">{question.question}</h3>
+                      <p className="text-base text-slate-900 dark:text-slate-100">{displayAnswer}</p>
                     </div>
                   );
                 })}
@@ -968,10 +1137,10 @@ export default function ValidationResult() {
 
           {/* Detailed Idea Explanation */}
           {ideaExplanation && (
-            <div className="rounded-3xl border border-slate-200 bg-white/95 p-6 shadow-soft">
-              <h2 className="mb-4 text-2xl font-semibold text-slate-900">Detailed Idea Explanation</h2>
-              <div className="rounded-xl border border-slate-100 bg-slate-50/50 p-4">
-                <p className="whitespace-pre-wrap text-base leading-relaxed text-slate-900">{ideaExplanation}</p>
+            <div className="rounded-3xl border border-slate-200 dark:border-slate-700 bg-white/95 dark:bg-slate-800/95 p-6 shadow-soft">
+              <h2 className="mb-4 text-2xl font-semibold text-slate-900 dark:text-slate-100">Detailed Idea Explanation</h2>
+              <div className="rounded-xl border border-slate-100 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-700/50 p-4">
+                <p className="whitespace-pre-wrap text-base leading-relaxed text-slate-900 dark:text-slate-100">{ideaExplanation}</p>
               </div>
             </div>
           )}
@@ -980,14 +1149,14 @@ export default function ValidationResult() {
           {(!validationQuestions.category_questions || validationQuestions.category_questions.length === 0) &&
             Object.keys(categoryAnswers).length > 0 && (
               <div className="rounded-3xl border border-sand-200 bg-sand-50/80 p-6 shadow-soft">
-                <h2 className="mb-4 text-xl font-semibold text-slate-900">Your Idea Summary</h2>
+                <h2 className="mb-4 text-xl font-semibold text-slate-900 dark:text-slate-100">Your Idea Summary</h2>
                 <div className="space-y-4 text-sm">
                   {Object.entries(categoryAnswers).map(([key, value]) => (
                     <div key={key}>
-                      <span className="font-semibold text-slate-700">
+                      <span className="font-semibold text-slate-700 dark:text-slate-300">
                         {key.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())}:
                       </span>{" "}
-                      <span className="text-slate-600">{value}</span>
+                      <span className="text-slate-600 dark:text-slate-400">{value}</span>
                     </div>
                   ))}
                 </div>
@@ -1019,8 +1188,8 @@ export default function ValidationResult() {
           
           {/* Re-Validation Comparison Banner */}
           {previousScore !== null && previousScore !== undefined && (
-            <div className="rounded-3xl border-2 border-emerald-300 bg-gradient-to-br from-emerald-50 to-white p-6 shadow-soft">
-              <h2 className="mb-3 text-xl font-bold text-slate-900">📈 Improvement Comparison</h2>
+            <div className="rounded-3xl border-2 border-emerald-300 dark:border-emerald-600 bg-gradient-to-br from-emerald-50 to-white dark:from-emerald-900/20 dark:to-slate-800 p-6 shadow-soft">
+              <h2 className="mb-3 text-xl font-bold text-slate-900 dark:text-slate-100">📈 Improvement Comparison</h2>
               <div className="flex items-center gap-4">
                 <div className="flex-1 rounded-xl border-2 border-slate-200 bg-slate-50 p-4">
                   <div className="text-xs font-semibold text-slate-600 mb-1">Previous Score</div>
@@ -1052,72 +1221,66 @@ export default function ValidationResult() {
           )}
 
           {/* Diagnostic Layout */}
-          <div className="space-y-8">
-            {/* Title + Summary Row */}
-            <div className="rounded-3xl border border-slate-200 bg-white p-8 shadow-soft">
-              <div className="grid gap-6 lg:grid-cols-12">
-                <div className="space-y-4 lg:col-span-8">
-                  <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-                    Validation Results
-                  </p>
-                  <h2 className="text-4xl font-bold text-slate-900">Idea Validation Results</h2>
-                  <p className="text-base text-slate-600">
-                    Diagnostic breakdown across 10 validation pillars. This page shows scores and short insights only.
-                  </p>
-                </div>
-                <div className="space-y-4 lg:col-span-4">
-                  <div className="rounded-2xl border border-transparent bg-gradient-to-br from-brand-50 to-white px-5 py-4 text-center shadow-sm">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      Overall Score
-                    </p>
-                    <p className="text-4xl font-bold text-slate-900">{overallScorePercent}</p>
-                    <p className="text-xs text-slate-500">out of 100</p>
-                    <div className={`mt-3 inline-flex rounded-full px-4 py-1 text-xs font-semibold ${overallStatus.badge}`}>
-                      {overallStatus.label}
-                    </div>
+          <div className="space-y-4">
+          {/* Overall Score + Score Legend */}
+          <div className="flex flex-col lg:flex-row lg:justify-between gap-4 mb-1.5">
+            {/* Small Score Card - Left Side */}
+            <div className="lg:w-48 flex-shrink-0">
+              <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4 shadow-soft">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-2">
+                  Overall Score
+                </p>
+                <div className="text-center">
+                  <div className="flex items-baseline justify-center gap-1">
+                    <p className="text-4xl font-bold text-slate-900 dark:text-slate-100">{overallScore.toFixed(1)}</p>
+                    <p className="text-lg text-slate-500 dark:text-slate-400">/10</p>
                   </div>
-                  {(businessArchetypeLabel || deliveryChannelLabel) && (
-                    <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-left text-sm text-slate-600">
-                      {businessArchetypeLabel && (
-                        <p>
-                          <span className="font-semibold text-slate-900">Business Type:</span> {businessArchetypeLabel}
-                        </p>
-                      )}
-                      {deliveryChannelLabel && (
-                        <p className="mt-1">
-                          <span className="font-semibold text-slate-900">Delivery Channel:</span> {deliveryChannelLabel}
-                        </p>
-                      )}
-                    </div>
-                  )}
+                  <div className={`mt-2 inline-flex rounded-full px-3 py-1 text-xs font-semibold ${overallStatus.badge}`}>
+                    {overallStatus.label}
+                  </div>
                 </div>
               </div>
             </div>
+            
+            {/* Score Legend - Right Side */}
+            <div className="lg:w-48 flex-shrink-0">
+              <ScoreLegend />
+            </div>
+          </div>
 
-            {/* Radar + Legend */}
-            <p className="text-base font-medium text-slate-600 mb-2">Diagnostic Overview Across 10 Validation Pillars</p>
-            <div className="grid gap-6 lg:grid-cols-12">
-              <div className="lg:col-span-8">
-                <RadarChart axes={radarData} />
-              </div>
-              <div className="lg:col-span-4">
-                <ScoreLegendCard />
+            {/* Diagnostic Overview - Unified Analytics Block */}
+            <p className="text-lg font-semibold text-slate-600 dark:text-slate-400 mb-2">Diagnostic Overview Across 10 Validation Pillars</p>
+            <div className="mb-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4 md:p-6 shadow-[0_2px_10px_rgba(0,0,0,0.06)]">
+              {/* Desktop ≥1024px: 2 columns (50% / 50%), Tablet/Mobile: Stacked */}
+              <div className="flex flex-col lg:flex-row gap-6 items-stretch lg:items-stretch min-h-[340px]">
+                {/* Column 1: Radar Chart (50%) */}
+                <div className="lg:w-[50%] flex flex-col lg:justify-center lg:pr-4">
+                  <RadarChart axes={radarData} />
+                </div>
+                
+                {/* Column 2: Parameter Scores (50%) */}
+                <div className="lg:w-[50%] flex flex-col lg:justify-center lg:border-l lg:border-slate-200 dark:lg:border-slate-700 lg:pl-4">
+                  <ParameterScores 
+                    parameterCards={parameterGroups.flatMap(g => g.cards)} 
+                    parameterLookup={parameterLookup} 
+                  />
+                </div>
               </div>
             </div>
 
             {/* Filter / Sort Row */}
-            <p className="mb-2 text-sm text-slate-600">View parameter-by-parameter breakdown and insights.</p>
-            <div className="flex flex-col gap-4 rounded-3xl border border-slate-200 bg-white p-5 shadow-soft md:flex-row md:items-center md:justify-between">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">View</p>
-                <div className="mt-2 inline-flex overflow-hidden rounded-full border border-slate-200">
+            <p className="mb-2 text-sm text-slate-600 dark:text-slate-400">View parameter-by-parameter breakdown and insights.</p>
+            <div className="flex flex-col gap-4 rounded-3xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-5 shadow-soft md:flex-row md:items-center md:justify-between mb-4">
+                    <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">View</p>
+                <div className="mt-2 inline-flex overflow-hidden rounded-full border border-slate-200 dark:border-slate-700">
                   <button
                     type="button"
                     onClick={() => setViewFilter("all")}
                     className={`px-4 py-2 text-sm font-semibold transition ${
                       viewFilter === "all"
-                        ? "bg-slate-900 text-white"
-                        : "text-slate-500 hover:text-slate-900"
+                        ? "bg-slate-900 dark:bg-slate-700 text-white"
+                        : "text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100"
                     }`}
                   >
                     All Parameters
@@ -1127,28 +1290,28 @@ export default function ValidationResult() {
                     onClick={() => setViewFilter("red")}
                     className={`px-4 py-2 text-sm font-semibold transition ${
                       viewFilter === "red"
-                        ? "bg-slate-900 text-white"
-                        : "text-slate-500 hover:text-slate-900"
+                        ? "bg-slate-900 dark:bg-slate-700 text-white"
+                        : "text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100"
                     }`}
                   >
                     Red Flags Only
                   </button>
-                </div>
-              </div>
+                      </div>
+                      </div>
               <div className="w-full md:w-auto">
-                <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                <label className="text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
                   Sort by
                 </label>
                 <select
                   value={sortOption}
                   onChange={(event) => setSortOption(event.target.value)}
-                  className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-100 md:w-56"
+                  className="mt-2 w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-slate-700 dark:text-slate-300 focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-100 md:w-56"
                 >
                   <option value="category">Category Order</option>
                   <option value="score-asc">Score: Low → High</option>
                   <option value="score-desc">Score: High → Low</option>
                 </select>
-              </div>
+                    </div>
             </div>
 
             {/* Parameter Groups */}
@@ -1156,84 +1319,84 @@ export default function ValidationResult() {
               {parameterGroups.length > 0 ? (
                 parameterGroups.map((group) => (
                   <div key={group.id}>
-                    <div className="mb-4">
-                      <h3 className="text-xl font-semibold text-slate-900">{group.title}</h3>
-                      <p className="text-sm text-slate-500">{group.description}</p>
-                    </div>
+                    <div className="mb-6">
+                      <h3 className="text-xl font-semibold text-slate-900 dark:text-slate-100">{group.title}</h3>
+                      <p className="text-sm text-slate-500 dark:text-slate-400">{group.description}</p>
+                      </div>
                     <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
                       {group.cards.map((card) => (
-                        <ParameterCard
+                          <ParameterCard
                           key={card.name}
                           parameter={card.name}
                           score={card.score}
                           details={card.details}
-                        />
-                      ))}
-                    </div>
+                          />
+                        ))}
+                      </div>
                   </div>
                 ))
               ) : (
-                <div className="rounded-2xl border border-slate-200 bg-white p-6 text-center text-sm text-slate-600">
+                <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 text-center text-sm text-slate-600 dark:text-slate-400">
                   No parameters match the selected filter.
-                </div>
-              )}
+                    </div>
+                  )}
             </div>
 
             {/* Footer Nav */}
-            <div className="flex flex-col gap-4 rounded-3xl border border-slate-200 bg-white p-6 shadow-soft lg:flex-row lg:items-center lg:justify-between">
-              <div>
-                <p className="text-sm font-semibold text-slate-900">This page shows your diagnostic scores only.</p>
-                <p className="text-sm text-slate-600">
+            <div className="flex flex-col gap-4 rounded-3xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 shadow-soft lg:flex-row lg:items-center lg:justify-between">
+                    <div>
+                <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">This page shows your diagnostic scores only.</p>
+                <p className="text-sm text-slate-600 dark:text-slate-400">
                   To explore next steps and recommendations, go to the relevant sections.
                 </p>
-              </div>
+                      </div>
               <div className="flex flex-wrap gap-3">
                 <button
                   type="button"
                   onClick={() => setActiveTab("analysis")}
-                  className="rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-brand-300 hover:text-brand-600"
+                  className="rounded-full border border-slate-200 dark:border-slate-700 px-4 py-2 text-sm font-semibold text-slate-700 dark:text-slate-300 transition hover:border-brand-300 hover:text-brand-600"
                 >
                   Recommendations
                 </button>
                 <button
                   type="button"
                   onClick={() => setActiveTab("nextsteps")}
-                  className="rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-brand-300 hover:text-brand-600"
+                  className="rounded-full border border-slate-200 dark:border-slate-700 px-4 py-2 text-sm font-semibold text-slate-700 dark:text-slate-300 transition hover:border-brand-300 hover:text-brand-600"
                 >
                   Action Plan
                 </button>
                 <button
                   type="button"
                   onClick={() => downloadButtonRef.current?.click()}
-                  className="rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-brand-300 hover:text-brand-600"
+                  className="rounded-full border border-slate-200 dark:border-slate-700 px-4 py-2 text-sm font-semibold text-slate-700 dark:text-slate-300 transition hover:border-brand-300 hover:text-brand-600"
                 >
                   Download Full Report
                 </button>
+                      </div>
+                    </div>
               </div>
-            </div>
-          </div>
         </div>
       )}
 
       {/* Tab Content: Detailed Analysis & Recommendations */}
       {activeTab === "analysis" && recommendations && (
-        <div className="rounded-3xl border border-slate-200 bg-white/95 p-6 shadow-soft">
-          <h2 className="mb-4 text-2xl font-semibold text-slate-900">Detailed Analysis & Recommendations</h2>
-          <div className="prose prose-slate max-w-none">
+        <div className="rounded-3xl border border-slate-200 dark:border-slate-700 bg-white/95 dark:bg-slate-800/95 p-6 shadow-soft">
+          <h2 className="mb-4 text-2xl font-semibold text-slate-900 dark:text-slate-100">Detailed Analysis & Recommendations</h2>
+          <div className="prose prose-slate dark:prose-invert max-w-none">
             <ReactMarkdown
               components={{
                 p: ({ node, ...props }) => {
                   const text = node.children?.[0]?.value || "";
                   if (text && text.length > 50 && !text.includes("\n")) {
-                    return <p className="text-slate-700 leading-relaxed mb-4" {...props} />;
+                    return <p className="text-slate-700 dark:text-slate-300 leading-relaxed mb-4" {...props} />;
                   }
-                  return <p className="text-slate-700 leading-relaxed mb-4" {...props} />;
+                  return <p className="text-slate-700 dark:text-slate-300 leading-relaxed mb-4" {...props} />;
                 },
                 ul: ({ node, ...props }) => (
-                  <ul className="list-disc list-outside space-y-2 text-slate-700 mb-4 ml-6" style={{ listStyleType: 'disc', paddingLeft: '1.5rem' }} {...props} />
+                  <ul className="list-disc list-outside space-y-2 text-slate-700 dark:text-slate-300 mb-4 ml-6" style={{ listStyleType: 'disc', paddingLeft: '1.5rem' }} {...props} />
                 ),
                 ol: ({ node, ...props }) => (
-                  <ol className="list-decimal list-outside space-y-2 text-slate-700 mb-4 ml-6" style={{ listStyleType: 'decimal', paddingLeft: '1.5rem' }} {...props} />
+                  <ol className="list-decimal list-outside space-y-2 text-slate-700 dark:text-slate-300 mb-4 ml-6" style={{ listStyleType: 'decimal', paddingLeft: '1.5rem' }} {...props} />
                 ),
                 li: ({ node, ...props }) => {
                   // Check if this is a nested list item (has ul/ol as children)
@@ -1242,20 +1405,20 @@ export default function ValidationResult() {
                   );
                   return (
                     <li 
-                      className={`leading-relaxed text-base ${hasNestedList ? 'mb-2' : 'mb-3'}`} 
+                      className={`leading-relaxed text-base text-slate-700 dark:text-slate-300 ${hasNestedList ? 'mb-2' : 'mb-3'}`} 
                       style={{ display: 'list-item', listStylePosition: 'outside' }} 
                       {...props} 
                     />
                   );
                 },
                 strong: ({ node, ...props }) => (
-                  <strong className="font-semibold text-slate-900" {...props} />
+                  <strong className="font-semibold text-slate-900 dark:text-slate-100" {...props} />
                 ),
                 h2: ({ node, ...props }) => (
-                  <h2 className="text-xl font-bold text-slate-900 mt-6 mb-4" {...props} />
+                  <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100 mt-6 mb-4" {...props} />
                 ),
                 h3: ({ node, ...props }) => (
-                  <h3 className="text-lg font-semibold text-slate-800 mt-5 mb-3" {...props} />
+                  <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-200 mt-5 mb-3" {...props} />
                 ),
               }}
             >
@@ -1267,27 +1430,27 @@ export default function ValidationResult() {
 
       {/* Tab Content: Final Validation Conclusion & Decision */}
       {activeTab === "conclusion" && finalConclusion && (
-        <div className="rounded-3xl border-2 border-brand-300 bg-gradient-to-br from-brand-50 to-white p-6 shadow-soft">
-          <div className="prose prose-slate max-w-none">
+        <div className="rounded-3xl border-2 border-brand-300 dark:border-brand-600 bg-gradient-to-br from-brand-50 to-white dark:from-brand-900/20 dark:to-slate-800 p-6 shadow-soft">
+          <div className="prose prose-slate dark:prose-invert max-w-none">
             <ReactMarkdown
               components={{
                 h2: ({ node, ...props }) => (
-                  <h2 className="text-2xl font-bold text-slate-900 mb-4 mt-6" {...props} />
+                  <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-100 mb-4 mt-6" {...props} />
                 ),
                 h3: ({ node, ...props }) => (
-                  <h3 className="text-xl font-semibold text-slate-800 mb-3 mt-4" {...props} />
+                  <h3 className="text-xl font-semibold text-slate-800 dark:text-slate-200 mb-3 mt-4" {...props} />
                 ),
                 p: ({ node, ...props }) => (
-                  <p className="text-slate-700 leading-relaxed mb-3" {...props} />
+                  <p className="text-slate-700 dark:text-slate-300 leading-relaxed mb-3" {...props} />
                 ),
                 ul: ({ node, ...props }) => (
-                  <ul className="list-disc list-outside space-y-2 text-slate-700 mb-4 ml-6" {...props} />
+                  <ul className="list-disc list-outside space-y-2 text-slate-700 dark:text-slate-300 mb-4 ml-6" {...props} />
                 ),
                 li: ({ node, ...props }) => (
-                  <li className="leading-relaxed" {...props} />
+                  <li className="leading-relaxed text-slate-700 dark:text-slate-300" {...props} />
                 ),
                 strong: ({ node, ...props }) => (
-                  <strong className="font-semibold text-slate-900" {...props} />
+                  <strong className="font-semibold text-slate-900 dark:text-slate-100" {...props} />
                 ),
               }}
             >
@@ -1301,8 +1464,8 @@ export default function ValidationResult() {
       {activeTab === "nextsteps" && (
         <div className="space-y-6">
           {/* What's Next Section - Score-based recommendations */}
-          <div className="rounded-3xl border-2 border-brand-300 bg-gradient-to-br from-brand-50 to-white p-6 shadow-soft">
-            <h2 className="mb-4 text-2xl font-bold text-slate-900">📋 What's Next?</h2>
+          <div className="rounded-3xl border-2 border-brand-300 dark:border-brand-600 bg-gradient-to-br from-brand-50 to-white dark:from-brand-900/20 dark:to-slate-800 p-6 shadow-soft">
+            <h2 className="mb-4 text-2xl font-bold text-slate-900 dark:text-slate-100">📋 What's Next?</h2>
             {overallScore >= 7 ? (
               <div className="space-y-4">
                 <div className="rounded-xl border-2 border-emerald-200 bg-emerald-50/50 p-4">
@@ -1356,14 +1519,14 @@ export default function ValidationResult() {
 
           {/* Progress-Based Upgrade Prompts */}
           {(isFree || isStarter) && (
-            <div className="rounded-3xl border-2 border-brand-200 bg-gradient-to-br from-brand-50 to-white p-6 shadow-soft">
-              <h2 className="mb-4 text-xl font-bold text-slate-900">🚀 Unlock More Features</h2>
+            <div className="rounded-3xl border-2 border-brand-200 dark:border-brand-700 bg-gradient-to-br from-brand-50 to-white dark:from-brand-900/20 dark:to-slate-800 p-6 shadow-soft">
+              <h2 className="mb-4 text-xl font-bold text-slate-900 dark:text-slate-100">🚀 Unlock More Features</h2>
               {isFree && (
                 <div className="space-y-3">
-                  <p className="text-sm text-slate-700">
+                  <p className="text-sm text-slate-700 dark:text-slate-300">
                     You've used <strong>{subscription?.validations_used || 0} of 2</strong> free validations.
                   </p>
-                  <p className="text-sm text-slate-600">
+                  <p className="text-sm text-slate-600 dark:text-slate-400">
                     Upgrade to <strong>Starter ($9/month)</strong> to get 20 validations/month and compare your ideas side-by-side.
                   </p>
                   <Link
@@ -1376,10 +1539,10 @@ export default function ValidationResult() {
               )}
               {isStarter && (
                 <div className="space-y-3">
-                  <p className="text-sm text-slate-700">
+                  <p className="text-sm text-slate-700 dark:text-slate-300">
                     You've used <strong>{subscription?.validations_used || 0} of 20</strong> validations this month.
                   </p>
-                  <p className="text-sm text-slate-600">
+                  <p className="text-sm text-slate-600 dark:text-slate-400">
                     Upgrade to <strong>Pro ($29/month)</strong> for unlimited validations, advanced analytics, and priority support.
                   </p>
                   <Link
@@ -1394,31 +1557,31 @@ export default function ValidationResult() {
           )}
 
           {nextSteps && (
-            <div className="rounded-3xl border-2 border-emerald-200 bg-gradient-to-br from-emerald-50 to-white p-6 shadow-soft">
+            <div className="rounded-3xl border-2 border-emerald-200 dark:border-emerald-700 bg-gradient-to-br from-emerald-50 to-white dark:from-emerald-900/20 dark:to-slate-800 p-6 shadow-soft">
               <div className="mb-4 flex items-center gap-3">
-                <h2 className="text-2xl font-bold text-slate-900">🚀 Your Next Steps</h2>
-                <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">Start Here</span>
+                <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-100">🚀 Your Next Steps</h2>
+                <span className="rounded-full bg-emerald-100 dark:bg-emerald-900/30 px-3 py-1 text-xs font-semibold text-emerald-700 dark:text-emerald-300">Start Here</span>
               </div>
-              <p className="mb-6 text-slate-600">
+              <p className="mb-6 text-slate-600 dark:text-slate-400">
                 Follow these specific, actionable steps to move your idea forward. Each step includes resources and timelines.
               </p>
-              <div className="prose prose-slate max-w-none">
+              <div className="prose prose-slate dark:prose-invert max-w-none">
                 <ReactMarkdown
                   components={{
                     ol: ({ node, ...props }) => (
-                      <ol className="list-decimal list-outside space-y-4 text-slate-700 mb-4 ml-6" {...props} />
+                      <ol className="list-decimal list-outside space-y-4 text-slate-700 dark:text-slate-300 mb-4 ml-6" {...props} />
                     ),
                     li: ({ node, ...props }) => (
-                      <li className="leading-relaxed text-base" {...props} />
+                      <li className="leading-relaxed text-base text-slate-700 dark:text-slate-300" {...props} />
                     ),
                     strong: ({ node, ...props }) => (
-                      <strong className="font-semibold text-slate-900" {...props} />
+                      <strong className="font-semibold text-slate-900 dark:text-slate-100" {...props} />
                     ),
                     p: ({ node, ...props }) => (
-                      <p className="text-slate-700 leading-relaxed mb-2" {...props} />
+                      <p className="text-slate-700 dark:text-slate-300 leading-relaxed mb-2" {...props} />
                     ),
                     a: ({ node, ...props }) => (
-                      <a className="text-brand-600 hover:text-brand-700 underline" target="_blank" rel="noopener noreferrer" {...props} />
+                      <a className="text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300 underline" target="_blank" rel="noopener noreferrer" {...props} />
                     ),
                   }}
                 >
@@ -1524,7 +1687,6 @@ export default function ValidationResult() {
           </div>
         </div>
       )}
-      </div>
     </section>
   );
 }

@@ -526,7 +526,7 @@ class UserNote(db.Model):
     tags = db.Column(db.Text)  # JSON string array of tags
     created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    is_deleted = db.Column(db.Boolean, default=False, index=True)
+    # Note: is_deleted column removed - not present in database table
     archived_at = db.Column(db.DateTime, nullable=True)
     
     # Relationships

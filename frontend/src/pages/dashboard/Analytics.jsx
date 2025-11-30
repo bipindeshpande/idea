@@ -188,14 +188,21 @@ export default function AnalyticsPage() {
     const mediumScores = scores.filter(s => s >= 5 && s < 7).length;
     const lowScores = scores.filter(s => s < 5).length;
     
-    // Count ideas discovered - each run generates exactly 3 ideas
-    // Since allRuns is already deduplicated, just use its length
-    const uniqueRunsCount = allRuns.length;
+    // Count only completed discoveries (runs with valid reports containing ideas)
+    // This matches what Dashboard shows - only runs with personalized_recommendations
+    const completedRuns = allRuns.filter(run => {
+      const reports = run.reports || {};
+      return reports.personalized_recommendations && 
+             (typeof reports.personalized_recommendations === 'string' ? 
+              reports.personalized_recommendations.trim().length > 0 : 
+              Object.keys(reports.personalized_recommendations || {}).length > 0);
+    });
+    const uniqueRunsCount = completedRuns.length;
     const totalIdeasDiscovered = uniqueRunsCount * 3;
     
-    // Interest areas from runs
+    // Interest areas from completed runs
     const interestAreas = {};
-    allRuns.forEach(run => {
+    completedRuns.forEach(run => {
       const area = run.inputs?.interest_area || run.inputs?.sub_interest_area;
       if (area) {
         interestAreas[area] = (interestAreas[area] || 0) + 1;
@@ -204,9 +211,9 @@ export default function AnalyticsPage() {
     const topInterestArea = Object.entries(interestAreas)
       .sort(([, a], [, b]) => b - a)[0]?.[0] || "None";
     
-    // Goal types
+    // Goal types from completed runs
     const goalTypes = {};
-    allRuns.forEach(run => {
+    completedRuns.forEach(run => {
       const goal = run.inputs?.goal_type;
       if (goal) {
         goalTypes[goal] = (goalTypes[goal] || 0) + 1;
@@ -216,11 +223,12 @@ export default function AnalyticsPage() {
       .sort(([, a], [, b]) => b - a)[0]?.[0] || "None";
     
     // Time-based trends for both discoveries and validations
+    // Use completedRuns for discovery counts to match what users see
     const now = Date.now();
     const last30DaysValidations = allValidations.filter(v => (v.timestamp || 0) >= now - 30 * 24 * 60 * 60 * 1000);
     const last7DaysValidations = allValidations.filter(v => (v.timestamp || 0) >= now - 7 * 24 * 60 * 60 * 1000);
-    const last30DaysDiscoveries = allRuns.filter(r => (r.timestamp || 0) >= now - 30 * 24 * 60 * 60 * 1000);
-    const last7DaysDiscoveries = allRuns.filter(r => (r.timestamp || 0) >= now - 7 * 24 * 60 * 60 * 1000);
+    const last30DaysDiscoveries = completedRuns.filter(r => (r.timestamp || 0) >= now - 30 * 24 * 60 * 60 * 1000);
+    const last7DaysDiscoveries = completedRuns.filter(r => (r.timestamp || 0) >= now - 7 * 24 * 60 * 60 * 1000);
     
     return {
       totalRuns: uniqueRunsCount,  // Use unique count, not allRuns.length
@@ -243,7 +251,7 @@ export default function AnalyticsPage() {
 
   if (loading) {
     return (
-      <div className="mx-auto max-w-7xl px-6 py-8">
+      <div className="mx-auto max-w-6xl px-6 py-8">
         <div className="text-center">
           <p className="text-slate-600 dark:text-slate-300">Loading analytics...</p>
         </div>
@@ -252,7 +260,7 @@ export default function AnalyticsPage() {
   }
 
   return (
-    <div className="mx-auto max-w-7xl px-6 py-8">
+    <div className="mx-auto max-w-6xl px-6 py-8">
       <Seo
         title="Analytics Dashboard | Startup Idea Advisor"
         description="View your idea validation and discovery analytics"
@@ -260,18 +268,18 @@ export default function AnalyticsPage() {
       />
 
       {/* Header */}
-      <div className="mb-8">
+      <div className="mb-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-50">Analytics Dashboard</h1>
-            <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
+            <h1 className="text-2xl font-bold text-slate-900">Analytics Dashboard</h1>
+            <p className="mt-1 text-sm text-slate-600">
               Insights into your idea discovery and validation journey
             </p>
           </div>
           <div className="flex gap-3">
             <Link
               to="/dashboard"
-              className="rounded-xl border border-slate-200/60 dark:border-slate-700/60 bg-white dark:bg-slate-800/50 px-4 py-2 text-sm font-semibold text-slate-700 dark:text-slate-300 transition-all duration-200 hover:bg-slate-50 dark:hover:bg-slate-800"
+              className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
             >
               Back to Dashboard
             </Link>
@@ -280,112 +288,86 @@ export default function AnalyticsPage() {
       </div>
 
       {/* Split Layout: Discovery on Left, Validations on Right */}
-      <div className="mb-8 grid gap-6 lg:grid-cols-2">
+      <div className="mb-6 grid gap-4 lg:grid-cols-2">
         
         {/* DISCOVERY SECTION */}
-        <div className="rounded-2xl border-2 border-brand-200/60 dark:border-brand-700/60 bg-gradient-to-br from-brand-50/50 to-white dark:from-brand-900/20 dark:to-slate-800/50 p-6 shadow-lg">
-          <div className="mb-6 flex items-center gap-3">
-            <div className="rounded-full bg-brand-100 dark:bg-brand-900/30 p-3">
-              <span className="text-2xl">💡</span>
-            </div>
-            <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-50">Discovery Analytics</h2>
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-soft">
+          <div className="mb-4 flex items-center gap-2">
+            <span className="text-xl">💡</span>
+            <h2 className="text-lg font-semibold text-slate-900">Discovery Analytics</h2>
           </div>
           
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="rounded-xl border border-slate-200/60 dark:border-slate-700/60 bg-white dark:bg-slate-800/50 p-4 shadow-md">
-              <p className="text-sm font-medium text-slate-600 dark:text-slate-400">Total Sessions</p>
-              <p className="mt-2 text-3xl font-bold text-slate-900 dark:text-slate-50">{stats.totalRuns}</p>
+          <div className="grid gap-3 md:grid-cols-2">
+            <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4">
+              <p className="text-xs font-medium text-slate-600">Total Sessions</p>
+              <p className="mt-1 text-2xl font-bold text-slate-900">{stats.totalRuns}</p>
             </div>
             
-            <div className="rounded-xl border border-slate-200/60 dark:border-slate-700/60 bg-white dark:bg-slate-800/50 p-4 shadow-md">
-              <p className="text-sm font-medium text-slate-600 dark:text-slate-400">Ideas Discovered</p>
-              <p className="mt-2 text-3xl font-bold text-slate-900 dark:text-slate-50">{stats.totalIdeasDiscovered}</p>
+            <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4">
+              <p className="text-xs font-medium text-slate-600">Ideas Discovered</p>
+              <p className="mt-1 text-2xl font-bold text-slate-900">{stats.totalIdeasDiscovered}</p>
             </div>
             
-            <div className="rounded-xl border border-slate-200/60 dark:border-slate-700/60 bg-white dark:bg-slate-800/50 p-4 shadow-md">
-              <p className="text-sm font-medium text-slate-600 dark:text-slate-400">Last 7 Days</p>
-              <p className="mt-2 text-3xl font-bold text-slate-900 dark:text-slate-50">{stats.discoveriesLast7Days}</p>
+            <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4">
+              <p className="text-xs font-medium text-slate-600">Last 7 Days</p>
+              <p className="mt-1 text-2xl font-bold text-slate-900">{stats.discoveriesLast7Days}</p>
             </div>
             
-            <div className="rounded-xl border border-slate-200/60 dark:border-slate-700/60 bg-white dark:bg-slate-800/50 p-4 shadow-md">
-              <p className="text-sm font-medium text-slate-600 dark:text-slate-400">Last 30 Days</p>
-              <p className="mt-2 text-3xl font-bold text-slate-900 dark:text-slate-50">{stats.discoveriesLast30Days}</p>
+            <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4">
+              <p className="text-xs font-medium text-slate-600">Last 30 Days</p>
+              <p className="mt-1 text-2xl font-bold text-slate-900">{stats.discoveriesLast30Days}</p>
             </div>
           </div>
-          
-          {stats.topInterestArea !== "None" && (
-            <div className="mt-4 rounded-xl border border-brand-200/60 dark:border-brand-700/60 bg-brand-50/50 dark:bg-brand-900/20 p-4">
-              <p className="text-sm font-medium text-slate-600 dark:text-slate-400">Top Interest Area</p>
-              <p className="mt-1 text-lg font-bold text-slate-900 dark:text-slate-50">{stats.topInterestArea}</p>
-            </div>
-          )}
-          
-          {stats.topGoalType !== "None" && (
-            <div className="mt-4 rounded-xl border border-brand-200/60 dark:border-brand-700/60 bg-brand-50/50 dark:bg-brand-900/20 p-4">
-              <p className="text-sm font-medium text-slate-600 dark:text-slate-400">Top Goal Type</p>
-              <p className="mt-1 text-lg font-bold text-slate-900 dark:text-slate-50">{stats.topGoalType}</p>
-            </div>
-          )}
         </div>
 
         {/* VALIDATION SECTION */}
-        <div className="rounded-2xl border-2 border-coral-200/60 dark:border-coral-700/60 bg-gradient-to-br from-coral-50/50 to-white dark:from-coral-900/20 dark:to-slate-800/50 p-6 shadow-lg">
-          <div className="mb-6 flex items-center gap-3">
-            <div className="rounded-full bg-coral-100 dark:bg-coral-900/30 p-3">
-              <span className="text-2xl">🔍</span>
-            </div>
-            <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-50">Validation Analytics</h2>
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-soft">
+          <div className="mb-4 flex items-center gap-2">
+            <span className="text-xl">🔍</span>
+            <h2 className="text-lg font-semibold text-slate-900">Validation Analytics</h2>
           </div>
           
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="rounded-xl border border-slate-200/60 dark:border-slate-700/60 bg-white dark:bg-slate-800/50 p-4 shadow-md">
-              <p className="text-sm font-medium text-slate-600 dark:text-slate-400">Total Validations</p>
-              <p className="mt-2 text-3xl font-bold text-slate-900 dark:text-slate-50">{stats.totalValidations}</p>
+          <div className="grid gap-3 md:grid-cols-2">
+            <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4">
+              <p className="text-xs font-medium text-slate-600">Total Validations</p>
+              <p className="mt-1 text-2xl font-bold text-slate-900">{stats.totalValidations}</p>
             </div>
             
             {stats.validationsWithScores > 0 && (
-              <div className="rounded-xl border border-slate-200/60 dark:border-slate-700/60 bg-white dark:bg-slate-800/50 p-4 shadow-md">
-                <p className="text-sm font-medium text-slate-600 dark:text-slate-400">Average Score</p>
-                <p className="mt-2 text-3xl font-bold text-slate-900 dark:text-slate-50">
-                  {stats.avgScore}
-                  <span className="text-lg text-slate-500 dark:text-slate-400">/10</span>
+              <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4">
+                <p className="text-xs font-medium text-slate-600">Average Score</p>
+                <p className="mt-1 text-2xl font-bold text-slate-900">
+                  {stats.avgScore}<span className="text-base text-slate-500">/10</span>
                 </p>
               </div>
             )}
             
-            <div className="rounded-xl border border-slate-200/60 dark:border-slate-700/60 bg-white dark:bg-slate-800/50 p-4 shadow-md">
-              <p className="text-sm font-medium text-slate-600 dark:text-slate-400">Last 7 Days</p>
-              <p className="mt-2 text-3xl font-bold text-slate-900 dark:text-slate-50">{stats.validationsLast7Days}</p>
+            <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4">
+              <p className="text-xs font-medium text-slate-600">Last 7 Days</p>
+              <p className="mt-1 text-2xl font-bold text-slate-900">{stats.validationsLast7Days}</p>
             </div>
             
-            <div className="rounded-xl border border-slate-200/60 dark:border-slate-700/60 bg-white dark:bg-slate-800/50 p-4 shadow-md">
-              <p className="text-sm font-medium text-slate-600 dark:text-slate-400">Last 30 Days</p>
-              <p className="mt-2 text-3xl font-bold text-slate-900 dark:text-slate-50">{stats.validationsLast30Days}</p>
+            <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4">
+              <p className="text-xs font-medium text-slate-600">Last 30 Days</p>
+              <p className="mt-1 text-2xl font-bold text-slate-900">{stats.validationsLast30Days}</p>
             </div>
           </div>
-          
-          {stats.highScores > 0 && (
-            <div className="mt-4 rounded-xl border border-green-200/60 dark:border-green-700/60 bg-green-50/50 dark:bg-green-900/20 p-4">
-              <p className="text-sm font-medium text-slate-600 dark:text-slate-400">High Scores (≥7)</p>
-              <p className="mt-1 text-lg font-bold text-slate-900 dark:text-slate-50">{stats.highScores}</p>
-            </div>
-          )}
         </div>
       </div>
 
       {/* Score Distribution - Validation Section */}
       {stats.validationsWithScores > 0 && (
-        <div className="mb-8 rounded-2xl border border-slate-200/60 dark:border-slate-700/60 bg-white dark:bg-slate-800/50 p-6 shadow-lg">
-          <h2 className="mb-4 text-lg font-bold text-slate-900 dark:text-slate-50">Score Distribution</h2>
+        <div className="mb-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-soft">
+          <h2 className="mb-4 text-lg font-semibold text-slate-900">Score Distribution</h2>
           <div className="grid gap-4 md:grid-cols-3">
             <div>
               <div className="mb-2 flex items-center justify-between text-sm">
-                <span className="font-medium text-slate-700 dark:text-slate-300">High (≥7.0)</span>
-                <span className="text-slate-600 dark:text-slate-400">{stats.highScores}</span>
+                <span className="font-medium text-slate-700">High (≥7.0)</span>
+                <span className="text-slate-600">{stats.highScores}</span>
               </div>
-              <div className="h-3 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700">
+              <div className="h-2.5 overflow-hidden rounded-full bg-slate-200">
                 <div
-                  className="h-full bg-green-500 transition-all duration-500"
+                  className="h-full bg-emerald-500 transition-all duration-500"
                   style={{
                     width: `${stats.validationsWithScores > 0 ? (stats.highScores / stats.validationsWithScores) * 100 : 0}%`,
                   }}
@@ -394,12 +376,12 @@ export default function AnalyticsPage() {
             </div>
             <div>
               <div className="mb-2 flex items-center justify-between text-sm">
-                <span className="font-medium text-slate-700 dark:text-slate-300">Medium (5.0-6.9)</span>
-                <span className="text-slate-600 dark:text-slate-400">{stats.mediumScores}</span>
+                <span className="font-medium text-slate-700">Medium (5.0-6.9)</span>
+                <span className="text-slate-600">{stats.mediumScores}</span>
               </div>
-              <div className="h-3 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700">
+              <div className="h-2.5 overflow-hidden rounded-full bg-slate-200">
                 <div
-                  className="h-full bg-yellow-500 transition-all duration-500"
+                  className="h-full bg-amber-500 transition-all duration-500"
                   style={{
                     width: `${stats.validationsWithScores > 0 ? (stats.mediumScores / stats.validationsWithScores) * 100 : 0}%`,
                   }}
@@ -408,12 +390,12 @@ export default function AnalyticsPage() {
             </div>
             <div>
               <div className="mb-2 flex items-center justify-between text-sm">
-                <span className="font-medium text-slate-700 dark:text-slate-300">Low (&lt;5.0)</span>
-                <span className="text-slate-600 dark:text-slate-400">{stats.lowScores}</span>
+                <span className="font-medium text-slate-700">Low (&lt;5.0)</span>
+                <span className="text-slate-600">{stats.lowScores}</span>
               </div>
-              <div className="h-3 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700">
+              <div className="h-2.5 overflow-hidden rounded-full bg-slate-200">
                 <div
-                  className="h-full bg-red-500 transition-all duration-500"
+                  className="h-full bg-coral-500 transition-all duration-500"
                   style={{
                     width: `${stats.validationsWithScores > 0 ? (stats.lowScores / stats.validationsWithScores) * 100 : 0}%`,
                   }}
@@ -424,39 +406,87 @@ export default function AnalyticsPage() {
         </div>
       )}
 
-      {/* Insights & Recommendations - Balanced */}
+      {/* Key Insights - Modern Compact Design */}
       {(stats.totalRuns > 0 || stats.totalValidations > 0) && (
-        <div className="rounded-2xl border border-brand-200/60 dark:border-brand-700/60 bg-gradient-to-br from-brand-50 to-brand-100/50 dark:from-brand-900/30 dark:to-brand-800/20 p-6 shadow-lg">
-          <h2 className="mb-4 text-lg font-bold text-slate-900 dark:text-slate-50">💡 Insights</h2>
-          <div className="space-y-3 text-sm text-slate-700 dark:text-slate-300">
+        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-soft">
+          <h2 className="mb-4 text-xl font-semibold text-slate-900">Key Insights</h2>
+          <div className="grid gap-4 md:grid-cols-2">
+            {/* Discovery Insights */}
             {stats.totalRuns > 0 && (
-              <p>
-                💡 You've discovered <strong>{stats.totalIdeasDiscovered} ideas</strong> across <strong>{stats.totalRuns} discovery session{stats.totalRuns !== 1 ? 's' : ''}</strong>.
-              </p>
-            )}
-            {stats.topInterestArea !== "None" && (
-              <p>
-                🎯 Your primary focus area is <strong>{stats.topInterestArea}</strong>. Consider exploring related opportunities.
-              </p>
-            )}
-            {stats.totalValidations > 0 && stats.validationsWithScores > 0 && (
-              <>
-                {parseFloat(stats.avgScore) >= 7 && (
-                  <p>
-                    ✨ Great job! Your average validation score is <strong>{stats.avgScore}/10</strong>, indicating strong idea quality.
+              <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4">
+                <div className="mb-2 flex items-center gap-2">
+                  <span className="text-lg">💡</span>
+                  <h3 className="text-sm font-semibold text-slate-900">Discovery Activity</h3>
+                </div>
+                <p className="text-sm text-slate-700">
+                  You've discovered <strong className="font-semibold text-slate-900">{stats.totalIdeasDiscovered} ideas</strong> across{' '}
+                  <strong className="font-semibold text-slate-900">{stats.totalRuns} session{stats.totalRuns !== 1 ? 's' : ''}</strong>.
+                  {stats.discoveriesLast7Days > 0 && (
+                    <> <strong className="font-semibold text-slate-900">{stats.discoveriesLast7Days}</strong> this week.</>
+                  )}
+                </p>
+                {stats.topInterestArea !== "None" && (
+                  <p className="mt-2 text-xs text-slate-600">
+                    Primary focus: <span className="font-semibold text-slate-900">{stats.topInterestArea}</span>
                   </p>
                 )}
-                {stats.highScores > 0 && (
-                  <p>
-                    🎯 You have <strong>{stats.highScores} high-scoring ideas</strong> (≥7.0). Consider focusing on these for development.
+              </div>
+            )}
+
+            {/* Validation Insights */}
+            {stats.totalValidations > 0 && (
+              <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4">
+                <div className="mb-2 flex items-center gap-2">
+                  <span className="text-lg">🔍</span>
+                  <h3 className="text-sm font-semibold text-slate-900">Validation Performance</h3>
+                </div>
+                {stats.validationsWithScores > 0 ? (
+                  <>
+                    <p className="text-sm text-slate-700">
+                      Average score: <strong className="font-semibold text-slate-900">{stats.avgScore}/10</strong>
+                      {stats.highScores > 0 && (
+                        <> • <strong className="font-semibold text-slate-900">{stats.highScores}</strong> high-scoring idea{stats.highScores !== 1 ? 's' : ''} (≥7.0)</>
+                      )}
+                    </p>
+                    {stats.validationsLast7Days > 0 && (
+                      <p className="mt-2 text-xs text-slate-600">
+                        <strong className="font-semibold text-slate-900">{stats.validationsLast7Days}</strong> validation{stats.validationsLast7Days !== 1 ? 's' : ''} this week
+                      </p>
+                    )}
+                  </>
+                ) : (
+                  <p className="text-sm text-slate-700">
+                    <strong className="font-semibold text-slate-900">{stats.totalValidations}</strong> validation{stats.totalValidations !== 1 ? 's' : ''} completed
                   </p>
                 )}
-              </>
+              </div>
             )}
+
+            {/* Activity Trends */}
             {(stats.discoveriesLast30Days > 0 || stats.validationsLast30Days > 0) && (
-              <p>
-                📈 You've been active with <strong>{stats.discoveriesLast30Days} discoveries</strong> and <strong>{stats.validationsLast30Days} validations</strong> in the last month. Keep exploring!
-              </p>
+              <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4">
+                <div className="mb-2 flex items-center gap-2">
+                  <span className="text-lg">📈</span>
+                  <h3 className="text-sm font-semibold text-slate-900">Activity Trends</h3>
+                </div>
+                <p className="text-sm text-slate-700">
+                  Last 30 days: <strong className="font-semibold text-slate-900">{stats.discoveriesLast30Days} discoveries</strong> •{' '}
+                  <strong className="font-semibold text-slate-900">{stats.validationsLast30Days} validations</strong>
+                </p>
+              </div>
+            )}
+
+            {/* Goal Insights */}
+            {stats.topGoalType !== "None" && (
+              <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4">
+                <div className="mb-2 flex items-center gap-2">
+                  <span className="text-lg">🎯</span>
+                  <h3 className="text-sm font-semibold text-slate-900">Goal Alignment</h3>
+                </div>
+                <p className="text-sm text-slate-700">
+                  Most common goal: <strong className="font-semibold text-slate-900">{stats.topGoalType}</strong>
+                </p>
+              </div>
             )}
           </div>
         </div>
@@ -464,5 +494,6 @@ export default function AnalyticsPage() {
     </div>
   );
 }
+
 
 

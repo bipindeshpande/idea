@@ -112,13 +112,20 @@ export default function DashboardPage() {
 
   const loadApiRuns = useCallback(async () => {
     try {
+      // Clear localStorage validations immediately when loading API data for authenticated users
+      if (isAuthenticated) {
+        localStorage.removeItem("sia_validations");
+        localStorage.removeItem("revalidate_data");
+      }
+      
       const response = await fetch("/api/user/activity", {
         headers: getAuthHeaders(),
       });
       if (response.ok) {
         const data = await response.json();
         setApiRuns(data.activity?.runs || []);
-        setApiValidations(data.activity?.validations || []);
+        const apiValidations = data.activity?.validations || [];
+        setApiValidations(apiValidations);
       }
     } catch (error) {
       if (process.env.NODE_ENV === 'development') {
@@ -127,9 +134,15 @@ export default function DashboardPage() {
     } finally {
       setLoadingRuns(false);
     }
-  }, [getAuthHeaders]);
+  }, [getAuthHeaders, isAuthenticated]);
 
   useEffect(() => {
+    // Immediately clear localStorage validations when authenticated
+    if (isAuthenticated) {
+      localStorage.removeItem("sia_validations");
+      localStorage.removeItem("revalidate_data");
+    }
+    
     loadRuns();
     if (isAuthenticated) {
       // Only call loadApiRuns once - it loads both runs and validations
@@ -626,8 +639,11 @@ export default function DashboardPage() {
       is_validation: true,
     }));
 
-    // If authenticated and API has loaded, only use API data
+    // If authenticated and API has loaded, only use API data (ignore localStorage completely)
     if (isAuthenticated && !loadingRuns) {
+      // Always clear localStorage validations when authenticated - API is source of truth
+      localStorage.removeItem("sia_validations");
+      localStorage.removeItem("revalidate_data");
       return apiVals.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
     }
 

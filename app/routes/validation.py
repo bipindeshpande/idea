@@ -226,6 +226,14 @@ You will receive the following JSON data. Analyze all fields, especially combini
 {structured_json}
 ```
 
+**CRITICAL DATA INTEGRITY RULES:**
+- You MUST ONLY use the data provided in the JSON above. Do NOT invent, assume, or fabricate any information not explicitly present in the input data.
+- If a field contains "Not specified", "Unknown", or is empty, treat it as MISSING INFORMATION. Do NOT make assumptions about what it might be.
+- Do NOT add details, examples, or specifics that are not present in the `description_structured` field.
+- Do NOT reference competitors, market data, or industry trends that are not mentioned in the input data.
+- When a field says "Not specified", acknowledge the gap in information rather than assuming a value.
+- Your analysis must be grounded ONLY in what the user has actually provided.
+
 ### 2. BUSINESS CONTEXT
 
 - Business type: {business_profile['label']}
@@ -236,9 +244,13 @@ You will receive the following JSON data. Analyze all fields, especially combini
 ### 3. CORE DIRECTIVES
 
 1. **DO NOT** repeat the input data or confirm the categories. Jump immediately into the analysis.
-2. **CRITIQUE** the idea based on the founder's ambition and constraints.
-3. **SCORE** each pillar below on a scale of **1 (Poor) to 5 (Excellent)**.
-4. **FOCUS** on the primary geography/delivery model provided.
+2. **USE ONLY PROVIDED DATA**: Base your analysis EXCLUSIVELY on the JSON data provided. Do NOT add information not present in the input.
+3. **ACKNOWLEDGE MISSING DATA**: When information is missing (marked "Not specified"), explicitly note this limitation rather than making assumptions.
+4. **CRITIQUE** the idea based ONLY on the founder's provided ambition and constraints.
+5. **SCORE** each pillar below on a scale of **1 (Poor) to 5 (Excellent)** based ONLY on the provided information.
+6. **FOCUS** on the primary geography/delivery model provided (if specified).
+7. **BUDGET RULE**: If `initial_budget` in the JSON is "Not specified" or empty, you MUST NOT mention any specific budget amounts (like "$20K", "$10,000", "budget of X", etc.) anywhere in your response. Only reference budget if the user has explicitly provided one.
+8. **NO FABRICATION**: Do NOT invent customer segments, pricing models, features, or business details not present in the input data.
 
 ### 4. REQUIRED OUTPUT STRUCTURE (Markdown Format)
 
@@ -246,7 +258,7 @@ Generate the full report using the exact headings and structure below:
 
 ## 🎯 Executive Summary & Overall Verdict
 
-[Generate a single, concise paragraph (3-4 sentences) summarizing the idea's potential and its biggest challenge.]
+[Generate a single, concise paragraph (3-4 sentences) summarizing the idea's potential and its biggest challenge. Base this analysis ONLY on the information provided in the JSON data. Do NOT add details, examples, or assumptions not present in the input.]
 
 | Pillar | Score (1-5) | Reasoning |
 | :--- | :--- | :--- |
@@ -265,12 +277,12 @@ Generate the full report using the exact headings and structure below:
 * **Verdict:** [A single sentence verdict.]
 
 ### 2. Business Model Stress Test
-* **Analysis:** Evaluate the chosen `revenue_model` against the solution type and archetype. Are they compatible? Is the pricing viable?
-* **Red Flag:** [Identify the biggest financial viability risk.]
+* **Analysis:** Evaluate the chosen `revenue_model` against the solution type and archetype. Are they compatible? Is the pricing viable? ONLY reference pricing/revenue details if explicitly provided in the input data.
+* **Red Flag:** [Identify the biggest financial viability risk based ONLY on the provided information.]
 
 ### 3. Competitive Landscape
-* **Analysis:** Based on the `competitors` field and the `unique_moat`, detail *why* the identified moat will actually defend the business.
-* **Key Insight:** [The core competitive advantage or fatal flaw.]
+* **Analysis:** Based ONLY on the `competitors` field and `unique_moat` provided. If competitors are "Not specified" or "Unknown", acknowledge this gap. Do NOT invent competitor names or analysis not present in the input data.
+* **Key Insight:** [The core competitive advantage or fatal flaw based ONLY on the user's provided information.]
 
 ---
 
@@ -278,17 +290,40 @@ Generate the full report using the exact headings and structure below:
 
 ### 1. Riskiest Assumption (The 'Kill Switch')
 
-[Identify the single most critical, unproven assumption that could immediately kill the business. This must be a specific statement the founder needs to validate.]
+[Identify the single most critical, unproven assumption that could immediately kill the business. This must be a specific statement the founder needs to validate, based ONLY on the information they have provided. Do NOT invent assumptions or risks not grounded in their input data.]
 
 ### 2. Actionable Next Steps (Prioritized)
 
-1. **Validation Step 1:** [Most urgent task.]
-2. **Validation Step 2:** [Product/service or market research step.]
-3. **Validation Step 3:** [Strategic or financial planning task.]
+IMPORTANT: Each next step MUST incorporate specific details from the user's input, but ONLY use information actually provided:
+- Reference their **industry** ONLY if specified (e.g., "In the [industry] space..." - but if "Not specified", acknowledge this gap)
+- Consider their **geography** ONLY if specified (e.g., "For the [geography] market..." - if "Not specified", don't assume a location)
+- Account for their **stage** ONLY if specified (e.g., "Since you're at the [stage] stage...")
+- Respect their **commitment level** ONLY if specified (e.g., "Given your [commitment] commitment...")
+- Address their **problem category** ONLY if specified (e.g., "To validate the [problem_category] problem...")
+- Incorporate their **initial budget** ONLY if it is specified and NOT "Not specified". If budget is "Not specified" or missing, DO NOT mention any specific budget amounts (e.g., "$20K", "$5,000", etc.) in your analysis or recommendations.
+- Use their **solution type** and **target user type** ONLY if explicitly provided
+
+CRITICAL: Do NOT invent steps, tools, competitors, market data, or resources not mentioned in the input data. Base recommendations ONLY on what the user has provided.
+
+Make steps concrete, specific, and actionable based on these inputs. Do not give generic advice, but also do NOT add details not present in the user's input.
+
+CRITICAL BUDGET RULE: If the `initial_budget` field in the JSON data is "Not specified" or empty, you MUST NOT reference any specific budget amounts (like "$20K", "$10,000", "budget of X", etc.) anywhere in your response. Only mention budget constraints if the user has actually provided a budget amount.
+
+1. **Validation Step 1:** [Most urgent task - reference industry, geography, stage, or commitment level.]
+2. **Validation Step 2:** [Product/service or market research step - incorporate problem category, solution type, or user type.]
+3. **Validation Step 3:** [Strategic or financial planning task - consider revenue model and delivery channel. Only mention budget if explicitly provided in the input data.]
 
 CRITICAL: Output ONLY the Markdown report in the exact format above. Do not include any preamble, introduction, or closing remarks. Start directly with `## 🎯 Executive Summary & Overall Verdict` and end with the last validation step."""
 
 VALIDATION_SYSTEM_PROMPT = """You are an experienced, highly critical Venture Capital Partner and Product Analyst. You evaluate ANY business type—software, local services, food stalls, retail, creator businesses, physical products, or marketplaces. Never assume the idea is digital by default. Always adapt to the provided business archetype and delivery channel. Be direct, specific, and brutally honest.
+
+FUNDAMENTAL PRINCIPLE: AUTHENTICITY AND DATA INTEGRITY
+- Your analysis MUST be based EXCLUSIVELY on the data provided by the user in the JSON input
+- You MUST NOT invent, fabricate, assume, or add any information not present in the user's input
+- If information is missing (marked "Not specified"), acknowledge the gap - do NOT make assumptions
+- Do NOT add competitor names, market statistics, pricing details, or features not mentioned by the user
+- Do NOT create examples or use cases not present in the user's description
+- Every claim, reference, or detail in your response must trace back to the provided JSON data
 
 SCORING GUIDELINES (1-5 scale):
 - 1 (Poor): Critical flaws that make the idea unviable
@@ -297,7 +332,14 @@ SCORING GUIDELINES (1-5 scale):
 - 4 (Good): Strong idea with minor concerns
 - 5 (Excellent): Exceptional idea with clear advantages
 
-Use grounded business language. Refer to customers/clients/diners/patients/etc. based on the archetype, not generic “users” unless it fits."""
+CRITICAL DATA RULES:
+- If `initial_budget` is "Not specified" or missing, you MUST NOT mention any specific budget amounts (like "$20K", "$10,000", "budget of X dollars", etc.) anywhere in your response
+- If `competitors` is "Not specified" or "Unknown", do NOT invent competitor names or analysis
+- If `geography` is "Not specified", do NOT assume a specific market
+- If `revenue_model` is generic, critique what's provided but do NOT suggest specific pricing not mentioned
+- Only reference information explicitly provided in the JSON data structure
+
+Use grounded business language. Refer to customers/clients/diners/patients/etc. based on the archetype, not generic "users" unless it fits."""
 
 def _get_validation_client():
     """
@@ -435,6 +477,46 @@ def _is_idea_vague_or_nonsensical(idea_explanation: str) -> bool:
     
     return False
 
+
+def _clean_budget_references(content: str, initial_budget: str) -> str:
+    """
+    Remove budget references from validation response if budget was not specified.
+    """
+    if not content:
+        return content
+    
+    # If budget is specified and not "Not specified", keep budget references
+    if initial_budget and initial_budget.strip().lower() not in ["not specified", "none", ""]:
+        return content
+    
+    # Remove common budget patterns that mention budget amounts
+    # More targeted patterns that specifically look for budget-related phrases
+    patterns_to_remove = [
+        # Patterns with "budget" keyword
+        r'\$\d+[Kk]\s+budget',  # $20K budget
+        r'\$\d{1,3}(?:,\d{3})+\s+budget',  # $20,000 budget
+        r'budget\s+of\s+\$?\d+[Kk]',  # budget of $20K
+        r'budget\s+of\s+\$\d{1,3}(?:,\d{3})+',  # budget of $20,000
+        r'with\s+a?\s+\$?\d+[Kk]?\s+budget',  # with a $20K budget
+        r'with\s+\$?\d{1,3}(?:,\d{3})+\s+budget',  # with $20,000 budget
+        r'\$?\d+[Kk]\s+initial\s+budget',  # $20K initial budget
+        r'initial\s+budget\s+of\s+\$?\d+[Kk]',  # initial budget of $20K
+        # Standalone budget amounts in context that suggest budget (following "with", "on", "for", etc.)
+        r'(?:with|on|for|using)\s+\$?\d+[Kk]\s+(?:as|a|your|the)?\s*(?:budget|investment|capital)',  # with $20K budget
+        r'(?:budget|investment|capital)\s+(?:of|is|at)\s+\$?\d+[Kk]',  # budget of $20K
+    ]
+    
+    cleaned = content
+    for pattern in patterns_to_remove:
+        # Remove the matched pattern
+        cleaned = re.sub(pattern, '', cleaned, flags=re.IGNORECASE)
+    
+    # Clean up extra spaces and line breaks that might result from removals
+    cleaned = re.sub(r'\s{2,}', ' ', cleaned)  # Multiple spaces to single space
+    cleaned = re.sub(r'\s+\n\s+', '\n', cleaned)  # Spaces around newlines
+    cleaned = re.sub(r'\n{3,}', '\n\n', cleaned)  # Multiple newlines to double
+    
+    return cleaned
 
 def _parse_markdown_validation(markdown_content: str) -> dict:
     """
@@ -956,30 +1038,53 @@ Once you have a clear business concept with these elements, we can provide a mea
     # Build structured data for the 14-field validation system
     # Map available data to the structured format expected by the new validation prompt
     
-    structured_data = {
-      "industry": category_answers.get("industry") or user_intake.get("interest_area") or "Not specified",
-      "geography": category_answers.get("geography") or "Global",
-      "stage": user_intake.get("time_commitment") or category_answers.get("stage") or "Early",
-      "commitment": user_intake.get("time_commitment") or category_answers.get("commitment") or "Part-time",
-      "problem_category": category_answers.get("problem_category") or category_answers.get("industry") or "General",
-      "solution_type": category_answers.get("solution_type") or category_answers.get("business_model") or "Product",
-      "user_type": category_answers.get("target_audience") or category_answers.get("user_type") or "General users",
-      "revenue_model": category_answers.get("revenue_model") or category_answers.get("business_model") or "Subscription",
-      "unique_moat": category_answers.get("unique_moat") or category_answers.get("unique_value") or "Not specified",
-      "description_structured": idea_explanation,
-      "initial_budget": user_intake.get("budget_range") or category_answers.get("budget") or "Not specified",
-      "constraints": [
-        user_intake.get("time_commitment", ""),
-        user_intake.get("budget_range", ""),
-        user_intake.get("work_style", ""),
-      ],
-      "competitors": category_answers.get("competitors") or category_answers.get("competition") or "Unknown",
-      "business_archetype": category_answers.get("business_archetype") or "Not specified",
-      "delivery_channel": category_answers.get("delivery_channel") or "Not specified",
-    }
+    def _sanitize_list(value):
+      if not value:
+        return []
+      if isinstance(value, (list, tuple, set)):
+        candidates = list(value)
+      else:
+        candidates = [value]
+      cleaned = []
+      for item in candidates:
+        if not item:
+          continue
+        text = item.strip() if isinstance(item, str) else str(item)
+        if text and text not in cleaned:
+          cleaned.append(text)
+      return cleaned
     
-    # Filter out empty constraints
-    structured_data["constraints"] = [c for c in structured_data["constraints"] if c]
+    constraint_values = _sanitize_list(category_answers.get("constraints"))
+    intake_constraint_sources = [
+      user_intake.get("time_commitment"),
+      user_intake.get("budget_range"),
+      user_intake.get("work_style"),
+      user_intake.get("skill_strength"),
+    ]
+    for extra in intake_constraint_sources:
+      if not extra:
+        continue
+      text = extra.strip() if isinstance(extra, str) else str(extra)
+      if text and text not in constraint_values:
+        constraint_values.append(text)
+    
+    structured_data = {
+      "industry": category_answers.get("industry") or user_intake.get("industry") or user_intake.get("interest_area") or "Not specified",
+      "geography": category_answers.get("geography") or user_intake.get("primary_geography") or "Global",
+      "stage": category_answers.get("stage") or user_intake.get("idea_stage") or "Raw Idea",
+      "commitment": category_answers.get("commitment") or user_intake.get("time_commitment") or "Part-time",
+      "problem_category": category_answers.get("problem_category") or category_answers.get("industry") or user_intake.get("pain_point") or "General",
+      "solution_type": category_answers.get("solution_type") or category_answers.get("solution") or user_intake.get("solution_type") or "Product",
+      "user_type": category_answers.get("user_type") or category_answers.get("target_audience") or user_intake.get("target_audience") or "General users",
+      "revenue_model": category_answers.get("revenue_model") or category_answers.get("business_model") or user_intake.get("revenue_model") or "Subscription",
+      "unique_moat": category_answers.get("unique_moat") or category_answers.get("unique_value") or user_intake.get("differentiator") or "Not specified",
+      "description_structured": idea_explanation,
+      "initial_budget": category_answers.get("initial_budget") or category_answers.get("budget") or user_intake.get("budget_range") or "Not specified",
+      "constraints": constraint_values,
+      "competitors": category_answers.get("competitors") or category_answers.get("competition") or user_intake.get("known_competitors") or "Unknown",
+      "business_archetype": category_answers.get("business_archetype") or user_intake.get("business_archetype") or "Not specified",
+      "delivery_channel": category_answers.get("delivery_channel") or user_intake.get("delivery_channel") or "Not specified",
+    }
     
     # Build the structured JSON data string for the prompt
     structured_json = json.dumps(structured_data, indent=2)
@@ -998,6 +1103,11 @@ Once you have a clear business concept with these elements, we can provide a mea
       temperature=0.7,
       max_tokens=4000  # Increased for Markdown format output
     )
+    
+    # Clean budget references if budget was not specified
+    initial_budget = structured_data.get("initial_budget", "")
+    if not initial_budget or initial_budget.strip().lower() in ["not specified", "none", ""]:
+        content = _clean_budget_references(content, initial_budget or "")
     
     # Parse Markdown response and convert to JSON format
     validation_data = _parse_markdown_validation(content)
@@ -1296,6 +1406,11 @@ def update_validation(validation_id: str) -> Any:
       temperature=0.7,
       max_tokens=4000  # Increased for Markdown format output
     )
+    
+    # Clean budget references if budget was not specified
+    initial_budget = structured_data.get("initial_budget", "")
+    if not initial_budget or initial_budget.strip().lower() in ["not specified", "none", ""]:
+        content = _clean_budget_references(content, initial_budget or "")
     
     # Parse Markdown response and convert to JSON format (same as create)
     validation_data = _parse_markdown_validation(content)

@@ -50,9 +50,12 @@ crewai install
 
 ### Step 4: Set Up Environment Variables
 
-1. Copy the example environment file:
+1. Create a `.env` file in the project root:
    ```bash
-   copy .env.example .env
+   # Windows PowerShell
+   New-Item -Path .env -ItemType File
+   
+   # Or manually create the file
    ```
 
 2. Edit `.env` and add your OpenAI API key:
@@ -124,7 +127,7 @@ startup_idea_crew/
 │           └── customer_tool.py          # Customer analysis tools
 ├── output/                      # Generated reports
 ├── pyproject.toml              # Project configuration
-├── .env                        # Environment variables (create from .env.example)
+├── .env                        # Environment variables (create manually)
 ├── README.md                   # This file
 └── TOOLS_GUIDE.md             # Detailed tools documentation
 ```

@@ -1,26 +1,54 @@
-output/
-frontend/node_modules/
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+
+# Virtual environments
+.venv/
+venv/
+
+# Environment variables
 .env
+.env.local
+.env.*.local
+
+# Database files
 *.db
 *.sqlite
 *.sqlite3
 instance/
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-.Python
-*.so
-*.egg
-*.egg-info/
-dist/
-build/
+
+# Logs
+*.log
+
+# IDE
 .vscode/
 .idea/
-*.log
+*.swp
+*.swo
+
+# Microsoft Office temporary files
+~$*
+~$*.docx
+~$*.doc
+~$*.xlsx
+~$*.xls
+~$*.pptx
+~$*.ppt
+
+# OS
 .DS_Store
-.env.local
-.env.*.local
+Thumbs.db
+
+# Frontend
+frontend/node_modules/
 frontend/dist/
 frontend/.vite/
-.venv/
+
+# Output files (generated content)
+output/

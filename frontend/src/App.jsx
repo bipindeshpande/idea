@@ -6,6 +6,7 @@ import { useTheme } from "./context/ThemeContext.jsx";
 import LoadingIndicator from "./components/common/LoadingIndicator.jsx";
 import Seo from "./components/common/Seo.jsx";
 import ErrorBoundary from "./components/common/ErrorBoundary.jsx";
+import "./utils/clearLocalStorage.js"; // Initialize localStorage clearing utility
 // Public pages
 import LandingPage from "./pages/public/Landing.jsx";
 import AboutPage from "./pages/public/About.jsx";

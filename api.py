@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+print("🚀 [STEP 1] Starting api.py import...", flush=True)
+
 import json
 import os
 import re
@@ -11,11 +13,16 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 from functools import lru_cache
 
+print("🚀 [STEP 2] Standard imports complete", flush=True)
+
 # Load environment variables from .env file
+print("🚀 [STEP 3] Loading environment variables...", flush=True)
 from dotenv import load_dotenv
 load_dotenv()
+print("🚀 [STEP 4] Environment variables loaded", flush=True)
 
 # Fix Unicode encoding issues on Windows
+print("🚀 [STEP 5] Configuring Unicode encoding...", flush=True)
 if sys.platform == "win32":
     # Set UTF-8 encoding for stdout/stderr
     if sys.stdout.encoding != "utf-8":
@@ -31,6 +38,7 @@ if sys.platform == "win32":
     # Set environment variable for subprocesses
     os.environ["PYTHONIOENCODING"] = "utf-8"
 
+print("🚀 [STEP 6] Importing Flask and dependencies...", flush=True)
 from flask import Flask, jsonify, request, send_from_directory, g
 from flask_cors import CORS
 from flask_limiter import Limiter
@@ -38,9 +46,13 @@ from flask_limiter.util import get_remote_address
 from werkzeug.security import generate_password_hash, check_password_hash
 from sqlalchemy import func
 import uuid
+print("🚀 [STEP 7] Flask imports complete", flush=True)
 
-from startup_idea_crew.crew import StartupIdeaCrew
-from app.models.database import db, User, UserSession, UserRun, UserValidation, Payment, SubscriptionCancellation, Admin, AdminResetToken, UserAction, UserNote, SystemSettings
+print("🚀 [STEP 8] Importing database models...", flush=True)
+from app.models.database import db, User, UserSession, UserRun, UserValidation, Payment, SubscriptionCancellation, Admin, AdminResetToken, UserAction, UserNote
+print("🚀 [STEP 9] Database models imported", flush=True)
+
+print("🚀 [STEP 10] Importing email services...", flush=True)
 from app.services.email_service import email_service
 from app.services.email_templates import (
     admin_password_reset_email,
@@ -56,8 +68,50 @@ from app.services.email_templates import (
     payment_failed_email,
     get_base_template,
 )
+print("🚀 [STEP 11] Email services imported", flush=True)
 
+print("🚀 [STEP 12] Creating Flask app instance...", flush=True)
 app = Flask(__name__)
+print("🚀 [STEP 13] Flask app created", flush=True)
+
+
+def _env_flag(name: str, default: bool = False) -> bool:
+    """Convert common truthy strings in environment variables to booleans."""
+    value = os.environ.get(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _default_debug_flag() -> bool:
+    """Derive default debug flag from FLASK_ENV/DEBUG."""
+    flask_env = os.environ.get("FLASK_ENV", "").lower()
+    if flask_env == "production":
+        return False
+    if flask_env == "development":
+        return True
+    return _env_flag("DEBUG", default=True)
+
+
+def _mask_token(token: str) -> str:
+    """Return a masked representation of a token."""
+    if not token:
+        return ""
+    token = token.strip()
+    if len(token) <= 8:
+        return "*" * len(token)
+    return f"{token[:4]}...{token[-4:]}"
+
+
+def _mask_authorization_header(header_value: str) -> str:
+    """Mask sensitive parts of Authorization headers."""
+    if not header_value:
+        return ""
+    parts = header_value.split(" ", 1)
+    if len(parts) == 2:
+        scheme, token = parts
+        return f"{scheme} {_mask_token(token)}"
+    return _mask_token(header_value)
 
 # Structured logging setup
 @app.before_request
@@ -66,6 +120,7 @@ def before_request():
     g.request_id = str(uuid.uuid4())[:8]
     g.user_id = None
     g.start_time = time.time()
+    log_request_details = app.config.get("LOG_REQUEST_DETAILS", False)
     
     # CRITICAL: Print detailed request info to terminal (flush immediately for visibility)
     # This ensures we see EVERY request, even if logging fails
@@ -77,8 +132,9 @@ def before_request():
         print(f"   User Agent: {request.headers.get('User-Agent', 'N/A')[:80]}", flush=True)
         if request.headers.get('Authorization'):
             auth_header = request.headers.get('Authorization')
-            print(f"   Authorization: {auth_header[:50]}..." if len(auth_header) > 50 else f"   Authorization: {auth_header}", flush=True)
-        if request.is_json:
+            masked_header = _mask_authorization_header(auth_header)
+            print(f"   Authorization: {masked_header}", flush=True)
+        if log_request_details and request.is_json:
             try:
                 import json
                 data = request.get_json(silent=True)
@@ -189,11 +245,11 @@ def handle_exception(e):
     except Exception as rollback_error:
         app.logger.error(f"[{request_id}] Failed to rollback database: {rollback_error}")
     
-    # Return error response
+    # Return sanitized error response
     return jsonify({
         "success": False,
-        "error": f"Internal server error: {error_msg}",
-        "error_type": error_type,
+        "error": "Internal server error. Please try again later.",
+        "error_code": "INTERNAL_SERVER_ERROR",
         "request_id": request_id
     }), 500
 
@@ -229,6 +285,11 @@ app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get(
 )
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", secrets.token_hex(32))
+app.config["DEBUG"] = _env_flag("FLASK_DEBUG", default=_default_debug_flag())
+app.config["LOG_REQUEST_DETAILS"] = _env_flag(
+    "LOG_REQUEST_DETAILS",
+    default=app.config["DEBUG"],
+)
 
 db.init_app(app)
 
@@ -246,62 +307,14 @@ from app.utils import (
 # All route definitions have been moved to blueprints in app/routes/
 # Old route definitions removed - see app/routes/ for all routes
 
-# Register all route blueprints
-from app.routes import register_blueprints
-register_blueprints(app)
-
-# Initialize database tables
-with app.app_context():
-    try:
-        # Test database connection first
-        db.session.execute(db.text("SELECT 1"))
-        db.create_all()
-        
-        # Initialize admin user if ADMIN_EMAIL is set
-        admin_email = os.environ.get("ADMIN_EMAIL", "").strip().lower()
-        if admin_email:
-            default_password = os.environ.get("ADMIN_PASSWORD", "admin2024")
-            admin = Admin.get_or_create_admin(admin_email, default_password)
-            
-            # Set MFA secret if not already set
-            mfa_secret = os.environ.get("ADMIN_MFA_SECRET", "JBSWY3DPEHPK3PXP")
-            if not admin.mfa_secret:
-                admin.mfa_secret = mfa_secret
-                db.session.commit()
-            
-            app.logger.info(f"Admin user initialized: {admin_email}")
-    except Exception as db_error:
-        db_uri = app.config.get("SQLALCHEMY_DATABASE_URI", "unknown")
-        if "postgresql" in db_uri.lower() or "postgres" in db_uri.lower():
-            app.logger.error(
-                f"Failed to connect to PostgreSQL database: {db_error}\n"
-                f"Database URI: {db_uri}\n"
-                "Please ensure PostgreSQL is running, or set DATABASE_URL to use SQLite:\n"
-                "  DATABASE_URL=sqlite:///startup_idea_advisor.db"
-            )
-            print("\n" + "="*60)
-            print("ERROR: Cannot connect to PostgreSQL database!")
-            print("="*60)
-            print(f"Database URI: {db_uri}")
-            print(f"Error: {db_error}")
-            print("\nSolutions:")
-            print("1. Start PostgreSQL server")
-            print("2. Or use SQLite by setting in .env file:")
-            print("   DATABASE_URL=sqlite:///startup_idea_advisor.db")
-            print("="*60 + "\n")
-            # Don't exit - let the app start but database operations will fail
-        else:
-            app.logger.error(f"Database initialization error: {db_error}")
-            raise
-
-
-# Configure comprehensive logging - always enabled, not just in __main__
+# Configure comprehensive logging BEFORE database initialization
+# This ensures errors during DB init can be logged properly
 import logging
 import sys
 
 # TEST: Print immediately to verify stdout is working
 print("\n" + "="*80, flush=True)
-print("🔵 LOGGING CONFIGURATION INITIALIZED", flush=True)
+print("🔵 CONFIGURING LOGGING", flush=True)
 print("="*80, flush=True)
 
 # Configure comprehensive logging for development/debugging
@@ -342,20 +355,78 @@ for logger_name in ['app', 'app.routes', 'app.models', 'app.utils']:
     logger.addHandler(logging.StreamHandler(sys.stdout))
     logger.propagate = True
 
+print("✅ Logging configuration complete", flush=True)
+
+# Register all route blueprints
+print("📦 Registering route blueprints...", flush=True)
+try:
+    from app.routes import register_blueprints
+    register_blueprints(app)
+    print("✅ Route blueprints registered", flush=True)
+except Exception as e:
+    print(f"❌ ERROR: Failed to register blueprints: {e}", flush=True)
+    import traceback
+    traceback.print_exc()
+    raise
+
+# Initialize database tables
+print("💾 Initializing database...", flush=True)
+with app.app_context():
+    try:
+        # Test database connection first
+        db.session.execute(db.text("SELECT 1"))
+        print("✅ Database connection test successful", flush=True)
+        db.create_all()
+        print("✅ Database tables created/verified", flush=True)
+        
+        # Initialize admin user if ADMIN_EMAIL is set
+        admin_email = os.environ.get("ADMIN_EMAIL", "").strip().lower()
+        if admin_email:
+            default_password = os.environ.get("ADMIN_PASSWORD", "admin2024")
+            admin = Admin.get_or_create_admin(admin_email, default_password)
+            
+            # Set MFA secret if not already set
+            mfa_secret = os.environ.get("ADMIN_MFA_SECRET", "JBSWY3DPEHPK3PXP")
+            if not admin.mfa_secret:
+                admin.mfa_secret = mfa_secret
+                db.session.commit()
+            
+            app.logger.info(f"Admin user initialized: {admin_email}")
+            print(f"✅ Admin user initialized: {admin_email}", flush=True)
+        else:
+            print("ℹ️  No ADMIN_EMAIL set, skipping admin initialization", flush=True)
+    except Exception as db_error:
+        db_uri = app.config.get("SQLALCHEMY_DATABASE_URI", "unknown")
+        error_msg = str(db_error)
+        print("\n" + "="*60, flush=True)
+        print("❌ DATABASE INITIALIZATION ERROR", flush=True)
+        print("="*60, flush=True)
+        print(f"Database URI: {db_uri}", flush=True)
+        print(f"Error: {error_msg}", flush=True)
+        print("="*60 + "\n", flush=True)
+        
+        if "postgresql" in db_uri.lower() or "postgres" in db_uri.lower():
+            print("ERROR: Cannot connect to PostgreSQL database!", flush=True)
+            print("\nSolutions:", flush=True)
+            print("1. Start PostgreSQL server", flush=True)
+            print("2. Or use SQLite by setting in .env file:", flush=True)
+            print("   DATABASE_URL=sqlite:///startup_idea_advisor.db", flush=True)
+            print("\n", flush=True)
+            # Don't exit - let the app start but database operations will fail
+        else:
+            app.logger.error(f"Database initialization error: {db_error}")
+            import traceback
+            traceback.print_exc()
+            # For non-PostgreSQL errors, still allow app to start if possible
+            print("⚠️  Database error occurred but continuing startup...", flush=True)
+
+print("="*80 + "\n", flush=True)
+
 if __name__ == "__main__":
     
     port = int(os.environ.get("PORT", 8000))
-    # Check system settings for debug mode, fallback to environment variable
-    try:
-        debug_setting = SystemSettings.get_setting("debug_mode", None)
-        if debug_setting is not None:
-            debug_mode = debug_setting.lower() == "true"
-        else:
-            # Fallback to environment variable, default to True for development
-            debug_mode = os.environ.get("FLASK_ENV") == "development" or os.environ.get("DEBUG", "true").lower() == "true"
-    except Exception:
-        # If database not initialized, use environment variable, default to True for development
-        debug_mode = os.environ.get("FLASK_ENV") == "development" or os.environ.get("DEBUG", "true").lower() == "true"
+    # Honor Flask debug configuration strictly via environment/application config
+    debug_mode = app.config.get("DEBUG", False)
     
     # Print startup message immediately with flush
     print("\n" + "="*80, flush=True)
