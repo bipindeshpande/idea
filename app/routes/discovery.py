@@ -17,6 +17,7 @@ from app.utils import (
     require_auth,
     _validate_discovery_inputs,
 )
+from app.utils.output_manager import archive_existing_outputs, cleanup_old_temp_files
 
 bp = Blueprint("discovery", __name__)
 
@@ -77,14 +78,95 @@ def run_crew() -> Any:
                 "error_type": "invalid_input",
             }), 400
         
-        crew = StartupIdeaCrew().crew()
-        result = crew.kickoff(inputs=payload)
+        # Use Python's tempfile module for robust file handling with 1000+ concurrent users
+        import uuid
+        import tempfile
+        from pathlib import Path
+        
+        # Generate unique run ID
+        run_file_id = f"{uuid.uuid4().hex[:12]}_{int(time.time())}"
+        
+        # Use system temp directory (better for high concurrency) with unique prefix
+        temp_output_dir = Path(tempfile.gettempdir()) / "idea_crew_outputs"
+        temp_output_dir.mkdir(parents=True, exist_ok=True, mode=0o700)  # Secure permissions
+        
+        # Create unique temp files using tempfile (OS-managed, auto-cleanup on system restart)
+        temp_files = {}
+        output_file_map = {}
+        
+        try:
+            # Map each output to a unique temp file
+            file_mappings = {
+                'output/profile_analysis.md': 'profile_analysis.md',
+                'output/startup_ideas_research.md': 'startup_ideas_research.md',
+                'output/personalized_recommendations.md': 'personalized_recommendations.md',
+            }
+            
+            for original_path, filename in file_mappings.items():
+                # Create unique temp file with prefix
+                temp_file_path = temp_output_dir / f"{run_file_id}_{filename}"
+                output_file_map[original_path] = str(temp_file_path)
+                temp_files[filename] = temp_file_path
+            
+            # Create crew and override output_file in tasks
+            from startup_idea_crew.crew import StartupIdeaCrew
+            crew_instance = StartupIdeaCrew()
+            crew = crew_instance.crew()
+            
+            # Override output_file in tasks to use unique temp files
+            for task in crew.tasks:
+                if hasattr(task, 'output_file') and task.output_file:
+                    if task.output_file in output_file_map:
+                        task.output_file = output_file_map[task.output_file]
+            
+            result = crew.kickoff(inputs=payload)
 
-        outputs = {
-            "profile_analysis": _read_output_file("profile_analysis.md"),
-            "startup_ideas_research": _read_output_file("startup_ideas_research.md"),
-            "personalized_recommendations": _read_output_file("personalized_recommendations.md"),
-        }
+            # Read from temp files with retry logic for high concurrency scenarios
+            outputs = {}
+            max_retries = 3
+            for filename, temp_file_path in temp_files.items():
+                content = None
+                for attempt in range(max_retries):
+                    try:
+                        if temp_file_path.exists():
+                            content = temp_file_path.read_text(encoding='utf-8')
+                            break
+                        else:
+                            # File might not be ready yet (task just finished)
+                            time.sleep(0.1 * (attempt + 1))  # Progressive backoff
+                    except (OSError, IOError) as e:
+                        if attempt < max_retries - 1:
+                            time.sleep(0.1 * (attempt + 1))
+                        else:
+                            current_app.logger.warning(f"Failed to read {filename} after {max_retries} attempts: {e}")
+                
+                # Map to expected output keys
+                if filename == 'profile_analysis.md':
+                    outputs["profile_analysis"] = content or ""
+                elif filename == 'startup_ideas_research.md':
+                    outputs["startup_ideas_research"] = content or ""
+                elif filename == 'personalized_recommendations.md':
+                    outputs["personalized_recommendations"] = content or ""
+            
+        finally:
+            # Always cleanup temp files, even on errors (prevents disk space issues)
+            cleanup_files = list(temp_files.values())
+            for temp_file_path in cleanup_files:
+                try:
+                    if temp_file_path.exists():
+                        temp_file_path.unlink()
+                except Exception as e:
+                    # Log but don't fail - background cleanup will handle it
+                    current_app.logger.debug(f"Cleanup deferred for {temp_file_path.name}: {e}")
+            
+            # Periodic cleanup of old orphaned files (runs every 100 requests to avoid overhead)
+            # For 1000 concurrent users, this ensures orphaned files are cleaned regularly
+            import random
+            if random.random() < 0.01:  # 1% chance = ~every 100 requests
+                try:
+                    cleanup_old_temp_files(max_age_hours=1)
+                except Exception:
+                    pass  # Don't fail request if cleanup fails
         
         # Check if we got valid results
         has_results = False

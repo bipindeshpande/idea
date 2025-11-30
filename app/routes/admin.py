@@ -1,5 +1,5 @@
 """Admin routes blueprint - admin dashboard and management endpoints."""
-from flask import Blueprint, request, jsonify, Response, current_app
+from flask import Blueprint, request, Response, current_app
 from typing import Any, Dict
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -10,12 +10,26 @@ import csv
 from io import StringIO
 
 from sqlalchemy import func, extract
+from sqlalchemy.orm import joinedload
 
 from app.models.database import (
     db, User, UserSession, UserRun, UserValidation, Payment,
-    SubscriptionCancellation, Admin, AdminResetToken, SystemSettings
+    SubscriptionCancellation, Admin, AdminResetToken, SystemSettings,
+    SubscriptionTier, PaymentStatus
 )
 from app.utils import check_admin_auth
+from app.utils.json_helpers import safe_json_dumps
+from app.utils.response_helpers import (
+    success_response, error_response, forbidden_response,
+    internal_error_response
+)
+from app.utils.serialization import serialize_datetime
+from app.constants import (
+    ADMIN_USER_DETAIL_LIMIT, ADMIN_PAYMENTS_LIMIT, ADMIN_SESSIONS_LIMIT,
+    DEFAULT_SUBSCRIPTION_TYPE, DEFAULT_PAYMENT_STATUS,
+    MIN_PASSWORD_LENGTH, DEV_MFA_CODE,
+    ErrorMessages,
+)
 from app.services.email_service import email_service
 from app.services.email_templates import (
     admin_password_reset_email,
@@ -31,7 +45,7 @@ bp = Blueprint("admin", __name__)
 def save_validation_questions() -> Any:
     """Save validation questions configuration (admin only)."""
     if not check_admin_auth():
-        return jsonify({"success": False, "error": "Unauthorized"}), 401
+        return forbidden_response(ErrorMessages.UNAUTHORIZED)
     
     data: Dict[str, Any] = request.get_json(force=True, silent=True) or {}
     questions = data.get("questions", {})
@@ -45,17 +59,17 @@ def save_validation_questions() -> Any:
         with open(output_file, "w", encoding="utf-8") as f:
             json.dump(questions, f, indent=2, ensure_ascii=False)
         
-        return jsonify({"success": True, "message": "Validation questions saved"})
+        return success_response(message="Validation questions saved")
     except Exception as exc:
         current_app.logger.exception("Failed to save validation questions: %s", exc)
-        return jsonify({"success": False, "error": str(exc)}), 500
+        return internal_error_response(str(exc))
 
 
 @bp.post("/api/admin/save-intake-fields")
 def save_intake_fields() -> Any:
     """Save intake form fields configuration (admin only)."""
     if not check_admin_auth():
-        return jsonify({"success": False, "error": "Unauthorized"}), 401
+        return forbidden_response(ErrorMessages.UNAUTHORIZED)
     
     data: Dict[str, Any] = request.get_json(force=True, silent=True) or {}
     fields = data.get("fields", [])
@@ -78,37 +92,37 @@ def save_intake_fields() -> Any:
             json.dump(config_data, f, indent=2, ensure_ascii=False)
         
         current_app.logger.info(f"Intake fields saved to {output_file}")
-        return jsonify({"success": True, "message": "Intake fields saved"})
+        return success_response(message="Intake fields saved")
     except Exception as exc:
         current_app.logger.exception("Failed to save intake fields: %s", exc)
-        return jsonify({"success": False, "error": str(exc)}), 500
+        return internal_error_response(str(exc))
 
 
 @bp.get("/api/admin/stats")
 def get_admin_stats() -> Any:
     """Get admin statistics (admin only)."""
     if not check_admin_auth():
-        return jsonify({"success": False, "error": "Unauthorized"}), 401
+        return forbidden_response(ErrorMessages.UNAUTHORIZED)
     
     try:
         # Get stats from database
         total_users = User.query.count()
         total_runs = UserRun.query.count()
         total_validations = UserValidation.query.count()
-        total_payments = Payment.query.filter_by(status="completed").count()
-        total_revenue = db.session.query(func.sum(Payment.amount)).filter_by(status="completed").scalar() or 0
+        total_payments = Payment.query.filter_by(status=PaymentStatus.COMPLETED).count()
+        total_revenue = db.session.query(func.sum(Payment.amount)).filter_by(status=PaymentStatus.COMPLETED).scalar() or 0
         
         # Subscription stats
         active_subscriptions = User.query.filter(
-            User.payment_status == "active",
+            User.payment_status == PaymentStatus.ACTIVE,
             User.subscription_expires_at > datetime.utcnow()
         ).count()
-        free_trial_users = User.query.filter_by(subscription_type="free_trial").count()
-        weekly_subscribers = User.query.filter_by(subscription_type="weekly").count()
-        starter_subscribers = User.query.filter_by(subscription_type="starter").count()
-        pro_subscribers = User.query.filter_by(subscription_type="pro").count()
+        free_trial_users = User.query.filter_by(subscription_type=SubscriptionTier.FREE_TRIAL).count()
+        weekly_subscribers = User.query.filter_by(subscription_type="weekly").count()  # Legacy
+        starter_subscribers = User.query.filter_by(subscription_type=SubscriptionTier.STARTER).count()
+        pro_subscribers = User.query.filter_by(subscription_type=SubscriptionTier.PRO).count()
         # Backward compatibility: monthly subscribers (migrated to pro)
-        monthly_subscribers = User.query.filter_by(subscription_type="monthly").count()
+        monthly_subscribers = User.query.filter_by(subscription_type="monthly").count()  # Legacy
         
         stats = {
             "total_users": total_users,
@@ -124,77 +138,79 @@ def get_admin_stats() -> Any:
             "monthly_subscribers": monthly_subscribers,  # Backward compatibility (migrated to pro)
         }
         
-        return jsonify({"success": True, "stats": stats})
+        return success_response({"stats": stats})
     except Exception as exc:
         current_app.logger.exception("Failed to get admin stats: %s", exc)
-        return jsonify({"success": False, "error": str(exc)}), 500
+        return internal_error_response(str(exc))
 
 
 @bp.get("/api/admin/users")
 def get_admin_users() -> Any:
     """Get all users (admin only)."""
     if not check_admin_auth():
-        return jsonify({"success": False, "error": "Unauthorized"}), 401
+        return forbidden_response(ErrorMessages.UNAUTHORIZED)
     
     try:
         users = User.query.order_by(User.created_at.desc()).all()
         users_data = [user.to_dict() for user in users]
-        return jsonify({"success": True, "users": users_data})
+        return success_response({"users": users_data})
     except Exception as exc:
         current_app.logger.exception("Failed to get users: %s", exc)
-        return jsonify({"success": False, "error": str(exc)}), 500
+        return internal_error_response(str(exc))
 
 
 @bp.get("/api/admin/payments")
 def get_admin_payments() -> Any:
     """Get all payments (admin only)."""
     if not check_admin_auth():
-        return jsonify({"success": False, "error": "Unauthorized"}), 401
+        return forbidden_response(ErrorMessages.UNAUTHORIZED)
     
     try:
-        payments = Payment.query.order_by(Payment.created_at.desc()).limit(100).all()
+        # Use eager loading to prevent N+1 queries when accessing p.user.email
+        payments = Payment.query.options(
+            joinedload(Payment.user)
+        ).order_by(Payment.created_at.desc()).limit(100).all()
         payments_data = [{
             "id": p.id,
             "user_id": p.user_id,
-            "user_email": p.user.email,
+            "user_email": p.user.email if p.user else "N/A",
             "amount": p.amount,
             "currency": p.currency,
             "subscription_type": p.subscription_type,
             "status": p.status,
             "stripe_payment_intent_id": p.stripe_payment_intent_id,
-            "created_at": p.created_at.isoformat() if p.created_at else None,
-            "completed_at": p.completed_at.isoformat() if p.completed_at else None,
+            "created_at": serialize_datetime(p.created_at),
+            "completed_at": serialize_datetime(p.completed_at),
         } for p in payments]
-        return jsonify({"success": True, "payments": payments_data})
+        return success_response({"payments": payments_data})
     except Exception as exc:
         current_app.logger.exception("Failed to get payments: %s", exc)
-        return jsonify({"success": False, "error": str(exc)}), 500
+        return internal_error_response(str(exc))
 
 
 @bp.get("/api/admin/settings")
 def get_admin_settings() -> Any:
     """Get system settings (admin only)."""
     if not check_admin_auth():
-        return jsonify({"success": False, "error": "Unauthorized"}), 401
+        return forbidden_response(ErrorMessages.UNAUTHORIZED)
     
     try:
         debug_mode = SystemSettings.get_setting("debug_mode", "false")
-        return jsonify({
-            "success": True,
+        return success_response({
             "settings": {
                 "debug_mode": debug_mode.lower() == "true"
             }
         })
     except Exception as exc:
         current_app.logger.exception("Failed to get settings: %s", exc)
-        return jsonify({"success": False, "error": str(exc)}), 500
+        return internal_error_response(str(exc))
 
 
 @bp.post("/api/admin/settings")
 def update_admin_settings() -> Any:
     """Update system settings (admin only)."""
     if not check_admin_auth():
-        return jsonify({"success": False, "error": "Unauthorized"}), 401
+        return forbidden_response(ErrorMessages.UNAUTHORIZED)
     
     try:
         data: Dict[str, Any] = request.get_json(force=True, silent=True) or {}
@@ -210,37 +226,39 @@ def update_admin_settings() -> Any:
                 updated_by=admin_email
             )
         
-        return jsonify({"success": True, "message": "Settings updated"})
+        return success_response(message="Settings updated")
     except Exception as exc:
         current_app.logger.exception("Failed to update settings: %s", exc)
-        return jsonify({"success": False, "error": str(exc)}), 500
+        return internal_error_response(str(exc))
 
 
 @bp.get("/api/admin/user/<int:user_id>")
 def get_admin_user_detail(user_id: int) -> Any:
     """Get detailed user information (admin only)."""
     if not check_admin_auth():
-        return jsonify({"success": False, "error": "Unauthorized"}), 401
+        return forbidden_response(ErrorMessages.UNAUTHORIZED)
     
     try:
+        # Use get_or_404 with eager loading if needed
         user = User.query.get_or_404(user_id)
-        runs = UserRun.query.filter_by(user_id=user_id).order_by(UserRun.created_at.desc()).limit(10).all()
-        validations = UserValidation.query.filter_by(user_id=user_id).order_by(UserValidation.created_at.desc()).limit(10).all()
-        payments = Payment.query.filter_by(user_id=user_id).order_by(Payment.created_at.desc()).all()
-        sessions = UserSession.query.filter_by(user_id=user_id).order_by(UserSession.created_at.desc()).limit(10).all()
         
-        return jsonify({
-            "success": True,
+        # Batch load related data - these queries are already optimized with limits
+        runs = UserRun.query.filter_by(user_id=user_id, is_deleted=False).order_by(UserRun.created_at.desc()).limit(ADMIN_USER_DETAIL_LIMIT).all()
+        validations = UserValidation.query.filter_by(user_id=user_id, is_deleted=False).order_by(UserValidation.created_at.desc()).limit(ADMIN_USER_DETAIL_LIMIT).all()
+        payments = Payment.query.filter_by(user_id=user_id).order_by(Payment.created_at.desc()).limit(ADMIN_PAYMENTS_LIMIT).all()
+        sessions = UserSession.query.filter_by(user_id=user_id).order_by(UserSession.created_at.desc()).limit(ADMIN_SESSIONS_LIMIT).all()
+        
+        return success_response({
             "user": user.to_dict(),
             "runs": [{
                 "id": r.id,
                 "run_id": r.run_id,
-                "created_at": r.created_at.isoformat() if r.created_at else None,
+                "created_at": serialize_datetime(r.created_at),
             } for r in runs],
             "validations": [{
                 "id": v.id,
                 "validation_id": v.validation_id,
-                "created_at": v.created_at.isoformat() if v.created_at else None,
+                "created_at": serialize_datetime(v.created_at),
             } for v in validations],
             "payments": [{
                 "id": p.id,
@@ -248,25 +266,25 @@ def get_admin_user_detail(user_id: int) -> Any:
                 "currency": p.currency,
                 "subscription_type": p.subscription_type,
                 "status": p.status,
-                "created_at": p.created_at.isoformat() if p.created_at else None,
+                "created_at": serialize_datetime(p.created_at),
             } for p in payments],
             "sessions": [{
                 "id": s.id,
-                "created_at": s.created_at.isoformat() if s.created_at else None,
-                "expires_at": s.expires_at.isoformat() if s.expires_at else None,
+                "created_at": serialize_datetime(s.created_at),
+                "expires_at": serialize_datetime(s.expires_at),
                 "ip_address": s.ip_address,
             } for s in sessions],
         })
     except Exception as exc:
         current_app.logger.exception("Failed to get user detail: %s", exc)
-        return jsonify({"success": False, "error": str(exc)}), 500
+        return internal_error_response(str(exc))
 
 
 @bp.post("/api/admin/user/<int:user_id>/subscription")
 def update_user_subscription(user_id: int) -> Any:
     """Update user subscription (admin only)."""
     if not check_admin_auth():
-        return jsonify({"success": False, "error": "Unauthorized"}), 401
+        return forbidden_response(ErrorMessages.UNAUTHORIZED)
     
     try:
         user = User.query.get_or_404(user_id)
@@ -278,12 +296,12 @@ def update_user_subscription(user_id: int) -> Any:
         if subscription_type and duration_days > 0:
             user.activate_subscription(subscription_type, duration_days)
             db.session.commit()
-            return jsonify({"success": True, "message": "Subscription updated", "user": user.to_dict()})
+            return success_response({"user": user.to_dict()}, message="Subscription updated")
         else:
-            return jsonify({"success": False, "error": "Invalid subscription data"}), 400
+            return error_response("Invalid subscription data", 400)
     except Exception as exc:
         current_app.logger.exception("Failed to update subscription: %s", exc)
-        return jsonify({"success": False, "error": str(exc)}), 500
+        return internal_error_response(str(exc))
 
 
 @bp.post("/api/admin/login")
@@ -293,36 +311,48 @@ def admin_login() -> Any:
     password = data.get("password", "").strip()
     
     if not password:
-        return jsonify({"success": False, "error": "Password is required"}), 400
+        return error_response("Password is required", 400)
     
     # Get admin email from environment
     admin_email = os.environ.get("ADMIN_EMAIL", "").strip().lower()
     
-    if not admin_email:
-        # Fallback to environment variable check
-        ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "admin2024")
-        if password == ADMIN_PASSWORD:
-            return jsonify({"success": True})
-        return jsonify({"success": False, "error": "Incorrect password"}), 401
+    # Check if we're in production
+    flask_env = os.environ.get("FLASK_ENV", "").lower()
+    is_production = flask_env == "production"
     
-    # Check against database
+    if not admin_email:
+        if is_production:
+            current_app.logger.error("ADMIN_EMAIL not configured in production")
+            return error_response("Admin authentication not configured", 500)
+        # Development: Allow fallback to environment variable
+        admin_password = os.environ.get("ADMIN_PASSWORD")
+        if not admin_password:
+            current_app.logger.warning("ADMIN_PASSWORD not set in development - admin login may fail")
+            return error_response("Incorrect password", 401)
+        if password == admin_password:
+            return success_response()
+        return error_response("Incorrect password", 401)
+    
+    # Check against database (preferred method)
     admin = Admin.query.filter_by(email=admin_email).first()
     if admin and admin.check_password(password):
-        return jsonify({"success": True})
+        return success_response()
     
-    # Fallback to environment variable
-    ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "admin2024")
-    if password == ADMIN_PASSWORD:
-        return jsonify({"success": True})
+    # Fallback to environment variable only in development
+    if not is_production:
+        admin_password = os.environ.get("ADMIN_PASSWORD")
+        if admin_password and password == admin_password:
+            current_app.logger.warning("Using ADMIN_PASSWORD from environment (development only)")
+            return success_response()
     
-    return jsonify({"success": False, "error": "Incorrect password"}), 401
+    return error_response("Incorrect password", 401)
 
 
 @bp.get("/api/admin/mfa-setup")
 def admin_mfa_setup() -> Any:
     """Get MFA setup information (secret and QR code data)."""
     if not check_admin_auth():
-        return jsonify({"success": False, "error": "Unauthorized"}), 401
+        return forbidden_response(ErrorMessages.UNAUTHORIZED)
     
     # Get admin email from environment
     admin_email = os.environ.get("ADMIN_EMAIL", "").strip().lower()
@@ -345,16 +375,14 @@ def admin_mfa_setup() -> Any:
             name=admin_email or "Admin",
             issuer_name="Startup Idea Advisor"
         )
-        return jsonify({
-            "success": True,
+        return success_response({
             "secret": mfa_secret,
             "qr_uri": totp_uri,
             "manual_entry_key": mfa_secret,
         })
     except ImportError:
         # If pyotp is not installed, return secret only
-        return jsonify({
-            "success": True,
+        return success_response({
             "secret": mfa_secret,
             "manual_entry_key": mfa_secret,
             "warning": "pyotp not installed. Install with: pip install pyotp for QR code generation"
@@ -368,18 +396,20 @@ def admin_verify_mfa() -> Any:
     mfa_code = data.get("mfa_code", "").strip()
     
     if not mfa_code:
-        return jsonify({"success": False, "error": "MFA code is required"}), 400
+        return error_response(ErrorMessages.MFA_CODE_REQUIRED, 400)
     
-    # Development mode: Hardcoded MFA code
-    # Note: For production, implement proper TOTP validation (see commented code below)
-    HARDCODED_MFA_CODE = "2538"
+    # Check if we're in development mode
+    flask_env = os.environ.get("FLASK_ENV", "").lower()
+    is_production = flask_env == "production"
     
-    if mfa_code == HARDCODED_MFA_CODE:
-        return jsonify({"success": True, "message": "MFA code verified"})
+    # Development mode: Allow dev MFA code for easier testing
+    if not is_production:
+        dev_mfa_code = os.environ.get("DEV_MFA_CODE", DEV_MFA_CODE)
+        if mfa_code == dev_mfa_code:
+            current_app.logger.warning("Using development MFA code - this should not be used in production")
+            return success_response(message="MFA code verified")
     
-    # Production mode: TOTP validation (commented out for now)
-    # Uncomment this section when ready for production:
-    """
+    # Production mode: TOTP validation (required in production)
     # Get admin email from environment
     admin_email = os.environ.get("ADMIN_EMAIL", "").strip().lower()
     
@@ -390,9 +420,15 @@ def admin_verify_mfa() -> Any:
         if admin and admin.mfa_secret:
             mfa_secret = admin.mfa_secret
     
-    # Fallback to environment variable or default
+    # Fallback to environment variable
     if not mfa_secret:
-        mfa_secret = os.environ.get("ADMIN_MFA_SECRET", "JBSWY3DPEHPK3PXP")
+        mfa_secret = os.environ.get("ADMIN_MFA_SECRET")
+        if not mfa_secret and is_production:
+            current_app.logger.error("ADMIN_MFA_SECRET not configured in production")
+            return internal_error_response(ErrorMessages.MFA_VERIFICATION_NOT_CONFIGURED)
+        # Use default only in development
+        if not mfa_secret:
+            mfa_secret = os.environ.get("ADMIN_MFA_SECRET", "JBSWY3DPEHPK3PXP")
     
     # Verify TOTP code
     try:
@@ -402,18 +438,22 @@ def admin_verify_mfa() -> Any:
         is_valid = totp.verify(mfa_code, valid_window=1)
         
         if is_valid:
-            return jsonify({"success": True, "message": "MFA code verified"})
+            return success_response(message="MFA code verified")
         else:
-            return jsonify({"success": False, "error": "Invalid MFA code. Please check the code from your authenticator app."}), 401
+            return error_response("Invalid MFA code. Please check the code from your authenticator app.", 401)
     except ImportError:
-        current_app.logger.error("pyotp not installed. Cannot verify TOTP codes.")
-        return jsonify({"success": False, "error": "MFA verification not configured"}), 500
+        if is_production:
+            current_app.logger.error("pyotp not installed. Cannot verify TOTP codes in production.")
+            return internal_error_response(ErrorMessages.MFA_VERIFICATION_NOT_CONFIGURED)
+        # In development, fall back to dev code if pyotp not installed
+        dev_mfa_code = os.environ.get("DEV_MFA_CODE", DEV_MFA_CODE)
+        if mfa_code == dev_mfa_code:
+            current_app.logger.warning("pyotp not installed, using development MFA code")
+            return success_response(message="MFA code verified")
+        return error_response(ErrorMessages.INVALID_MFA_CODE, 401)
     except Exception as e:
         current_app.logger.error(f"MFA verification error: {e}")
-        return jsonify({"success": False, "error": "MFA verification failed"}), 500
-    """
-    
-    return jsonify({"success": False, "error": "Invalid MFA code"}), 401
+        return internal_error_response(ErrorMessages.MFA_VERIFICATION_FAILED)
 
 
 @bp.post("/api/admin/forgot-password")
@@ -423,18 +463,18 @@ def admin_forgot_password() -> Any:
     email = data.get("email", "").strip().lower()
     
     if not email:
-        return jsonify({"success": False, "error": "Email is required"}), 400
+        return error_response(ErrorMessages.EMAIL_REQUIRED, 400)
     
     # Get admin email from environment
     admin_email = os.environ.get("ADMIN_EMAIL", "").strip().lower()
     
     if not admin_email:
-        return jsonify({"success": False, "error": "Admin email not configured"}), 500
+        return internal_error_response(ErrorMessages.ADMIN_EMAIL_NOT_CONFIGURED)
     
     # Verify email matches admin email
     if email != admin_email:
         # Don't reveal if email exists
-        return jsonify({"success": True, "message": "If email exists, reset link sent"})
+        return success_response(message="If email exists, reset link sent")
     
     # Generate reset token
     token = secrets.token_urlsafe(32)
@@ -468,12 +508,9 @@ def admin_forgot_password() -> Any:
         current_app.logger.warning(f"Failed to send admin password reset email to {email}: {e}")
         # Still return success to avoid revealing if email exists
     
-    return jsonify({
-        "success": True,
-        "message": "If email exists, reset link sent",
-        # Only include reset_link in DEBUG mode for development
+    return success_response({
         "reset_link": reset_link if os.environ.get("DEBUG") else None,
-    })
+    }, message="If email exists, reset link sent")
 
 
 @bp.post("/api/admin/reset-password")
@@ -484,16 +521,16 @@ def admin_reset_password() -> Any:
     new_password = data.get("password", "").strip()
     
     if not token or not new_password:
-        return jsonify({"success": False, "error": "Token and password are required"}), 400
+        return error_response("Token and password are required", 400)
     
-    if len(new_password) < 8:
-        return jsonify({"success": False, "error": "Password must be at least 8 characters"}), 400
+    if len(new_password) < MIN_PASSWORD_LENGTH:
+        return error_response(ErrorMessages.PASSWORD_TOO_SHORT, 400)
     
     # Find reset token
     reset_token = AdminResetToken.query.filter_by(token=token).first()
     
     if not reset_token or not reset_token.is_valid():
-        return jsonify({"success": False, "error": "Invalid or expired reset token"}), 400
+        return error_response(ErrorMessages.INVALID_OR_EXPIRED_TOKEN, 400)
     
     # Mark token as used
     reset_token.used = True
@@ -507,17 +544,14 @@ def admin_reset_password() -> Any:
     
     current_app.logger.info(f"Admin password reset successful for {reset_token.email}")
     
-    return jsonify({
-        "success": True,
-        "message": "Password reset successfully. You can now login with your new password."
-    })
+    return success_response(message="Password reset successfully. You can now login with your new password.")
 
 
 @bp.delete("/api/admin/data/clear-validations-runs")
 def clear_validations_and_runs() -> Any:
     """Delete all validations, runs, and user sessions (admin only)."""
     if not check_admin_auth():
-        return jsonify({"success": False, "error": "Unauthorized"}), 401
+        return forbidden_response(ErrorMessages.UNAUTHORIZED)
     
     try:
         # Get counts before deletion for logging
@@ -539,26 +573,24 @@ def clear_validations_and_runs() -> Any:
         
         current_app.logger.info(f"Admin cleared all data: {runs_count} runs, {validations_count} validations, and {sessions_count} sessions deleted")
         
-        return jsonify({
-            "success": True,
-            "message": f"Successfully deleted {runs_count} runs, {validations_count} validations, and {sessions_count} sessions",
+        return success_response({
             "deleted": {
                 "runs": runs_count,
                 "validations": validations_count,
                 "sessions": sessions_count
             }
-        })
+        }, message=f"Successfully deleted {runs_count} runs, {validations_count} validations, and {sessions_count} sessions")
     except Exception as exc:
         db.session.rollback()
         current_app.logger.exception("Failed to clear validations and runs: %s", exc)
-        return jsonify({"success": False, "error": str(exc)}), 500
+        return internal_error_response(str(exc))
 
 
 @bp.get("/api/admin/reports/export")
 def export_report() -> Any:
     """Export reports as CSV (admin only)."""
     if not check_admin_auth():
-        return jsonify({"success": False, "error": "Unauthorized"}), 401
+        return forbidden_response(ErrorMessages.UNAUTHORIZED)
     
     report_type = request.args.get("type", "full")
     
@@ -573,17 +605,20 @@ def export_report() -> Any:
                 writer.writerow([
                     user.id,
                     user.email,
-                    user.subscription_type or "free",
+                    user.subscription_type or DEFAULT_SUBSCRIPTION_TYPE,
                     user.payment_status or "inactive",
                     user.days_remaining(),
-                    user.created_at.isoformat() if user.created_at else "",
-                    user.subscription_started_at.isoformat() if user.subscription_started_at else "",
-                    user.subscription_expires_at.isoformat() if user.subscription_expires_at else "",
+                    serialize_datetime(user.created_at) or "",
+                    serialize_datetime(user.subscription_started_at) or "",
+                    serialize_datetime(user.subscription_expires_at) or "",
                 ])
         
         elif report_type == "payments":
             writer.writerow(["ID", "User Email", "Amount", "Currency", "Subscription Type", "Status", "Stripe Payment Intent ID", "Created At", "Completed At"])
-            payments = Payment.query.order_by(Payment.created_at.desc()).all()
+            # Use eager loading to prevent N+1 queries
+            payments = Payment.query.options(
+                joinedload(Payment.user)
+            ).order_by(Payment.created_at.desc()).all()
             for payment in payments:
                 writer.writerow([
                     payment.id,
@@ -593,41 +628,50 @@ def export_report() -> Any:
                     payment.subscription_type,
                     payment.status,
                     payment.stripe_payment_intent_id or "",
-                    payment.created_at.isoformat() if payment.created_at else "",
-                    payment.completed_at.isoformat() if payment.completed_at else "",
+                    serialize_datetime(payment.created_at) or "",
+                    serialize_datetime(payment.completed_at) or "",
                 ])
         
         elif report_type == "activity":
             writer.writerow(["Type", "ID", "User Email", "Run/Validation ID", "Created At"])
-            runs = UserRun.query.order_by(UserRun.created_at.desc()).all()
+            # Use eager loading to prevent N+1 queries
+            runs = UserRun.query.options(
+                joinedload(UserRun.user)
+            ).filter_by(is_deleted=False).order_by(UserRun.created_at.desc()).all()
             for run in runs:
                 writer.writerow([
                     "Run",
                     run.id,
                     run.user.email if run.user else "N/A",
                     run.run_id,
-                    run.created_at.isoformat() if run.created_at else "",
+                    serialize_datetime(run.created_at) or "",
                 ])
-            validations = UserValidation.query.order_by(UserValidation.created_at.desc()).all()
+            validations = UserValidation.query.options(
+                joinedload(UserValidation.user)
+            ).filter_by(is_deleted=False).order_by(UserValidation.created_at.desc()).all()
             for validation in validations:
                 writer.writerow([
                     "Validation",
                     validation.id,
                     validation.user.email if validation.user else "N/A",
                     validation.validation_id,
-                    validation.created_at.isoformat() if validation.created_at else "",
+                    serialize_datetime(validation.created_at) or "",
                 ])
         
         elif report_type == "subscriptions":
             writer.writerow(["User Email", "Subscription Type", "Status", "Started At", "Expires At", "Days Remaining", "Monthly Validations Used", "Monthly Discoveries Used"])
-            users = User.query.filter(User.subscription_type.in_(["starter", "pro", "weekly"])).all()
+            # Filter deleted users and use index on subscription_type
+            users = User.query.filter(
+                User.subscription_type.in_(["starter", "pro", "weekly"]),
+                User.is_active == True
+            ).all()
             for user in users:
                 writer.writerow([
                     user.email,
                     user.subscription_type,
-                    "active" if user.is_subscription_active() else "expired",
-                    user.subscription_started_at.isoformat() if user.subscription_started_at else "",
-                    user.subscription_expires_at.isoformat() if user.subscription_expires_at else "",
+                    PaymentStatus.ACTIVE if user.is_subscription_active() else PaymentStatus.FAILED,  # Using FAILED as expired
+                    serialize_datetime(user.subscription_started_at) or "",
+                    serialize_datetime(user.subscription_expires_at) or "",
                     user.days_remaining(),
                     user.monthly_validations_used,
                     user.monthly_discoveries_used,
@@ -635,8 +679,8 @@ def export_report() -> Any:
         
         elif report_type == "revenue":
             writer.writerow(["Period", "Total Revenue", "Payment Count", "Average Payment", "Subscription Type Breakdown"])
-            # Group by month
-            payments = Payment.query.filter_by(status="completed").all()
+            # Group by month - use eager loading and filter efficiently
+            payments = Payment.query.filter_by(status="completed").order_by(Payment.created_at.desc()).all()
             revenue_by_month = {}
             for payment in payments:
                 if payment.created_at:
@@ -669,16 +713,19 @@ def export_report() -> Any:
                 writer.writerow([
                     user.id,
                     user.email,
-                    user.subscription_type or "free",
+                    user.subscription_type or DEFAULT_SUBSCRIPTION_TYPE,
                     user.payment_status or "inactive",
                     user.days_remaining(),
-                    user.created_at.isoformat() if user.created_at else "",
+                    serialize_datetime(user.created_at) or "",
                 ])
             writer.writerow([])
             # Payments
             writer.writerow(["PAYMENTS", ""])
             writer.writerow(["ID", "User Email", "Amount", "Currency", "Subscription Type", "Status", "Created At"])
-            payments = Payment.query.order_by(Payment.created_at.desc()).all()
+            # Use eager loading to prevent N+1 queries
+            payments = Payment.query.options(
+                joinedload(Payment.user)
+            ).order_by(Payment.created_at.desc()).all()
             for payment in payments:
                 writer.writerow([
                     payment.id,
@@ -687,7 +734,7 @@ def export_report() -> Any:
                     payment.currency,
                     payment.subscription_type,
                     payment.status,
-                    payment.created_at.isoformat() if payment.created_at else "",
+                    serialize_datetime(payment.created_at) or "",
                 ])
         
         output.seek(0)
@@ -698,5 +745,5 @@ def export_report() -> Any:
         )
     except Exception as exc:
         current_app.logger.exception("Failed to export report: %s", exc)
-        return jsonify({"success": False, "error": str(exc)}), 500
+        return internal_error_response(str(exc))
 

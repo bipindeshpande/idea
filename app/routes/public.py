@@ -145,45 +145,49 @@ def get_public_usage_stats() -> Any:
             current_app.logger.warning(f"Failed to count users: {e}")
             total_users = 0
         
-        # Count total validations (this month)
+        # Count total validations (this month) - use index on created_at
         this_month_start = datetime.utcnow().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
         
         try:
             validations_this_month = UserValidation.query.filter(
-                UserValidation.created_at >= this_month_start
+                UserValidation.created_at >= this_month_start,
+                UserValidation.is_deleted == False
             ).count()
         except Exception as e:
             current_app.logger.warning(f"Failed to count validations this month: {e}")
             validations_this_month = 0
         
-        # Count total discoveries (this month)
+        # Count total discoveries (this month) - use index on created_at
         try:
             discoveries_this_month = UserRun.query.filter(
-                UserRun.created_at >= this_month_start
+                UserRun.created_at >= this_month_start,
+                UserRun.is_deleted == False
             ).count()
         except Exception as e:
             current_app.logger.warning(f"Failed to count discoveries this month: {e}")
             discoveries_this_month = 0
         
-        # Count total validations (all time)
+        # Count total validations (all time) - exclude deleted
         try:
-            total_validations = UserValidation.query.count()
+            total_validations = UserValidation.query.filter_by(is_deleted=False).count()
         except Exception as e:
             current_app.logger.warning(f"Failed to count total validations: {e}")
             total_validations = 0
         
-        # Count total discoveries (all time)
+        # Count total discoveries (all time) - exclude deleted
         try:
-            total_discoveries = UserRun.query.count()
+            total_discoveries = UserRun.query.filter_by(is_deleted=False).count()
         except Exception as e:
             current_app.logger.warning(f"Failed to count total discoveries: {e}")
             total_discoveries = 0
         
-        # Calculate average validation score (from last 100 validations)
+        # Calculate average validation score (from last 100 validations) - exclude deleted
         total_score = 0
         score_count = 0
         try:
-            recent_validations = UserValidation.query.order_by(
+            recent_validations = UserValidation.query.filter_by(
+                is_deleted=False
+            ).order_by(
                 UserValidation.created_at.desc()
             ).limit(100).all()
             

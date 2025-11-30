@@ -19,7 +19,7 @@ def health_check():
             "timestamp": datetime.now().isoformat()
         }
         current_app.logger.info(f"Health check passed: {status}")
-        print(f"[HEALTH] Health check passed at {datetime.now().strftime('%H:%M:%S')}", flush=True)
+        current_app.logger.debug(f"Health check passed at {datetime.now().strftime('%H:%M:%S')}")
         return jsonify(status), 200
     except Exception as e:
         status = {
@@ -29,7 +29,7 @@ def health_check():
             "timestamp": datetime.now().isoformat()
         }
         current_app.logger.error(f"Health check failed: {status}")
-        print(f"[HEALTH] Health check FAILED: {e}", flush=True)
+        current_app.logger.error(f"Health check FAILED: {e}", exc_info=True)
         return jsonify(status), 503
 
 

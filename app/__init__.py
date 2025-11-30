@@ -36,6 +36,14 @@ def create_app():
     # Initialize database tables
     with app.app_context():
         db.create_all()
+        
+        # Cleanup old temp files on startup (important for high-concurrency scenarios)
+        try:
+            from app.utils.output_manager import cleanup_old_temp_files
+            cleanup_old_temp_files(max_age_hours=1)  # Clean up files older than 1 hour
+        except Exception:
+            # Don't fail startup if cleanup fails
+            pass
     
     return app
 

@@ -1,28 +1,17 @@
 from __future__ import annotations
 
-print("🚀 [STEP 1] Starting api.py import...", flush=True)
-
 import json
 import os
-import re
 import sys
 import time
 import secrets
 from datetime import datetime, timedelta
-from pathlib import Path
-from typing import Any, Dict, Optional
-from functools import lru_cache
-
-print("🚀 [STEP 2] Standard imports complete", flush=True)
 
 # Load environment variables from .env file
-print("🚀 [STEP 3] Loading environment variables...", flush=True)
 from dotenv import load_dotenv
 load_dotenv()
-print("🚀 [STEP 4] Environment variables loaded", flush=True)
 
 # Fix Unicode encoding issues on Windows
-print("🚀 [STEP 5] Configuring Unicode encoding...", flush=True)
 if sys.platform == "win32":
     # Set UTF-8 encoding for stdout/stderr
     if sys.stdout.encoding != "utf-8":
@@ -37,8 +26,6 @@ if sys.platform == "win32":
             pass  # Python < 3.7 or already configured
     # Set environment variable for subprocesses
     os.environ["PYTHONIOENCODING"] = "utf-8"
-
-print("🚀 [STEP 6] Importing Flask and dependencies...", flush=True)
 from flask import Flask, jsonify, request, send_from_directory, g
 from flask_cors import CORS
 from flask_limiter import Limiter
@@ -46,13 +33,8 @@ from flask_limiter.util import get_remote_address
 from werkzeug.security import generate_password_hash, check_password_hash
 from sqlalchemy import func
 import uuid
-print("🚀 [STEP 7] Flask imports complete", flush=True)
-
-print("🚀 [STEP 8] Importing database models...", flush=True)
+import json
 from app.models.database import db, User, UserSession, UserRun, UserValidation, Payment, SubscriptionCancellation, Admin, AdminResetToken, UserAction, UserNote
-print("🚀 [STEP 9] Database models imported", flush=True)
-
-print("🚀 [STEP 10] Importing email services...", flush=True)
 from app.services.email_service import email_service
 from app.services.email_templates import (
     admin_password_reset_email,
@@ -68,11 +50,8 @@ from app.services.email_templates import (
     payment_failed_email,
     get_base_template,
 )
-print("🚀 [STEP 11] Email services imported", flush=True)
 
-print("🚀 [STEP 12] Creating Flask app instance...", flush=True)
 app = Flask(__name__)
-print("🚀 [STEP 13] Flask app created", flush=True)
 
 
 def _env_flag(name: str, default: bool = False) -> bool:
@@ -122,31 +101,43 @@ def before_request():
     g.start_time = time.time()
     log_request_details = app.config.get("LOG_REQUEST_DETAILS", False)
     
-    # CRITICAL: Print detailed request info to terminal (flush immediately for visibility)
-    # This ensures we see EVERY request, even if logging fails
+    # Log request details using proper logging (dev-friendly in development, structured in production)
     try:
-        print("\n" + "="*80, flush=True)
-        print(f"[{datetime.now().strftime('%H:%M:%S')}] REQUEST: {request.method} {request.path}", flush=True)
-        print(f"   Request ID: {g.request_id}", flush=True)
-        print(f"   Remote Address: {request.remote_addr}", flush=True)
-        print(f"   User Agent: {request.headers.get('User-Agent', 'N/A')[:80]}", flush=True)
+        log_data = {
+            "request_id": g.request_id,
+            "method": request.method,
+            "path": request.path,
+            "remote_addr": request.remote_addr,
+            "user_agent": request.headers.get('User-Agent', 'N/A')[:200],
+        }
+        
+        # Mask authorization header if present
         if request.headers.get('Authorization'):
             auth_header = request.headers.get('Authorization')
-            masked_header = _mask_authorization_header(auth_header)
-            print(f"   Authorization: {masked_header}", flush=True)
+            log_data["authorization"] = _mask_authorization_header(auth_header)
+        
+        # Log JSON body in development mode only
         if log_request_details and request.is_json:
             try:
-                import json
                 data = request.get_json(silent=True)
                 if data:
+                    # Only log first 200 chars in dev mode
                     data_str = json.dumps(data, indent=2)
-                    print(f"   JSON Body: {data_str[:200]}..." if len(data_str) > 200 else f"   JSON Body: {data_str}", flush=True)
+                    log_data["json_body"] = data_str[:200] + "..." if len(data_str) > 200 else data_str
             except:
                 pass
-        print("="*80, flush=True)
+        
+        # Use structured logging
+        app.logger.info(
+            f"Request: {request.method} {request.path}",
+            extra=log_data
+        )
+        
+        # In development, also print to console for easier debugging
+        if app.config.get("DEBUG", False):
+            print(f"\n[{datetime.now().strftime('%H:%M:%S')}] {request.method} {request.path} (ID: {g.request_id})", flush=True)
     except Exception as e:
-        # If printing fails, at least try to log via logger
-        app.logger.error(f"Failed to print request info: {e}")
+        app.logger.error(f"Failed to log request info: {e}", exc_info=True)
     
     # Try to get user from session for logging
     try:
@@ -154,9 +145,9 @@ def before_request():
         session = get_current_session()
         if session and session.user:
             g.user_id = session.user.id
-            print(f"   User: {session.user.email} (ID: {g.user_id})", flush=True)
+            app.logger.debug(f"User: {session.user.email} (ID: {g.user_id})", extra={"user_id": g.user_id})
     except Exception as e:
-        print(f"   Session check failed: {e}", flush=True)
+        app.logger.debug(f"Session check failed: {e}")
         pass  # Don't fail if session check fails
     
     # Log request start (also logged to logger)
@@ -190,16 +181,33 @@ def after_request(response):
         status_emoji = "✅" if 200 <= response.status_code < 300 else "❌" if response.status_code >= 400 else "⚠️"
         status_color = "green" if 200 <= response.status_code < 300 else "red" if response.status_code >= 400 else "yellow"
         
-        status_icon = "[OK]" if 200 <= response.status_code < 300 else "[ERROR]" if response.status_code >= 400 else "[WARN]"
-        print(f"{status_icon} RESPONSE: {response.status_code} - {duration_ms:.2f}ms", flush=True)
-        if hasattr(response, 'get_data'):
+        # Log response using proper logging
+        log_data = {
+            "request_id": g.request_id,
+            "status_code": response.status_code,
+            "duration_ms": duration_ms,
+        }
+        
+        # Log response data in development only
+        if app.config.get("DEBUG", False) and hasattr(response, 'get_data'):
             try:
                 data = response.get_data(as_text=True)
                 if data and len(data) < 500:
-                    print(f"   Response: {data[:200]}...", flush=True)
+                    log_data["response_preview"] = data[:200]
             except:
                 pass
-        print("="*80 + "\n", flush=True)
+        
+        if 200 <= response.status_code < 300:
+            app.logger.info(f"Response: {response.status_code} - {duration_ms:.2f}ms", extra=log_data)
+        elif response.status_code >= 400:
+            app.logger.error(f"Response: {response.status_code} - {duration_ms:.2f}ms", extra=log_data)
+        else:
+            app.logger.warning(f"Response: {response.status_code} - {duration_ms:.2f}ms", extra=log_data)
+        
+        # In development, also print to console
+        if app.config.get("DEBUG", False):
+            status_icon = "[OK]" if 200 <= response.status_code < 300 else "[ERROR]" if response.status_code >= 400 else "[WARN]"
+            print(f"{status_icon} {response.status_code} - {duration_ms:.2f}ms", flush=True)
         
         app.logger.debug(
             f"[{g.request_id}] Completed in {duration_ms:.2f}ms - Status: {response.status_code}"
@@ -215,22 +223,40 @@ def handle_exception(e):
     request_id = getattr(g, 'request_id', 'unknown')
     user_id = getattr(g, 'user_id', 'anonymous')
     
-    # Print detailed error to terminal with full stack trace
+    # Log error with full context
     error_type = type(e).__name__
     error_msg = str(e)
     full_traceback = traceback.format_exc()
     
-    print("\n" + "="*80, flush=True)
-    print(f"ERROR: UNHANDLED EXCEPTION", flush=True)
-    print("="*80, flush=True)
-    print(f"Request ID: {request_id}", flush=True)
-    print(f"User: {user_id}", flush=True)
-    print(f"Error Type: {error_type}", flush=True)
-    print(f"Error Message: {error_msg}", flush=True)
-    print("-"*80, flush=True)
-    print("FULL STACK TRACEBACK:", flush=True)
-    print(full_traceback, flush=True)
-    print("="*80 + "\n", flush=True)
+    # Structured error logging
+    error_data = {
+        "request_id": request_id,
+        "user_id": user_id,
+        "error_type": error_type,
+        "error_message": error_msg,
+        "path": request.path if request else None,
+        "method": request.method if request else None,
+    }
+    
+    app.logger.error(
+        f"Unhandled exception: {error_type}: {error_msg}",
+        extra=error_data,
+        exc_info=True
+    )
+    
+    # In development, also print to console for visibility
+    if app.config.get("DEBUG", False):
+        print("\n" + "="*80, flush=True)
+        print(f"ERROR: UNHANDLED EXCEPTION", flush=True)
+        print("="*80, flush=True)
+        print(f"Request ID: {request_id}", flush=True)
+        print(f"User: {user_id}", flush=True)
+        print(f"Error Type: {error_type}", flush=True)
+        print(f"Error Message: {error_msg}", flush=True)
+        print("-"*80, flush=True)
+        print("FULL STACK TRACEBACK:", flush=True)
+        print(full_traceback, flush=True)
+        print("="*80 + "\n", flush=True)
     
     # Log to logger with exception info (includes traceback)
     app.logger.exception(
@@ -255,28 +281,67 @@ def handle_exception(e):
 
 # CORS Configuration - Restrict to your domain in production
 FRONTEND_URL = os.environ.get("FRONTEND_URL", "https://ideabunch.com")
-ALLOWED_ORIGINS = [
-    FRONTEND_URL,
-    "https://www.ideabunch.com",
-    "http://localhost:5173",  # Development only
-    "http://127.0.0.1:5173",  # Development only
-]
-
-# Only allow localhost in development
-# Default to allowing localhost if FLASK_ENV is not explicitly set to production
 FLASK_ENV = os.environ.get("FLASK_ENV", "").lower()
-if FLASK_ENV == "production":
-    ALLOWED_ORIGINS = [origin for origin in ALLOWED_ORIGINS if not origin.startswith("http://localhost") and not origin.startswith("http://127.0.0.1")]
-# In development or if FLASK_ENV not set, allow localhost
+is_production = FLASK_ENV == "production"
+
+# Explicitly set allowed origins based on environment
+if is_production:
+    # Production: Only allow production domains
+    ALLOWED_ORIGINS = [
+        FRONTEND_URL,
+        "https://www.ideabunch.com",
+    ]
+    # Remove any localhost origins if they somehow got in
+    ALLOWED_ORIGINS = [origin for origin in ALLOWED_ORIGINS 
+                      if not origin.startswith("http://localhost") 
+                      and not origin.startswith("http://127.0.0.1")]
+else:
+    # Development: Allow localhost and production domains
+    ALLOWED_ORIGINS = [
+        FRONTEND_URL,
+        "https://www.ideabunch.com",
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:3000",  # Common React dev port
+        "http://127.0.0.1:3000",
+    ]
 
 CORS(app, origins=ALLOWED_ORIGINS, supports_credentials=True)
 
 # Rate Limiting Configuration
+# Use Redis in production, memory in development
+FLASK_ENV = os.environ.get("FLASK_ENV", "").lower()
+is_production = FLASK_ENV == "production"
+
+# Try to use Redis if available, fall back to memory
+rate_limit_storage = "memory://"
+if is_production:
+    redis_url = os.environ.get("REDIS_URL")
+    if redis_url:
+        rate_limit_storage = redis_url
+        app.logger.info("Using Redis for rate limiting")
+    else:
+        app.logger.warning("REDIS_URL not set in production - using in-memory rate limiting (not recommended for multiple instances)")
+else:
+    # Development: Try Redis if available, but don't require it
+    redis_url = os.environ.get("REDIS_URL")
+    if redis_url:
+        try:
+            import redis
+            # Test connection
+            r = redis.from_url(redis_url)
+            r.ping()
+            rate_limit_storage = redis_url
+            app.logger.info("Using Redis for rate limiting (development)")
+        except Exception as e:
+            app.logger.info(f"Redis not available in development, using memory: {e}")
+            rate_limit_storage = "memory://"
+
 limiter = Limiter(
     app=app,
     key_func=get_remote_address,
     default_limits=["200 per day", "50 per hour"],
-    storage_uri="memory://",  # Use in-memory storage (for production, consider Redis)
+    storage_uri=rate_limit_storage,
 )
 
 # Database configuration
@@ -290,6 +355,19 @@ app.config["LOG_REQUEST_DETAILS"] = _env_flag(
     "LOG_REQUEST_DETAILS",
     default=app.config["DEBUG"],
 )
+
+# Database connection pooling (for PostgreSQL)
+if "postgresql" in app.config["SQLALCHEMY_DATABASE_URI"].lower() or "postgres" in app.config["SQLALCHEMY_DATABASE_URI"].lower():
+    # Connection pool settings for production
+    app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
+        "pool_size": int(os.environ.get("DB_POOL_SIZE", "10")),
+        "max_overflow": int(os.environ.get("DB_MAX_OVERFLOW", "20")),
+        "pool_pre_ping": True,  # Verify connections before using
+        "pool_recycle": int(os.environ.get("DB_POOL_RECYCLE", "3600")),  # Recycle connections after 1 hour
+        "connect_args": {
+            "connect_timeout": 10,  # 10 second connection timeout
+        }
+    }
 
 db.init_app(app)
 
@@ -310,7 +388,6 @@ from app.utils import (
 # Configure comprehensive logging BEFORE database initialization
 # This ensures errors during DB init can be logged properly
 import logging
-import sys
 
 # TEST: Print immediately to verify stdout is working
 print("\n" + "="*80, flush=True)
@@ -382,8 +459,15 @@ with app.app_context():
         # Initialize admin user if ADMIN_EMAIL is set
         admin_email = os.environ.get("ADMIN_EMAIL", "").strip().lower()
         if admin_email:
-            default_password = os.environ.get("ADMIN_PASSWORD", "admin2024")
-            admin = Admin.get_or_create_admin(admin_email, default_password)
+            admin_password = os.environ.get("ADMIN_PASSWORD")
+            if not admin_password:
+                if is_production:
+                    raise ValueError("ADMIN_PASSWORD environment variable is required in production")
+                else:
+                    # Development: Use default but warn
+                    admin_password = "admin2024"
+                    app.logger.warning("ADMIN_PASSWORD not set - using default password (NOT FOR PRODUCTION)")
+            admin = Admin.get_or_create_admin(admin_email, admin_password)
             
             # Set MFA secret if not already set
             mfa_secret = os.environ.get("ADMIN_MFA_SECRET", "JBSWY3DPEHPK3PXP")
@@ -421,6 +505,15 @@ with app.app_context():
             print("⚠️  Database error occurred but continuing startup...", flush=True)
 
 print("="*80 + "\n", flush=True)
+
+# Initialize error tracking (optional, won't fail if not configured)
+try:
+    from app.utils.error_tracking import init_error_tracking
+    sentry_client = init_error_tracking(app)
+    if sentry_client:
+        print("✅ Error tracking (Sentry) initialized", flush=True)
+except Exception as e:
+    app.logger.warning(f"Error tracking initialization failed: {e}")
 
 if __name__ == "__main__":
     

@@ -1,12 +1,32 @@
 """User management routes blueprint."""
-from flask import Blueprint, request, jsonify, current_app
+from flask import Blueprint, request, current_app, jsonify
 from typing import Any, Dict
 from datetime import datetime, timedelta
 from urllib.parse import unquote
 import json
 
-from app.models.database import db, User, UserSession, UserRun, UserValidation, UserAction, UserNote
+from sqlalchemy.orm import joinedload
+
+from app.models.database import (
+    db, User, UserSession, UserRun, UserValidation, UserAction, UserNote,
+    SubscriptionTier, ValidationStatus, PaymentStatus
+)
 from app.utils import get_current_session, require_auth
+from app.utils.json_helpers import safe_json_loads, safe_json_dumps
+from app.utils.response_helpers import (
+    success_response, error_response, not_found_response,
+    unauthorized_response, internal_error_response
+)
+from app.utils.serialization import serialize_datetime
+from app.constants import (
+    DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE,
+    MAX_ACTION_TEXT_LENGTH, MAX_IDEA_ID_LENGTH, MAX_NOTE_CONTENT_LENGTH,
+    SMART_RECOMMENDATIONS_LIMIT, RECOMMENDATIONS_VALIDATION_LIMIT,
+    INTEREST_AREAS_LIMIT, SIMILAR_IDEAS_LIMIT, HIGH_SCORE_THRESHOLD,
+    MIN_VALIDATIONS_FOR_INSIGHTS, MAX_COMPARISON_SESSIONS,
+    INTEREST_AREA_KEYWORDS,
+    ErrorMessages,
+)
 from app.services.email_service import email_service
 from app.services.email_templates import (
     trial_ending_email,
@@ -24,15 +44,115 @@ def get_user_usage() -> Any:
     """Get current usage statistics for the authenticated user."""
     session = get_current_session()
     if not session:
-        return jsonify({"success": False, "error": "Not authenticated"}), 401
+        return unauthorized_response(ErrorMessages.NOT_AUTHENTICATED)
     
     user = session.user
     usage_stats = user.get_usage_stats()
     
-    return jsonify({
-        "success": True,
-        "usage": usage_stats,
-    })
+    return success_response({"usage": usage_stats})
+
+
+@bp.get("/api/user/dashboard")
+@require_auth
+def get_user_dashboard() -> Any:
+    """Get consolidated dashboard data (runs, validations, actions, notes) in a single call."""
+    session = get_current_session()
+    if not session:
+        return unauthorized_response(ErrorMessages.NOT_AUTHENTICATED)
+    
+    user = session.user
+    
+    try:
+        # Get runs with pagination to avoid loading all records
+        page = request.args.get("page", 1, type=int)
+        per_page = request.args.get("per_page", DEFAULT_PAGE_SIZE, type=int)
+        per_page = min(per_page, MAX_PAGE_SIZE)  # Cap at max to prevent excessive loads
+        
+        runs_query = UserRun.query.filter_by(user_id=user.id, is_deleted=False)
+        runs = runs_query.order_by(UserRun.created_at.desc()).limit(per_page).offset((page - 1) * per_page).all()
+        total_runs = runs_query.count()
+        
+        runs_data = []
+        for r in runs:
+            inputs_data = safe_json_loads(r.inputs, logger_context=f"for run {r.run_id} inputs")
+            reports_data = safe_json_loads(r.reports, logger_context=f"for run {r.run_id} reports")
+            
+            runs_data.append({
+                "id": r.id,
+                "run_id": r.run_id,
+                "inputs": inputs_data,
+                "reports": reports_data,  # Include reports so frontend can count ideas
+                "created_at": serialize_datetime(r.created_at),
+            })
+        
+        # Get validations with pagination - exclude deleted ones and only show completed
+        validations_query = UserValidation.query.filter_by(
+            user_id=user.id,
+            is_deleted=False,
+            status=ValidationStatus.COMPLETED
+        )
+        validations = validations_query.order_by(UserValidation.created_at.desc()).limit(per_page).offset((page - 1) * per_page).all()
+        total_validations = validations_query.count()
+        
+        validations_data = []
+        for v in validations:
+            validation_result = safe_json_loads(v.validation_result, logger_context=f"for validation {v.validation_id}")
+            category_answers = safe_json_loads(v.category_answers, logger_context=f"for validation {v.validation_id} category_answers")
+            
+            validations_data.append({
+                "id": v.id,
+                "validation_id": v.validation_id,
+                "overall_score": validation_result.get("overall_score"),
+                "idea_explanation": v.idea_explanation,
+                "category_answers": category_answers,  # Include category_answers for editing
+                "created_at": serialize_datetime(v.created_at),
+            })
+        
+        # Get actions
+        actions = UserAction.query.filter_by(user_id=user.id).order_by(UserAction.created_at.desc()).all()
+        actions_data = []
+        for action in actions:
+            actions_data.append({
+                "id": action.id,
+                "idea_id": action.idea_id,
+                "action_text": action.action_text,
+                "status": action.status,
+                "due_date": serialize_datetime(action.due_date),
+                "completed_at": serialize_datetime(action.completed_at),
+                "created_at": serialize_datetime(action.created_at),
+                "updated_at": serialize_datetime(action.updated_at),
+            })
+        
+        # Get notes
+        notes = UserNote.query.filter_by(user_id=user.id).order_by(UserNote.updated_at.desc()).all()
+        notes_data = []
+        for note in notes:
+            tags = safe_json_loads(note.tags, default=[], logger_context=f"for note {note.id}")
+            
+            notes_data.append({
+                "id": note.id,
+                "idea_id": note.idea_id,
+                "content": note.content,
+                "tags": tags,
+                "created_at": serialize_datetime(note.created_at),
+                "updated_at": serialize_datetime(note.updated_at),
+            })
+        
+        return success_response({
+            "activity": {
+                "runs": runs_data,
+                "validations": validations_data,
+                "total_runs": total_runs,
+                "total_validations": total_validations,
+                "page": page,
+                "per_page": per_page,
+            },
+            "actions": actions_data,
+            "notes": notes_data,
+        })
+    except Exception as exc:
+        current_app.logger.exception("Failed to get user dashboard: %s", exc)
+        return internal_error_response(str(exc))
 
 
 @bp.get("/api/user/activity")
@@ -41,63 +161,46 @@ def get_user_activity() -> Any:
     """Get current user's activity (runs, validations)."""
     session = get_current_session()
     if not session:
-        return jsonify({"success": False, "error": "Not authenticated"}), 401
+        return unauthorized_response(ErrorMessages.NOT_AUTHENTICATED)
     
     user = session.user
     
     try:
-        # Get all runs (no limit for analytics)
-        runs = UserRun.query.filter_by(user_id=user.id).order_by(UserRun.created_at.desc()).all()
+        # Get runs with pagination to avoid loading all records
+        page = request.args.get("page", 1, type=int)
+        per_page = request.args.get("per_page", DEFAULT_PAGE_SIZE, type=int)
+        per_page = min(per_page, MAX_PAGE_SIZE)  # Cap at max to prevent excessive loads
+        
+        runs_query = UserRun.query.filter_by(user_id=user.id, is_deleted=False)
+        runs = runs_query.order_by(UserRun.created_at.desc()).limit(per_page).offset((page - 1) * per_page).all()
+        total_runs = runs_query.count()
+        
         runs_data = []
         for r in runs:
-            inputs_data = {}
-            try:
-                inputs_data = json.loads(r.inputs) if r.inputs else {}
-            except (json.JSONDecodeError, TypeError) as e:
-                current_app.logger.warning(f"Failed to parse inputs for run {r.run_id}: {e}")
-                inputs_data = {}
-            
-            # Include reports data for idea counting
-            reports_data = {}
-            try:
-                reports_data = json.loads(r.reports) if r.reports else {}
-            except (json.JSONDecodeError, TypeError) as e:
-                current_app.logger.warning(f"Failed to parse reports for run {r.run_id}: {e}")
-                reports_data = {}
+            inputs_data = safe_json_loads(r.inputs, logger_context=f"for run {r.run_id} inputs")
+            reports_data = safe_json_loads(r.reports, logger_context=f"for run {r.run_id} reports")
             
             runs_data.append({
                 "id": r.id,
                 "run_id": r.run_id,
                 "inputs": inputs_data,
                 "reports": reports_data,  # Include reports so frontend can count ideas
-                "created_at": r.created_at.isoformat() if r.created_at else None,
+                "created_at": serialize_datetime(r.created_at),
             })
         
-        # Get all validations (no limit for analytics) - exclude deleted ones and only show completed
-        validations = UserValidation.query.filter_by(
+        # Get validations with pagination - exclude deleted ones and only show completed
+        validations_query = UserValidation.query.filter_by(
             user_id=user.id,
             is_deleted=False,
-            status="completed"
-        ).order_by(UserValidation.created_at.desc()).all()
+            status=ValidationStatus.COMPLETED
+        )
+        validations = validations_query.order_by(UserValidation.created_at.desc()).limit(per_page).offset((page - 1) * per_page).all()
+        total_validations = validations_query.count()
+        
         validations_data = []
         for v in validations:
-            validation_result = {}
-            try:
-                validation_result = json.loads(v.validation_result) if v.validation_result else {}
-            except:
-                pass
-            
-            # Parse category_answers if it exists
-            category_answers = {}
-            if v.category_answers:
-                try:
-                    if isinstance(v.category_answers, str):
-                        category_answers = json.loads(v.category_answers)
-                    else:
-                        category_answers = v.category_answers
-                except (json.JSONDecodeError, TypeError) as e:
-                    current_app.logger.warning(f"Failed to parse category_answers for validation {v.validation_id}: {e}")
-                    category_answers = {}
+            validation_result = safe_json_loads(v.validation_result, logger_context=f"for validation {v.validation_id}")
+            category_answers = safe_json_loads(v.category_answers, logger_context=f"for validation {v.validation_id} category_answers")
             
             validations_data.append({
                 "id": v.id,
@@ -105,21 +208,20 @@ def get_user_activity() -> Any:
                 "overall_score": validation_result.get("overall_score"),
                 "idea_explanation": v.idea_explanation,
                 "category_answers": category_answers,  # Include category_answers for editing
-                "created_at": v.created_at.isoformat() if v.created_at else None,
+                "created_at": serialize_datetime(v.created_at),
             })
         
-        return jsonify({
-            "success": True,
-            "activity": {
-                "runs": runs_data,
-                "validations": validations_data,
-                "total_runs": len(runs_data),
-                "total_validations": len(validations_data),
-            },
+        return success_response({
+            "runs": runs_data,
+            "validations": validations_data,
+            "total_runs": total_runs,
+            "total_validations": total_validations,
+            "page": page,
+            "per_page": per_page,
         })
     except Exception as exc:
         current_app.logger.exception("Failed to get user activity: %s", exc)
-        return jsonify({"success": False, "error": str(exc)}), 500
+        return internal_error_response(str(exc))
 
 
 @bp.get("/api/user/run/<path:run_id>")
@@ -128,7 +230,7 @@ def get_user_run(run_id: str) -> Any:
     """Get a specific user's run data including inputs and reports."""
     session = get_current_session()
     if not session:
-        return jsonify({"success": False, "error": "Not authenticated"}), 401
+        return unauthorized_response(ErrorMessages.NOT_AUTHENTICATED)
     
     user = session.user
     
@@ -147,7 +249,7 @@ def get_user_run(run_id: str) -> Any:
             db.session.execute(db.text("SELECT 1"))
         except Exception as db_error:
             current_app.logger.exception("Database connection error in get_user_run: %s", db_error)
-            return jsonify({"success": False, "error": "Database connection error"}), 500
+            return internal_error_response(ErrorMessages.DATABASE_CONNECTION_ERROR)
         
         # Try to find the run with normalized ID first
         try:
@@ -161,7 +263,7 @@ def get_user_run(run_id: str) -> Any:
             except Exception as query_error2:
                 current_app.logger.exception("Database query error (original) in get_user_run: run_id=%s, error=%s", run_id, query_error2)
                 db.session.rollback()
-                return jsonify({"success": False, "error": "Database query error"}), 500
+                return internal_error_response(ErrorMessages.DATABASE_QUERY_ERROR)
         
         # If not found, try with original run_id (in case it's stored with prefix)
         if not user_run:
@@ -170,35 +272,18 @@ def get_user_run(run_id: str) -> Any:
             except Exception as query_error:
                 current_app.logger.exception("Database query error (fallback) in get_user_run: run_id=%s, error=%s", run_id, query_error)
                 db.session.rollback()
-                return jsonify({"success": False, "error": "Database query error"}), 500
+                return internal_error_response(ErrorMessages.DATABASE_QUERY_ERROR)
         
         if not user_run:
             current_app.logger.warning(f"Run not found: user_id={user.id}, run_id={run_id}, normalized={normalized_run_id}")
-            return jsonify({"success": False, "error": "Run not found"}), 404
+            return not_found_response("Run")
         
         # Parse inputs and reports from JSON strings (optimized with better error handling)
         inputs = {}
         reports = {}
         
-        if user_run.inputs:
-            try:
-                if isinstance(user_run.inputs, str):
-                    inputs = json.loads(user_run.inputs)
-                else:
-                    inputs = user_run.inputs
-            except (json.JSONDecodeError, TypeError) as e:
-                current_app.logger.warning(f"Failed to parse inputs for run {run_id}: {e}")
-                inputs = {}
-        
-        if user_run.reports:
-            try:
-                if isinstance(user_run.reports, str):
-                    reports = json.loads(user_run.reports)
-                else:
-                    reports = user_run.reports
-            except (json.JSONDecodeError, TypeError) as e:
-                current_app.logger.warning(f"Failed to parse reports for run {run_id}: {e}")
-                reports = {}
+        inputs = safe_json_loads(user_run.inputs, logger_context=f"for run {run_id} inputs")
+        reports = safe_json_loads(user_run.reports, logger_context=f"for run {run_id} reports")
         
         # Handle datetime serialization safely
         created_at = None
@@ -233,7 +318,7 @@ def delete_user_run(run_id: str) -> Any:
     """Delete a user's run from the database."""
     session = get_current_session()
     if not session:
-        return jsonify({"success": False, "error": "Not authenticated"}), 401
+        return unauthorized_response(ErrorMessages.NOT_AUTHENTICATED)
     
     user = session.user
     
@@ -241,17 +326,17 @@ def delete_user_run(run_id: str) -> Any:
         # Find the run and verify it belongs to the user
         user_run = UserRun.query.filter_by(user_id=user.id, run_id=run_id).first()
         if not user_run:
-            return jsonify({"success": False, "error": "Run not found"}), 404
+            return not_found_response("Run")
         
         # Delete the run
         db.session.delete(user_run)
         db.session.commit()
         
-        return jsonify({"success": True, "message": "Run deleted successfully"})
+        return success_response(message="Run deleted successfully")
     except Exception as exc:
         db.session.rollback()
         current_app.logger.exception("Failed to delete user run: %s", exc)
-        return jsonify({"success": False, "error": str(exc)}), 500
+        return internal_error_response(str(exc))
 
 
 @bp.get("/api/user/actions")
@@ -260,7 +345,7 @@ def get_user_actions() -> Any:
     """Get all action items for the current user."""
     session = get_current_session()
     if not session:
-        return jsonify({"success": False, "error": "Not authenticated"}), 401
+        return unauthorized_response(ErrorMessages.NOT_AUTHENTICATED)
     
     user = session.user
     idea_id = request.args.get("idea_id")  # Optional filter by idea
@@ -278,16 +363,16 @@ def get_user_actions() -> Any:
                 "idea_id": action.idea_id,
                 "action_text": action.action_text,
                 "status": action.status,
-                "due_date": action.due_date.isoformat() if action.due_date else None,
-                "completed_at": action.completed_at.isoformat() if action.completed_at else None,
-                "created_at": action.created_at.isoformat() if action.created_at else None,
-                "updated_at": action.updated_at.isoformat() if action.updated_at else None,
+                "due_date": serialize_datetime(action.due_date),
+                "completed_at": serialize_datetime(action.completed_at),
+                "created_at": serialize_datetime(action.created_at),
+                "updated_at": serialize_datetime(action.updated_at),
             })
         
-        return jsonify({"success": True, "actions": actions_data})
+        return success_response({"actions": actions_data})
     except Exception as exc:
         current_app.logger.exception("Failed to get user actions: %s", exc)
-        return jsonify({"success": False, "error": str(exc)}), 500
+        return internal_error_response(str(exc))
 
 
 @bp.post("/api/user/actions")
@@ -296,7 +381,7 @@ def create_user_action() -> Any:
     """Create a new action item."""
     session = get_current_session()
     if not session:
-        return jsonify({"success": False, "error": "Not authenticated"}), 401
+        return unauthorized_response(ErrorMessages.NOT_AUTHENTICATED)
     
     user = session.user
     data: Dict[str, Any] = request.get_json(force=True, silent=True) or {}
@@ -307,19 +392,19 @@ def create_user_action() -> Any:
     due_date_str = data.get("due_date")
     
     if not action_text or not idea_id:
-        return jsonify({"success": False, "error": "action_text and idea_id are required"}), 400
+        return error_response(ErrorMessages.ACTION_TEXT_REQUIRED, 400)
     
     # Validate input lengths
-    if len(action_text) > 1000:
-        return jsonify({"success": False, "error": "action_text must be 1000 characters or less"}), 400
+    if len(action_text) > MAX_ACTION_TEXT_LENGTH:
+        return error_response(ErrorMessages.ACTION_TEXT_TOO_LONG, 400)
     
-    if len(idea_id) > 255:
-        return jsonify({"success": False, "error": "idea_id must be 255 characters or less"}), 400
+    if len(idea_id) > MAX_IDEA_ID_LENGTH:
+        return error_response(ErrorMessages.IDEA_ID_TOO_LONG, 400)
     
     # Validate status
     allowed_statuses = ["pending", "in_progress", "completed", "blocked"]
     if status not in allowed_statuses:
-        return jsonify({"success": False, "error": f"status must be one of: {', '.join(allowed_statuses)}"}), 400
+        return error_response(f"status must be one of: {', '.join(allowed_statuses)}", 400)
     
     try:
         due_date = None
@@ -330,7 +415,7 @@ def create_user_action() -> Any:
                 due_date = datetime.fromisoformat(date_str)
             except (ValueError, AttributeError) as e:
                 current_app.logger.warning(f"Invalid date format: {due_date_str}, error: {e}")
-                return jsonify({"success": False, "error": f"Invalid date format: {due_date_str}"}), 400
+                return error_response(ErrorMessages.INVALID_DATE_FORMAT, 400)
         
         action = UserAction(
             user_id=user.id,
@@ -356,7 +441,7 @@ def create_user_action() -> Any:
     except Exception as exc:
         db.session.rollback()
         current_app.logger.exception("Failed to create action: %s", exc)
-        return jsonify({"success": False, "error": str(exc)}), 500
+        return internal_error_response(str(exc))
 
 
 @bp.put("/api/user/actions/<int:action_id>")
@@ -365,7 +450,7 @@ def update_user_action(action_id: int) -> Any:
     """Update an action item."""
     session = get_current_session()
     if not session:
-        return jsonify({"success": False, "error": "Not authenticated"}), 401
+        return unauthorized_response(ErrorMessages.NOT_AUTHENTICATED)
     
     user = session.user
     data: Dict[str, Any] = request.get_json(force=True, silent=True) or {}
@@ -373,17 +458,17 @@ def update_user_action(action_id: int) -> Any:
     try:
         action = UserAction.query.filter_by(id=action_id, user_id=user.id).first()
         if not action:
-            return jsonify({"success": False, "error": "Action not found"}), 404
+            return not_found_response("Action")
         
         if "action_text" in data:
             action_text = data["action_text"].strip()
             if len(action_text) > 1000:
-                return jsonify({"success": False, "error": "action_text must be 1000 characters or less"}), 400
+                return error_response(ErrorMessages.ACTION_TEXT_TOO_LONG, 400)
             action.action_text = action_text
         if "status" in data:
             allowed_statuses = ["pending", "in_progress", "completed", "blocked"]
             if data["status"] not in allowed_statuses:
-                return jsonify({"success": False, "error": f"status must be one of: {', '.join(allowed_statuses)}"}), 400
+                return error_response(f"status must be one of: {', '.join(allowed_statuses)}", 400)
             action.status = data["status"]
             if data["status"] == "completed" and not action.completed_at:
                 action.completed_at = datetime.utcnow()
@@ -398,7 +483,7 @@ def update_user_action(action_id: int) -> Any:
                     action.due_date = datetime.fromisoformat(date_str)
                 except (ValueError, AttributeError) as e:
                     current_app.logger.warning(f"Invalid date format: {due_date_str}, error: {e}")
-                    return jsonify({"success": False, "error": f"Invalid date format: {due_date_str}"}), 400
+                    return error_response(ErrorMessages.INVALID_DATE_FORMAT, 400)
             else:
                 action.due_date = None
         
@@ -420,7 +505,7 @@ def update_user_action(action_id: int) -> Any:
     except Exception as exc:
         db.session.rollback()
         current_app.logger.exception("Failed to update action: %s", exc)
-        return jsonify({"success": False, "error": str(exc)}), 500
+        return internal_error_response(str(exc))
 
 
 @bp.delete("/api/user/actions/<int:action_id>")
@@ -429,14 +514,14 @@ def delete_user_action(action_id: int) -> Any:
     """Delete an action item."""
     session = get_current_session()
     if not session:
-        return jsonify({"success": False, "error": "Not authenticated"}), 401
+        return unauthorized_response(ErrorMessages.NOT_AUTHENTICATED)
     
     user = session.user
     
     try:
         action = UserAction.query.filter_by(id=action_id, user_id=user.id).first()
         if not action:
-            return jsonify({"success": False, "error": "Action not found"}), 404
+            return not_found_response("Action")
         
         db.session.delete(action)
         db.session.commit()
@@ -445,7 +530,7 @@ def delete_user_action(action_id: int) -> Any:
     except Exception as exc:
         db.session.rollback()
         current_app.logger.exception("Failed to delete action: %s", exc)
-        return jsonify({"success": False, "error": str(exc)}), 500
+        return internal_error_response(str(exc))
 
 
 @bp.get("/api/user/notes")
@@ -454,7 +539,7 @@ def get_user_notes() -> Any:
     """Get all notes for the current user."""
     session = get_current_session()
     if not session:
-        return jsonify({"success": False, "error": "Not authenticated"}), 401
+        return unauthorized_response(ErrorMessages.NOT_AUTHENTICATED)
     
     user = session.user
     idea_id = request.args.get("idea_id")  # Optional filter by idea
@@ -467,25 +552,21 @@ def get_user_notes() -> Any:
         notes = query.order_by(UserNote.updated_at.desc()).all()
         notes_data = []
         for note in notes:
-            tags = []
-            try:
-                tags = json.loads(note.tags) if note.tags else []
-            except:
-                pass
+            tags = safe_json_loads(note.tags, default=[], logger_context=f"for note {note.id}")
             
             notes_data.append({
                 "id": note.id,
                 "idea_id": note.idea_id,
                 "content": note.content,
                 "tags": tags,
-                "created_at": note.created_at.isoformat() if note.created_at else None,
-                "updated_at": note.updated_at.isoformat() if note.updated_at else None,
+                "created_at": serialize_datetime(note.created_at),
+                "updated_at": serialize_datetime(note.updated_at),
             })
         
         return jsonify({"success": True, "notes": notes_data})
     except Exception as exc:
         current_app.logger.exception("Failed to get user notes: %s", exc)
-        return jsonify({"success": False, "error": str(exc)}), 500
+        return internal_error_response(str(exc))
 
 
 @bp.post("/api/user/notes")
@@ -494,7 +575,7 @@ def create_user_note() -> Any:
     """Create a new note."""
     session = get_current_session()
     if not session:
-        return jsonify({"success": False, "error": "Not authenticated"}), 401
+        return unauthorized_response(ErrorMessages.NOT_AUTHENTICATED)
     
     user = session.user
     data: Dict[str, Any] = request.get_json(force=True, silent=True) or {}
@@ -507,11 +588,11 @@ def create_user_note() -> Any:
         return jsonify({"success": False, "error": "content and idea_id are required"}), 400
     
     # Validate input lengths
-    if len(content) > 10000:
-        return jsonify({"success": False, "error": "content must be 10000 characters or less"}), 400
+    if len(content) > MAX_NOTE_CONTENT_LENGTH:
+        return error_response(ErrorMessages.CONTENT_TOO_LONG, 400)
     
-    if len(idea_id) > 255:
-        return jsonify({"success": False, "error": "idea_id must be 255 characters or less"}), 400
+    if len(idea_id) > MAX_IDEA_ID_LENGTH:
+        return error_response(ErrorMessages.IDEA_ID_TOO_LONG, 400)
     
     try:
         note = UserNote(
@@ -536,7 +617,7 @@ def create_user_note() -> Any:
     except Exception as exc:
         db.session.rollback()
         current_app.logger.exception("Failed to create note: %s", exc)
-        return jsonify({"success": False, "error": str(exc)}), 500
+        return internal_error_response(str(exc))
 
 
 @bp.put("/api/user/notes/<int:note_id>")
@@ -545,7 +626,7 @@ def update_user_note(note_id: int) -> Any:
     """Update a note."""
     session = get_current_session()
     if not session:
-        return jsonify({"success": False, "error": "Not authenticated"}), 401
+        return unauthorized_response(ErrorMessages.NOT_AUTHENTICATED)
     
     user = session.user
     data: Dict[str, Any] = request.get_json(force=True, silent=True) or {}
@@ -585,7 +666,7 @@ def update_user_note(note_id: int) -> Any:
     except Exception as exc:
         db.session.rollback()
         current_app.logger.exception("Failed to update note: %s", exc)
-        return jsonify({"success": False, "error": str(exc)}), 500
+        return internal_error_response(str(exc))
 
 
 @bp.delete("/api/user/notes/<int:note_id>")
@@ -594,7 +675,7 @@ def delete_user_note(note_id: int) -> Any:
     """Delete a note."""
     session = get_current_session()
     if not session:
-        return jsonify({"success": False, "error": "Not authenticated"}), 401
+        return unauthorized_response(ErrorMessages.NOT_AUTHENTICATED)
     
     user = session.user
     
@@ -610,7 +691,7 @@ def delete_user_note(note_id: int) -> Any:
     except Exception as exc:
         db.session.rollback()
         current_app.logger.exception("Failed to delete note: %s", exc)
-        return jsonify({"success": False, "error": str(exc)}), 500
+        return internal_error_response(str(exc))
 
 
 @bp.post("/api/user/compare-sessions")
@@ -619,7 +700,7 @@ def compare_sessions() -> Any:
     """Compare multiple sessions (runs or validations) side-by-side."""
     session = get_current_session()
     if not session:
-        return jsonify({"success": False, "error": "Not authenticated"}), 401
+        return unauthorized_response(ErrorMessages.NOT_AUTHENTICATED)
     
     user = session.user
     data: Dict[str, Any] = request.get_json(force=True, silent=True) or {}
@@ -639,9 +720,13 @@ def compare_sessions() -> Any:
             "validations": [],
         }
         
-        # Fetch runs
+        # Fetch runs in batch to avoid N+1 queries
+        runs_dict = {r.run_id: r for r in UserRun.query.filter_by(
+            user_id=user.id
+        ).filter(UserRun.run_id.in_(run_ids)).all()}
+        
         for run_id in run_ids:
-            run = UserRun.query.filter_by(user_id=user.id, run_id=run_id).first()
+            run = runs_dict.get(run_id)
             if run:
                 inputs = {}
                 reports = {}
@@ -658,19 +743,20 @@ def compare_sessions() -> Any:
                     "created_at": run.created_at.isoformat() if run.created_at else None,
                 })
         
-        # Fetch validations
+        # Fetch validations in batch to avoid N+1 queries
+        validations_dict = {v.validation_id: v for v in UserValidation.query.filter_by(
+            user_id=user.id,
+            is_deleted=False
+        ).filter(UserValidation.validation_id.in_(validation_ids)).all()}
+        
         for validation_id in validation_ids:
-            validation = UserValidation.query.filter_by(
-                user_id=user.id,
-                validation_id=validation_id,
-                is_deleted=False
-            ).first()
+            validation = validations_dict.get(validation_id)
             if validation:
                 category_answers = {}
                 validation_result = {}
                 try:
                     category_answers = json.loads(validation.category_answers) if validation.category_answers else {}
-                    validation_result = json.loads(validation.validation_result) if validation.validation_result else {}
+                    validation_result = safe_json_loads(validation.validation_result, logger_context=f"for validation {validation.validation_id}")
                 except:
                     pass
                 
@@ -685,7 +771,7 @@ def compare_sessions() -> Any:
         return jsonify({"success": True, "comparison": comparison_data})
     except Exception as exc:
         current_app.logger.exception("Failed to compare sessions: %s", exc)
-        return jsonify({"success": False, "error": str(exc)}), 500
+        return internal_error_response(str(exc))
 
 
 @bp.get("/api/user/smart-recommendations")
@@ -694,22 +780,22 @@ def get_smart_recommendations() -> Any:
     """Get smart recommendations based on user's validation history."""
     session = get_current_session()
     if not session:
-        return jsonify({"success": False, "error": "Not authenticated"}), 401
+        return unauthorized_response(ErrorMessages.NOT_AUTHENTICATED)
     
     user = session.user
     
     try:
-        # Get all validations - exclude deleted ones
+        # Get validations with limit to avoid loading all records
+        # Only need recent validations for pattern analysis
         validations = UserValidation.query.filter_by(
             user_id=user.id,
             is_deleted=False
-        ).order_by(UserValidation.created_at.desc()).all()
+        ).order_by(UserValidation.created_at.desc()).limit(SMART_RECOMMENDATIONS_LIMIT).all()
         
-        if len(validations) < 2:
-            return jsonify({
-                "success": True,
+        if len(validations) < MIN_VALIDATIONS_FOR_INSIGHTS:
+            return success_response({
                 "insights": {
-                    "message": "Complete at least 2 validations to get personalized insights",
+                    "message": ErrorMessages.MIN_VALIDATIONS_FOR_INSIGHTS,
                     "patterns": [],
                     "similar_ideas": [],
                     "total_validations": len(validations),
@@ -724,7 +810,7 @@ def get_smart_recommendations() -> Any:
         
         for validation in validations:
             try:
-                validation_result = json.loads(validation.validation_result) if validation.validation_result else {}
+                validation_result = safe_json_loads(validation.validation_result, logger_context=f"for validation {validation.validation_id}")
                 scores = validation_result.get("scores", {})
                 
                 # Track category scores
@@ -735,16 +821,12 @@ def get_smart_recommendations() -> Any:
                 
                 # Track interest areas from idea explanation
                 if validation.idea_explanation:
-                    # Simple keyword extraction (can be improved)
                     idea_lower = validation.idea_explanation.lower()
-                    if "ai" in idea_lower or "artificial intelligence" in idea_lower:
-                        interest_areas.append("AI/ML")
-                    elif "saas" in idea_lower or "software" in idea_lower:
-                        interest_areas.append("SaaS")
-                    elif "ecommerce" in idea_lower or "e-commerce" in idea_lower:
-                        interest_areas.append("E-commerce")
-                    elif "fintech" in idea_lower or "finance" in idea_lower:
-                        interest_areas.append("Fintech")
+                    # Use INTEREST_AREA_KEYWORDS constant for keyword matching
+                    for area_name, keywords in INTEREST_AREA_KEYWORDS.items():
+                        if any(keyword in idea_lower for keyword in keywords):
+                            interest_areas.append(area_name)
+                            break  # Only match first area to avoid duplicates
             except:
                 continue
         
@@ -766,9 +848,9 @@ def get_smart_recommendations() -> Any:
         if len(validations) >= 2:
             # Simple similarity: ideas with similar overall scores
             validation_scores = []
-            for validation in validations[:10]:  # Last 10 validations
+            for validation in validations[:RECOMMENDATIONS_VALIDATION_LIMIT]:  # Last N validations
                 try:
-                    validation_result = json.loads(validation.validation_result) if validation.validation_result else {}
+                    validation_result = safe_json_loads(validation.validation_result, logger_context=f"for validation {validation.validation_id}")
                     overall_score = validation_result.get("overall_score", 0)
                     if overall_score > 0:
                         validation_scores.append({
@@ -780,23 +862,22 @@ def get_smart_recommendations() -> Any:
                     continue
             
             # Group by score ranges
-            high_scoring = [v for v in validation_scores if v["score"] >= 7.5]
+            high_scoring = [v for v in validation_scores if v["score"] >= HIGH_SCORE_THRESHOLD]
             if high_scoring:
-                similar_ideas = high_scoring[:3]
+                similar_ideas = high_scoring[:SIMILAR_IDEAS_LIMIT]
         
-        return jsonify({
-            "success": True,
+        return success_response({
             "insights": {
                 "patterns": patterns,
                 "similar_ideas": similar_ideas,
                 "total_validations": len(validations),
-                "interest_areas": list(set(interest_areas))[:5] if interest_areas else [],
+                "interest_areas": list(set(interest_areas))[:INTEREST_AREAS_LIMIT] if interest_areas else [],
                 "message": None,  # No message when we have insights
             },
         })
     except Exception as exc:
         current_app.logger.exception("Failed to get smart recommendations: %s", exc)
-        return jsonify({"success": False, "error": str(exc)}), 500
+        return internal_error_response(str(exc))
 
 
 @bp.post("/api/emails/check-expiring")
@@ -806,11 +887,12 @@ def check_expiring_subscriptions() -> Any:
         now = datetime.utcnow()
         emails_sent = 0
         
-        # Check trial users expiring in 1 day
+        # Check trial users expiring in 1 day - use index on subscription_type and subscription_expires_at
         trial_expiring = User.query.filter(
-            User.subscription_type == "free_trial",
+            User.subscription_type == SubscriptionTier.FREE_TRIAL,
             User.subscription_expires_at <= now + timedelta(days=1),
             User.subscription_expires_at > now,
+            User.is_active == True
         ).all()
         
         for user in trial_expiring:
@@ -831,12 +913,13 @@ def check_expiring_subscriptions() -> Any:
                 except Exception as e:
                     current_app.logger.warning(f"Failed to send trial ending email to {user.email}: {e}")
         
-        # Check paid subscriptions expiring in 3 days
+        # Check paid subscriptions expiring in 3 days - use index on subscription_type and subscription_expires_at
         paid_expiring = User.query.filter(
-            User.subscription_type.in_(["starter", "pro", "weekly"]),
-            User.payment_status == "active",
+            User.subscription_type.in_([SubscriptionTier.STARTER, SubscriptionTier.PRO, "weekly"]),  # weekly is legacy
+            User.payment_status == PaymentStatus.ACTIVE,
             User.subscription_expires_at <= now + timedelta(days=3),
             User.subscription_expires_at > now,
+            User.is_active == True
         ).all()
         
         for user in paid_expiring:
@@ -858,12 +941,11 @@ def check_expiring_subscriptions() -> Any:
                 except Exception as e:
                     current_app.logger.warning(f"Failed to send subscription expiring email to {user.email}: {e}")
         
-        return jsonify({
-            "success": True,
+        return success_response({
             "emails_sent": emails_sent,
             "message": f"Checked expiring subscriptions, sent {emails_sent} emails",
         })
     except Exception as exc:
         current_app.logger.exception("Failed to check expiring subscriptions: %s", exc)
-        return jsonify({"success": False, "error": str(exc)}), 500
+        return internal_error_response(str(exc))
 

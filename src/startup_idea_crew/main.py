@@ -5,7 +5,23 @@ Run this to get personalized startup ideas based on your profile
 """
 
 import sys
+from pathlib import Path
 from startup_idea_crew.crew import StartupIdeaCrew
+
+# Import output manager for archiving (if available)
+try:
+    # Try importing from app (when running from project root)
+    from app.utils.output_manager import archive_existing_outputs
+except ImportError:
+    try:
+        # Fallback: add project root to path
+        project_root = Path(__file__).parent.parent.parent
+        sys.path.insert(0, str(project_root))
+        from app.utils.output_manager import archive_existing_outputs
+    except ImportError:
+        # If still can't import, define a no-op function
+        def archive_existing_outputs():
+            pass
 
 
 def run():
@@ -83,6 +99,13 @@ def run():
     }
     
     try:
+        # Archive existing output files before running (preserves history)
+        try:
+            archive_existing_outputs()
+            print("Archived previous output files.\n")
+        except Exception as e:
+            print(f"Note: Could not archive previous outputs: {e}\n")
+        
         # Initialize and run the crew
         print("Initializing crew...")
         crew_instance = StartupIdeaCrew()

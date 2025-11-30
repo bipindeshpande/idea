@@ -1,12 +1,21 @@
 """Authentication routes blueprint."""
-from flask import Blueprint, request, jsonify, current_app
+from flask import Blueprint, request, current_app
 from typing import Any, Dict
 from datetime import datetime, timedelta
 import os
 import traceback
 
-from app.models.database import db, User
+from app.models.database import db, User, SubscriptionTier, PaymentStatus
 from app.utils import create_user_session, get_current_session, require_auth
+from app.utils.response_helpers import (
+    success_response, error_response, not_found_response,
+    unauthorized_response, internal_error_response
+)
+from app.constants import (
+    DEFAULT_SUBSCRIPTION_TYPE, DEFAULT_PAYMENT_STATUS,
+    MIN_PASSWORD_LENGTH, SUBSCRIPTION_DURATIONS,
+    ErrorMessages,
+)
 from app.services.audit_service import log_login, log_password_reset
 from app.services.email_service import email_service
 from app.services.email_templates import (
@@ -42,23 +51,24 @@ def register() -> Any:
     password = data.get("password", "").strip()
     
     if not email or not password:
-        return jsonify({"success": False, "error": "Email and password are required"}), 400
+        return error_response("Email and password are required", 400)
     
-    if len(password) < 8:
-        return jsonify({"success": False, "error": "Password must be at least 8 characters"}), 400
+    if len(password) < MIN_PASSWORD_LENGTH:
+        return error_response(ErrorMessages.PASSWORD_TOO_SHORT, 400)
     
     # Check if user exists
     existing_user = User.query.filter_by(email=email).first()
     if existing_user:
-        return jsonify({"success": False, "error": "Email already registered"}), 400
+        return error_response("Email already registered", 400)
     
     # Create new user with 3-day free trial
+    trial_duration = SUBSCRIPTION_DURATIONS.get(SubscriptionTier.FREE_TRIAL, 3)
     user = User(
         email=email,
-        subscription_type="free_trial",
+        subscription_type=SubscriptionTier.FREE_TRIAL,
         subscription_started_at=datetime.utcnow(),
-        subscription_expires_at=datetime.utcnow() + timedelta(days=3),
-        payment_status="trial",
+        subscription_expires_at=datetime.utcnow() + timedelta(days=trial_duration),
+        payment_status=DEFAULT_PAYMENT_STATUS,
     )
     user.set_password(password)
     
@@ -107,15 +117,14 @@ def register() -> Any:
         except Exception as e:
             current_app.logger.warning(f"Failed to send admin notification: {e}")
         
-        return jsonify({
-            "success": True,
+        return success_response({
             "user": user.to_dict(),
             "session_token": session.session_token,
         })
     except Exception as exc:
         db.session.rollback()
         current_app.logger.exception("Registration failed: %s", exc)
-        return jsonify({"success": False, "error": "Registration failed"}), 500
+        return internal_error_response("Registration failed")
 
 
 @bp.post("/login")
@@ -127,29 +136,29 @@ def login() -> Any:
             db.session.execute(db.text("SELECT 1"))
         except Exception as db_check:
             current_app.logger.exception("Database connection check failed: %s", db_check)
-            return jsonify({"success": False, "error": "Database connection error"}), 500
+            return internal_error_response(ErrorMessages.DATABASE_CONNECTION_ERROR)
         data: Dict[str, Any] = request.get_json(force=True, silent=True) or {}
         email = data.get("email", "").strip().lower()
         password = data.get("password", "").strip()
         
         if not email or not password:
-            return jsonify({"success": False, "error": "Email and password are required"}), 400
+            return error_response("Email and password are required", 400)
         
         try:
             user = User.query.filter_by(email=email).first()
         except Exception as query_error:
             current_app.logger.exception("Database query error during login: %s", query_error)
             db.session.rollback()
-            return jsonify({"success": False, "error": "Database error. Please try again."}), 500
+            return internal_error_response(ErrorMessages.DATABASE_ERROR)
         
         if not user:
-            return jsonify({"success": False, "error": "Invalid email or password"}), 401
+            return unauthorized_response("Invalid email or password")
         
         try:
             password_valid = user.check_password(password)
         except Exception as password_error:
             current_app.logger.exception("Password check error during login: %s", password_error)
-            return jsonify({"success": False, "error": "Authentication error. Please try again."}), 500
+            return internal_error_response("Authentication error. Please try again.")
         
         if not password_valid:
             # Log failed login attempt
@@ -157,7 +166,7 @@ def login() -> Any:
                 log_login(user.id if user else None, success=False)
             except:
                 pass  # Don't fail login if audit logging fails
-            return jsonify({"success": False, "error": "Invalid email or password"}), 401
+            return unauthorized_response("Invalid email or password")
         
         # Check if account is active (database column, not method)
         try:
@@ -167,13 +176,13 @@ def login() -> Any:
             account_active = True  # Default to active if we can't check
         
         if not account_active:
-            return jsonify({"success": False, "error": "Account is deactivated"}), 403
+            return error_response("Account is deactivated", 403)
         
         # Create user dict BEFORE creating session to avoid any transaction issues
         # Use read-only approach - no database modifications
         try:
-            subscription_type = user.subscription_type or "free"
-            is_active = subscription_type == "free"
+            subscription_type = user.subscription_type or DEFAULT_SUBSCRIPTION_TYPE
+            is_active = subscription_type == SubscriptionTier.FREE
             if user.subscription_expires_at:
                 is_active = datetime.utcnow() < user.subscription_expires_at
             
@@ -187,7 +196,7 @@ def login() -> Any:
                 "email": user.email,
                 "subscription_type": subscription_type,
                 "subscription_expires_at": user.subscription_expires_at.isoformat() if user.subscription_expires_at else None,
-                "payment_status": user.payment_status or "trial",
+                "payment_status": user.payment_status or DEFAULT_PAYMENT_STATUS,
                 "is_active": is_active,
                 "days_remaining": days_remaining,
             }
@@ -199,9 +208,9 @@ def login() -> Any:
                 user_dict = {
                     "id": user.id,
                     "email": user.email,
-                    "subscription_type": getattr(user, 'subscription_type', None) or "free",
+                    "subscription_type": getattr(user, 'subscription_type', None) or DEFAULT_SUBSCRIPTION_TYPE,
                     "subscription_expires_at": user.subscription_expires_at.isoformat() if hasattr(user, 'subscription_expires_at') and user.subscription_expires_at else None,
-                    "payment_status": getattr(user, 'payment_status', None) or "trial",
+                    "payment_status": getattr(user, 'payment_status', None) or DEFAULT_PAYMENT_STATUS,
                     "is_active": True,
                     "days_remaining": 0,
                 }
@@ -211,9 +220,9 @@ def login() -> Any:
                 user_dict = {
                     "id": user.id,
                     "email": user.email,
-                    "subscription_type": "free",
+                    "subscription_type": DEFAULT_SUBSCRIPTION_TYPE,
                     "subscription_expires_at": None,
-                    "payment_status": "trial",
+                    "payment_status": DEFAULT_PAYMENT_STATUS,
                     "is_active": True,
                     "days_remaining": 0,
                 }
@@ -226,10 +235,7 @@ def login() -> Any:
             except Exception as db_check:
                 current_app.logger.exception("Database connection lost before session creation: %s", db_check)
                 db.session.rollback()
-                return jsonify({
-                    "success": False,
-                    "error": "Database connection error. Please try again."
-                }), 500
+                return internal_error_response(ErrorMessages.DATABASE_CONNECTION_ERROR)
             
             session = create_user_session(user.id, request.remote_addr, request.headers.get("User-Agent"))
         except Exception as session_error:
@@ -240,10 +246,7 @@ def login() -> Any:
             except:
                 pass
             # Return a generic error message to avoid exposing internal details
-            return jsonify({
-                "success": False, 
-                "error": "Failed to create session. Please try again."
-            }), 500
+            return internal_error_response("Failed to create session. Please try again.")
         
         # Ensure session_token exists before returning
         if not session or not hasattr(session, 'session_token') or not session.session_token:
@@ -252,10 +255,7 @@ def login() -> Any:
                 db.session.rollback()
             except:
                 pass
-            return jsonify({
-                "success": False,
-                "error": "Failed to create session token. Please try again."
-            }), 500
+            return internal_error_response("Failed to create session token. Please try again.")
         
         response_data = {
             "success": True,
@@ -269,7 +269,7 @@ def login() -> Any:
         except Exception as log_error:
             current_app.logger.warning(f"Failed to log login: {log_error}")
         
-        return jsonify(response_data)
+        return success_response(response_data)
     except Exception as exc:
         current_app.logger.exception("Login failed: %s", exc)
         current_app.logger.error(f"Login error traceback: {traceback.format_exc()}")
@@ -277,10 +277,7 @@ def login() -> Any:
             db.session.rollback()
         except:
             pass
-        return jsonify({
-            "success": False, 
-            "error": "Login failed. Please try again."
-        }), 500
+        return internal_error_response("Login failed. Please try again.")
 
 
 @bp.post("/logout")
@@ -292,7 +289,7 @@ def logout() -> Any:
         db.session.delete(session)
         db.session.commit()
     
-    return jsonify({"success": True})
+    return success_response()
 
 
 @bp.get("/me")
@@ -302,11 +299,11 @@ def get_current_user() -> Any:
     try:
         session = get_current_session()
         if not session:
-            return jsonify({"success": False, "error": "Not authenticated"}), 401
+            return unauthorized_response(ErrorMessages.NOT_AUTHENTICATED)
         
         user = session.user
         if not user:
-            return jsonify({"success": False, "error": "User not found"}), 404
+            return not_found_response("User")
         
         try:
             user_dict = user.to_dict()
@@ -316,19 +313,16 @@ def get_current_user() -> Any:
             user_dict = {
                 "id": user.id,
                 "email": user.email,
-                "subscription_type": getattr(user, 'subscription_type', None) or "free",
-                "subscription_expires_at": user.subscription_expires_at.isoformat() if hasattr(user, 'subscription_expires_at') and user.subscription_expires_at else None,
-                "payment_status": getattr(user, 'payment_status', None) or "trial",
+                "subscription_type": getattr(user, 'subscription_type', None) or DEFAULT_SUBSCRIPTION_TYPE,
+                "subscription_expires_at": serialize_datetime(user.subscription_expires_at) if hasattr(user, 'subscription_expires_at') and user.subscription_expires_at else None,
+                "payment_status": getattr(user, 'payment_status', None) or DEFAULT_PAYMENT_STATUS,
                 "is_active": getattr(user, 'is_active', True),
             }
         
-        return jsonify({
-            "success": True,
-            "user": user_dict,
-        })
+        return success_response({"user": user_dict})
     except Exception as exc:
         current_app.logger.exception("Failed to get current user: %s", exc)
-        return jsonify({"success": False, "error": "Internal server error"}), 500
+        return internal_error_response(ErrorMessages.INTERNAL_SERVER_ERROR)
 
 
 @bp.post("/forgot-password")
@@ -338,12 +332,12 @@ def forgot_password() -> Any:
     email = data.get("email", "").strip().lower()
     
     if not email:
-        return jsonify({"success": False, "error": "Email is required"}), 400
+        return error_response(ErrorMessages.EMAIL_REQUIRED, 400)
     
     user = User.query.filter_by(email=email).first()
     if not user:
         # Don't reveal if email exists
-        return jsonify({"success": True, "message": "If email exists, reset link sent"})
+        return success_response(message="If email exists, reset link sent")
     
     token = user.generate_reset_token()
     db.session.commit()
@@ -370,12 +364,9 @@ def forgot_password() -> Any:
         current_app.logger.warning(f"Failed to send password reset email to {email}: {e}")
         # Still return success to avoid revealing if email exists
     
-    return jsonify({
-        "success": True,
-        "message": "If email exists, reset link sent",
-        # Only include reset_link in DEBUG mode for development
+    return success_response({
         "reset_link": reset_link if os.environ.get("DEBUG") else None,
-    })
+    }, message="If email exists, reset link sent")
 
 
 @bp.post("/reset-password")
@@ -386,14 +377,14 @@ def reset_password() -> Any:
     new_password = data.get("password", "").strip()
     
     if not token or not new_password:
-        return jsonify({"success": False, "error": "Token and password are required"}), 400
+        return error_response("Token and password are required", 400)
     
-    if len(new_password) < 8:
-        return jsonify({"success": False, "error": "Password must be at least 8 characters"}), 400
+    if len(new_password) < MIN_PASSWORD_LENGTH:
+        return error_response(ErrorMessages.PASSWORD_TOO_SHORT, 400)
     
     user = User.query.filter(User.reset_token.isnot(None)).first()
     if not user or not user.verify_reset_token(token):
-        return jsonify({"success": False, "error": "Invalid or expired reset token"}), 400
+        return error_response(ErrorMessages.INVALID_OR_EXPIRED_TOKEN, 400)
     
     user.set_password(new_password)
     user.clear_reset_token()
@@ -411,7 +402,7 @@ def reset_password() -> Any:
     except Exception as e:
         current_app.logger.warning(f"Failed to send password changed email to {user.email}: {e}")
     
-    return jsonify({"success": True, "message": "Password reset successful"})
+    return success_response(message="Password reset successful")
 
 
 @bp.post("/change-password")
@@ -420,21 +411,21 @@ def change_password() -> Any:
     """Change password (requires current password)."""
     session = get_current_session()
     if not session:
-        return jsonify({"success": False, "error": "Not authenticated"}), 401
+        return unauthorized_response(ErrorMessages.NOT_AUTHENTICATED)
     
     data: Dict[str, Any] = request.get_json(force=True, silent=True) or {}
     current_password = data.get("current_password", "").strip()
     new_password = data.get("new_password", "").strip()
     
     if not current_password or not new_password:
-        return jsonify({"success": False, "error": "Current and new passwords are required"}), 400
+        return error_response("Current and new passwords are required", 400)
     
-    if len(new_password) < 8:
-        return jsonify({"success": False, "error": "Password must be at least 8 characters"}), 400
+    if len(new_password) < MIN_PASSWORD_LENGTH:
+        return error_response(ErrorMessages.PASSWORD_TOO_SHORT, 400)
     
     user = session.user
     if not user.check_password(current_password):
-        return jsonify({"success": False, "error": "Current password is incorrect"}), 400
+        return error_response("Current password is incorrect", 400)
     
     user.set_password(new_password)
     db.session.commit()
@@ -451,5 +442,5 @@ def change_password() -> Any:
     except Exception as e:
         current_app.logger.warning(f"Failed to send password changed email to {user.email}: {e}")
     
-    return jsonify({"success": True, "message": "Password changed successfully"})
+    return success_response(message="Password changed successfully")
 

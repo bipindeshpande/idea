@@ -140,6 +140,10 @@ After running, you'll find these files in the `output/` directory:
 - **startup_ideas_research.md** - Research on 5-8 startup ideas
 - **personalized_recommendations.md** - Top 3 recommendations with actionable steps
 
+**Note**: 
+- **Production/API**: Uses unique temporary files per run (prevents race conditions with concurrent users). Files are cleaned up automatically.
+- **Development/CLI**: Files are overwritten on each run. All production data is stored in the database.
+
 ## 🧪 Testing
 
 To test the crew with sample inputs:

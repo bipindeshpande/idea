@@ -90,10 +90,6 @@ export default function CompareSessionsPage() {
         validation_ids: [],
       };
       
-      if (process.env.NODE_ENV === 'development') {
-        console.log("Comparing ideas:", selectedIdeasData);
-      }
-
       const response = await fetch("/api/user/compare-sessions", {
         method: "POST",
         headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
@@ -102,9 +98,6 @@ export default function CompareSessionsPage() {
       
       if (response.ok) {
         const data = await response.json();
-        if (process.env.NODE_ENV === 'development') {
-          console.log("Comparison response:", data);
-        }
         
         if (data.success) {
           if (data.comparison) {

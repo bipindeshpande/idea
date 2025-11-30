@@ -1,13 +1,27 @@
 """Payment and subscription routes blueprint."""
-from flask import Blueprint, request, jsonify, current_app
+from flask import Blueprint, request, current_app
 from typing import Any, Dict
 from datetime import datetime, timedelta
 import os
-import json
 import secrets
 
-from app.models.database import db, User, Payment, SubscriptionCancellation, StripeEvent
+from app.models.database import (
+    db, User, Payment, SubscriptionCancellation, StripeEvent,
+    SubscriptionTier, PaymentStatus
+)
 from app.utils import get_current_session, require_auth
+from app.utils.json_helpers import safe_json_loads, safe_json_dumps
+from app.utils.response_helpers import (
+    success_response, error_response, not_found_response,
+    unauthorized_response, internal_error_response
+)
+from app.utils.serialization import serialize_datetime
+from app.constants import (
+    SUBSCRIPTION_DURATIONS, SUBSCRIPTION_PRICES,
+    DEFAULT_SUBSCRIPTION_TYPE, DEFAULT_PAYMENT_STATUS,
+    USER_PAYMENT_HISTORY_LIMIT,
+    ErrorMessages,
+)
 from app.services.email_service import email_service
 from app.services.email_templates import (
     subscription_activated_email,
@@ -37,11 +51,11 @@ def get_subscription_status() -> Any:
     try:
         session = get_current_session()
         if not session:
-            return jsonify({"success": False, "error": "Not authenticated"}), 401
+            return unauthorized_response(ErrorMessages.NOT_AUTHENTICATED)
         
         user = session.user
         if not user:
-            return jsonify({"success": False, "error": "User not found"}), 404
+            return not_found_response("User")
         
         # Ensure subscription expiration is set if needed (this may commit to DB)
         try:
@@ -51,14 +65,14 @@ def get_subscription_status() -> Any:
         except Exception as e:
             current_app.logger.exception("Error in is_subscription_active: %s", e)
             # Fallback: use read-only check
-            subscription_type = user.subscription_type or "free"
-            if subscription_type == "free":
+            subscription_type = user.subscription_type or DEFAULT_SUBSCRIPTION_TYPE
+            if subscription_type == SubscriptionTier.FREE:
                 is_active = True
             elif user.subscription_expires_at:
                 is_active = datetime.utcnow() < user.subscription_expires_at
-            elif user.subscription_started_at and subscription_type in ["starter", "pro", "annual"]:
+            elif user.subscription_started_at and subscription_type in [SubscriptionTier.STARTER, SubscriptionTier.PRO, SubscriptionTier.ANNUAL]:
                 # Calculate expiration from start date
-                duration_days = {"starter": 30, "pro": 30, "annual": 365}.get(subscription_type, 30)
+                duration_days = SUBSCRIPTION_DURATIONS.get(subscription_type, 30)
                 calculated_expiry = user.subscription_started_at + timedelta(days=duration_days)
                 is_active = datetime.utcnow() < calculated_expiry
             else:
@@ -67,29 +81,31 @@ def get_subscription_status() -> Any:
         days_remaining = user.days_remaining()
         
         # Get payment history
-        payments = Payment.query.filter_by(user_id=user.id, status="completed").order_by(Payment.created_at.desc()).limit(10).all()
+        payments = Payment.query.filter_by(
+            user_id=user.id, 
+            status=PaymentStatus.COMPLETED
+        ).order_by(Payment.created_at.desc()).limit(USER_PAYMENT_HISTORY_LIMIT).all()
         payment_history = [{
             "id": p.id,
             "amount": p.amount,
             "subscription_type": p.subscription_type,
-            "created_at": p.created_at.isoformat() if p.created_at else None,
+            "created_at": serialize_datetime(p.created_at),
         } for p in payments]
         
-        return jsonify({
-            "success": True,
+        return success_response({
             "subscription": {
-                "type": user.subscription_type or "free",
-                "status": user.payment_status or "active",
+                "type": user.subscription_type or DEFAULT_SUBSCRIPTION_TYPE,
+                "status": user.payment_status or DEFAULT_PAYMENT_STATUS,
                 "is_active": is_active,
                 "days_remaining": days_remaining,
-                "expires_at": user.subscription_expires_at.isoformat() if user.subscription_expires_at else None,
-                "started_at": user.subscription_started_at.isoformat() if user.subscription_started_at else None,
+                "expires_at": serialize_datetime(user.subscription_expires_at),
+                "started_at": serialize_datetime(user.subscription_started_at),
             },
             "payment_history": payment_history,
         })
     except Exception as e:
         current_app.logger.exception("Error getting subscription status: %s", e)
-        return jsonify({"success": False, "error": "Failed to load subscription status"}), 500
+        return internal_error_response("Failed to load subscription status")
 
 
 @bp.post("/api/subscription/cancel")
@@ -98,25 +114,25 @@ def cancel_subscription() -> Any:
     """Cancel user subscription (keeps access until expiration)."""
     session = get_current_session()
     if not session:
-        return jsonify({"success": False, "error": "Not authenticated"}), 401
+        return unauthorized_response(ErrorMessages.NOT_AUTHENTICATED)
     
     user = session.user
     
     # Only allow cancellation of paid subscriptions
-    subscription_type = user.subscription_type or "free"
+    subscription_type = user.subscription_type or DEFAULT_SUBSCRIPTION_TYPE
     
     # Don't allow cancellation of free tier or free trial
-    if subscription_type in ["free", "free_trial"]:
-        return jsonify({"success": False, "error": "Free subscriptions cannot be cancelled"}), 400
+    if subscription_type in [SubscriptionTier.FREE, SubscriptionTier.FREE_TRIAL]:
+        return error_response("Free subscriptions cannot be cancelled", 400)
     
     # Allow cancellation if subscription is active OR already cancelled (to prevent duplicate cancellations)
     # But only if subscription hasn't expired yet
-    if user.payment_status == "cancelled":
-        return jsonify({"success": False, "error": "Subscription is already cancelled"}), 400
+    if user.payment_status == PaymentStatus.REFUNDED:  # Using REFUNDED as cancelled status
+        return error_response("Subscription is already cancelled", 400)
     
     # Check if subscription is still valid (not expired)
     if not user.is_subscription_active():
-        return jsonify({"success": False, "error": "Subscription has already expired"}), 400
+        return error_response("Subscription has already expired", 400)
     
     # Get cancellation reason from request
     data: Dict[str, Any] = request.get_json(force=True, silent=True) or {}
@@ -125,11 +141,11 @@ def cancel_subscription() -> Any:
     additional_comments = data.get("additional_comments", "").strip()
     
     if not cancellation_reason:
-        return jsonify({"success": False, "error": "Cancellation reason is required"}), 400
+        return error_response("Cancellation reason is required", 400)
     
     try:
         # Mark as cancelled but keep access until expiration
-        user.payment_status = "cancelled"
+        user.payment_status = PaymentStatus.REFUNDED  # Using REFUNDED as cancelled status
         
         # Save cancellation reason to database
         cancellation = SubscriptionCancellation(
@@ -214,7 +230,7 @@ Resubscribe: https://ideabunch.com/pricing
     except Exception as exc:
         db.session.rollback()
         current_app.logger.exception("Subscription cancellation failed: %s", exc)
-        return jsonify({"success": False, "error": "Failed to cancel subscription"}), 500
+        return internal_error_response("Failed to cancel subscription")
 
 
 @bp.post("/api/subscription/change-plan")
@@ -223,34 +239,30 @@ def change_subscription_plan() -> Any:
     """Change subscription plan (upgrade or downgrade)."""
     session = get_current_session()
     if not session:
-        return jsonify({"success": False, "error": "Not authenticated"}), 401
+        return unauthorized_response(ErrorMessages.NOT_AUTHENTICATED)
     
     data: Dict[str, Any] = request.get_json(force=True, silent=True) or {}
     new_subscription_type = data.get("subscription_type", "").strip()
     
     # Valid subscription types: starter, pro, annual
-    if new_subscription_type not in ["starter", "pro", "annual"]:
-        return jsonify({"success": False, "error": "Invalid subscription type"}), 400
+    valid_types = [SubscriptionTier.STARTER, SubscriptionTier.PRO, SubscriptionTier.ANNUAL]
+    if new_subscription_type not in valid_types:
+        return error_response("Invalid subscription type", 400)
     
     user = session.user
     
     # Can't change if on free trial
-    if user.subscription_type == "free_trial":
-        return jsonify({"success": False, "error": "Please subscribe first before changing plans"}), 400
+    if user.subscription_type == SubscriptionTier.FREE_TRIAL:
+        return error_response("Please subscribe first before changing plans", 400)
     
     # Can't change to same plan
     if user.subscription_type == new_subscription_type:
-        return jsonify({"success": False, "error": "You're already on this plan"}), 400
+        return error_response("You're already on this plan", 400)
     
     try:
         # Calculate prorated amount or immediate switch
         # For simplicity, we'll extend current subscription with new duration
-        duration_days_map = {
-            "starter": 30,
-            "pro": 30,
-            "weekly": 7,
-        }
-        duration_days = duration_days_map[new_subscription_type]
+        duration_days = SUBSCRIPTION_DURATIONS.get(new_subscription_type, 30)
         
         # If user has time remaining, extend from current expiration
         # Otherwise, start from now
@@ -262,18 +274,16 @@ def change_subscription_plan() -> Any:
             user.subscription_expires_at = datetime.utcnow() + timedelta(days=duration_days)
         
         user.subscription_type = new_subscription_type
-        user.payment_status = "active"
+        user.payment_status = PaymentStatus.ACTIVE
         db.session.commit()
         
-        return jsonify({
-            "success": True,
-            "message": f"Subscription changed to {new_subscription_type} plan",
+        return success_response({
             "user": user.to_dict(),
-        })
+        }, message=f"Subscription changed to {new_subscription_type} plan")
     except Exception as exc:
         db.session.rollback()
         current_app.logger.exception("Subscription change failed: %s", exc)
-        return jsonify({"success": False, "error": "Failed to change subscription"}), 500
+        return internal_error_response("Failed to change subscription")
 
 
 @bp.post("/api/subscription/activate-dev")
@@ -306,17 +316,14 @@ def activate_subscription_dev() -> Any:
         session = get_current_session()
         if not session:
             print("ERROR: Not authenticated")
-            return jsonify({"success": False, "error": "Not authenticated"}), 401
+            return unauthorized_response(ErrorMessages.NOT_AUTHENTICATED)
         print(f"Session found for user_id: {session.user.id}")
     except Exception as e:
         print(f"EXCEPTION in check phase: {type(e).__name__}: {e}")
         import traceback
         print(traceback.format_exc())
         current_app.logger.exception("Error in activate_subscription_dev check: %s", e)
-        return jsonify({
-            "success": False,
-            "error": f"Server error during initialization: {str(e)}"
-        }), 500
+        return internal_error_response(f"Server error during initialization: {str(e)}")
     
     print("Parsing request data...")
     data: Dict[str, Any] = request.get_json(force=True, silent=True) or {}
@@ -324,32 +331,24 @@ def activate_subscription_dev() -> Any:
     print(f"Subscription type requested: {subscription_type}")
     
     # Valid subscription types: starter, pro, annual
-    if subscription_type not in ["starter", "pro", "annual"]:
+    valid_types = [SubscriptionTier.STARTER, SubscriptionTier.PRO, SubscriptionTier.ANNUAL]
+    if subscription_type not in valid_types:
         error_msg = f"Invalid subscription type: {subscription_type}. Must be: starter, pro, or annual"
         print(f"ERROR: {error_msg}")
-        return jsonify({"success": False, "error": error_msg}), 400
+        return error_response(error_msg, 400)
     
     user = session.user
     print(f"User: {user.email} (id: {user.id})")
     
-    # Amounts in cents (for reference)
-    amounts = {
-        "starter": 900,   # $9.00/month
-        "pro": 1500,      # $15.00/month
-        "annual": 12000,  # $120.00/year
-    }
-    
-    duration_days = {
-        "starter": 30,
-        "pro": 30,
-        "annual": 365,
-    }
+    # Get amounts and durations from constants
+    amount_cents = SUBSCRIPTION_PRICES.get(subscription_type, 0)
+    duration_days = SUBSCRIPTION_DURATIONS.get(subscription_type, 30)
     
     try:
         # Activate subscription directly without payment
-        print(f"Activating subscription: {subscription_type} for {duration_days[subscription_type]} days...")
+        print(f"Activating subscription: {subscription_type} for {duration_days} days...")
         try:
-            user.activate_subscription(subscription_type, duration_days[subscription_type])
+            user.activate_subscription(subscription_type, duration_days)
             print("✓ Subscription activated successfully")
         except Exception as e:
             print(f"EXCEPTION activating subscription: {type(e).__name__}: {e}")
@@ -363,10 +362,10 @@ def activate_subscription_dev() -> Any:
         try:
             payment = Payment(
                 user_id=user.id,
-                amount=amounts[subscription_type] / 100,
+                amount=amount_cents / 100,
                 subscription_type=subscription_type,
                 stripe_payment_intent_id=f"dev_{secrets.token_urlsafe(16)}",
-                status="completed",
+                status=PaymentStatus.COMPLETED,
                 completed_at=datetime.utcnow(),
             )
             db.session.add(payment)
@@ -433,56 +432,47 @@ def create_payment_intent() -> Any:
     """Create Stripe payment intent."""
     session = get_current_session()
     if not session:
-        return jsonify({"success": False, "error": "Not authenticated"}), 401
+        return unauthorized_response(ErrorMessages.NOT_AUTHENTICATED)
     
     data: Dict[str, Any] = request.get_json(force=True, silent=True) or {}
     subscription_type = data.get("subscription_type", "").strip()
     
     # Valid subscription types: starter, pro, annual
-    if subscription_type not in ["starter", "pro", "annual"]:
-        return jsonify({"success": False, "error": "Invalid subscription type"}), 400
+    valid_types = [SubscriptionTier.STARTER, SubscriptionTier.PRO, SubscriptionTier.ANNUAL]
+    if subscription_type not in valid_types:
+        return error_response("Invalid subscription type", 400)
     
     user = session.user
     
-    # Amounts in cents
-    amounts = {
-        "starter": 900,   # $9.00/month
-        "pro": 1500,      # $15.00/month
-        "annual": 12000,  # $120.00/year (save $60)
-    }
-    
-    duration_days = {
-        "starter": 30,    # 30 days
-        "pro": 30,        # 30 days
-        "annual": 365,    # 365 days
-    }
+    # Get amounts and durations from constants
+    amount_cents = SUBSCRIPTION_PRICES.get(subscription_type, 0)
+    duration_days = SUBSCRIPTION_DURATIONS.get(subscription_type, 30)
     
     try:
         import stripe
         stripe.api_key = os.environ.get("STRIPE_SECRET_KEY")
         
         if not stripe.api_key:
-            return jsonify({"success": False, "error": "Stripe not configured"}), 500
+            return internal_error_response("Stripe not configured")
         
         # Create payment intent
         intent = stripe.PaymentIntent.create(
-            amount=amounts[subscription_type],
+            amount=amount_cents,
             currency="usd",
             metadata={
                 "user_id": str(user.id),
                 "subscription_type": subscription_type,
-                "duration_days": str(duration_days[subscription_type]),
+                "duration_days": str(duration_days),
             },
         )
         
-        return jsonify({
-            "success": True,
+        return success_response({
             "client_secret": intent.client_secret,
-            "amount": amounts[subscription_type] / 100,
+            "amount": amount_cents / 100,
             "subscription_type": subscription_type,
         })
     except ImportError:
-        return jsonify({"success": False, "error": "Stripe not installed"}), 500
+        return internal_error_response("Stripe not installed")
     except Exception as exc:
         current_app.logger.exception("Payment intent creation failed: %s", exc)
         # Send payment failure email if user is authenticated
@@ -511,7 +501,7 @@ def confirm_payment() -> Any:
     """Confirm payment and activate subscription."""
     session = get_current_session()
     if not session:
-        return jsonify({"success": False, "error": "Not authenticated"}), 401
+        return unauthorized_response(ErrorMessages.NOT_AUTHENTICATED)
     
     data: Dict[str, Any] = request.get_json(force=True, silent=True) or {}
     payment_intent_id = data.get("payment_intent_id", "").strip()
@@ -554,17 +544,11 @@ def confirm_payment() -> Any:
         if existing_payment:
             return jsonify({"success": False, "error": "Payment already processed"}), 400
         
-        # Duration mapping for all subscription types
-        duration_days_map = {
-            "starter": 30,
-            "pro": 30,
-            "weekly": 7,
-        }
+        # Get duration from constants
+        duration_days = SUBSCRIPTION_DURATIONS.get(subscription_type, 30)
         
-        if subscription_type not in duration_days_map:
-            return jsonify({"success": False, "error": "Invalid subscription type"}), 400
-        
-        duration_days = duration_days_map[subscription_type]
+        if subscription_type not in [SubscriptionTier.STARTER, SubscriptionTier.PRO, "weekly"]:  # weekly is legacy
+            return error_response("Invalid subscription type", 400)
         
         # Activate subscription
         user.activate_subscription(subscription_type, duration_days)
@@ -596,17 +580,15 @@ def confirm_payment() -> Any:
         except Exception as e:
             current_app.logger.warning(f"Failed to send subscription activated email: {e}")
         
-        return jsonify({
-            "success": True,
+        return success_response({
             "user": user.to_dict(),
-            "message": "Subscription activated",
-        })
+        }, message="Subscription activated")
     except ImportError:
-        return jsonify({"success": False, "error": "Stripe not installed"}), 500
+        return internal_error_response("Stripe not installed")
     except Exception as exc:
         db.session.rollback()
         current_app.logger.exception("Payment confirmation failed: %s", exc)
-        return jsonify({"success": False, "error": "Payment confirmation failed"}), 500
+        return internal_error_response("Payment confirmation failed")
 
 
 @bp.post("/api/webhooks/stripe")
@@ -666,13 +648,8 @@ def stripe_webhook() -> Any:
                 user = payment.user
                 if user.payment_status != 'active':
                     subscription_type = payment.subscription_type
-                    duration_days_map = {
-                        "starter": 30,
-                        "pro": 30,
-                        "weekly": 7,
-                    }
-                    duration_days = duration_days_map.get(subscription_type, 30)
-                    old_subscription_type = user.subscription_type or "free"
+                    duration_days = SUBSCRIPTION_DURATIONS.get(subscription_type, 30)
+                    old_subscription_type = user.subscription_type or DEFAULT_SUBSCRIPTION_TYPE
                     user.activate_subscription(subscription_type, duration_days)
                     
                     # Log subscription change and payment

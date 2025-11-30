@@ -17,14 +17,14 @@ class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     email = db.Column(db.String(255), unique=True, nullable=False, index=True)
     password_hash = db.Column(db.String(255), nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    is_active = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+    is_active = db.Column(db.Boolean, default=True, index=True)
     
     # Subscription fields
-    subscription_type = db.Column(db.String(50), default="free")  # free, starter, pro, annual (monthly migrated to pro)
+    subscription_type = db.Column(db.String(50), default="free", index=True)  # free, starter, pro, annual (monthly migrated to pro)
     subscription_started_at = db.Column(db.DateTime, default=datetime.utcnow)
-    subscription_expires_at = db.Column(db.DateTime)
-    payment_status = db.Column(db.String(50), default="trial")  # trial, active, expired, cancelled
+    subscription_expires_at = db.Column(db.DateTime, index=True)
+    payment_status = db.Column(db.String(50), default="trial", index=True)  # trial, active, expired, cancelled
     
     # Usage tracking fields
     free_validations_used = db.Column(db.Integer, default=0)  # Lifetime free validations used
@@ -37,10 +37,10 @@ class User(db.Model):
     reset_token = db.Column(db.String(255), nullable=True)
     reset_token_expires_at = db.Column(db.DateTime, nullable=True)
     
-    # Relationships
-    sessions = db.relationship("UserSession", backref="user", lazy=True, cascade="all, delete-orphan")
-    runs = db.relationship("UserRun", backref="user", lazy=True, cascade="all, delete-orphan")
-    validations = db.relationship("UserValidation", backref="user", lazy=True, cascade="all, delete-orphan")
+    # Relationships - use selectinload for better performance than lazy loading
+    sessions = db.relationship("UserSession", backref="user", lazy="selectin", cascade="all, delete-orphan")
+    runs = db.relationship("UserRun", backref="user", lazy="selectin", cascade="all, delete-orphan")
+    validations = db.relationship("UserValidation", backref="user", lazy="selectin", cascade="all, delete-orphan")
     
     def set_password(self, password: str):
         """Hash and set password."""
@@ -430,6 +430,8 @@ class UserSession(db.Model):
     __table_args__ = (
         Index('idx_session_user_created', 'user_id', 'created_at'),
         Index('idx_session_user_expires', 'user_id', 'expires_at'),
+        Index('idx_session_token', 'session_token'),  # Already has unique index, but explicit for clarity
+        Index('idx_session_expires', 'expires_at'),  # For cleanup queries
     )
     
     def is_valid(self) -> bool:
@@ -470,6 +472,8 @@ class UserRun(db.Model):
     __table_args__ = (
         Index('idx_run_user_created', 'user_id', 'created_at'),
         Index('idx_run_user_status', 'user_id', 'status'),
+        Index('idx_run_user_deleted', 'user_id', 'is_deleted'),  # For filtering deleted runs
+        Index('idx_run_id', 'run_id'),  # Already unique, but explicit for clarity
     )
 
 
@@ -492,6 +496,8 @@ class UserValidation(db.Model):
     # Composite indexes for common queries
     __table_args__ = (
         Index('idx_validation_user_created', 'user_id', 'created_at'),
+        Index('idx_validation_user_status', 'user_id', 'status', 'is_deleted'),  # For filtering by status and deleted
+        Index('idx_validation_id', 'validation_id'),  # Already unique, but explicit for clarity
     )
 
 
@@ -504,6 +510,12 @@ class UserAction(db.Model):
     idea_id = db.Column(db.String(255), nullable=False, index=True)  # Can be run_id or validation_id
     action_text = db.Column(db.Text, nullable=False)
     status = db.Column(db.String(50), default="pending", index=True)  # pending, in_progress, completed, blocked
+    
+    # Composite index for common queries
+    __table_args__ = (
+        Index('idx_action_user_idea', 'user_id', 'idea_id'),
+        Index('idx_action_user_status', 'user_id', 'status'),
+    )
     due_date = db.Column(db.DateTime, nullable=True)
     completed_at = db.Column(db.DateTime, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
@@ -525,9 +537,15 @@ class UserNote(db.Model):
     content = db.Column(db.Text, nullable=False)
     tags = db.Column(db.Text)  # JSON string array of tags
     created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, index=True)
     # Note: is_deleted column removed - not present in database table
     archived_at = db.Column(db.DateTime, nullable=True)
+    
+    # Composite index for common queries
+    __table_args__ = (
+        Index('idx_note_user_idea', 'user_id', 'idea_id'),
+        Index('idx_note_user_updated', 'user_id', 'updated_at'),
+    )
     
     # Relationships
     user = db.relationship("User", backref="notes")
@@ -653,6 +671,8 @@ class Payment(db.Model):
     __table_args__ = (
         Index('idx_payment_user_created', 'user_id', 'created_at'),
         Index('idx_payment_user_status', 'user_id', 'status'),
+        Index('idx_payment_status_created', 'status', 'created_at'),  # For admin reports
+        Index('idx_payment_stripe_id', 'stripe_payment_intent_id'),  # Already unique, but explicit for clarity
     )
 
 
@@ -747,4 +767,5 @@ class AuditLog(db.Model):
         Index('idx_audit_user_action', 'user_id', 'action', 'created_at'),
         Index('idx_audit_admin_action', 'admin_id', 'action', 'created_at'),
         Index('idx_audit_resource', 'resource_type', 'resource_id', 'created_at'),
+        Index('idx_audit_created', 'created_at'),  # For time-based queries
     )
