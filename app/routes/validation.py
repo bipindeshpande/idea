@@ -1,7 +1,7 @@
 """Validation routes blueprint - idea validation endpoints."""
 from flask import Blueprint, request, jsonify, current_app
 from typing import Any, Dict, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 import os
 import json
 import re
@@ -15,7 +15,7 @@ except ImportError:
     ANTHROPIC_AVAILABLE = False
     Anthropic = None
 
-from app.models.database import db, User, UserSession, UserRun, UserValidation
+from app.models.database import db, User, UserSession, UserRun, UserValidation, utcnow
 from app.utils import get_current_session, require_auth
 from app.services.email_service import email_service
 from app.services.email_templates import validation_ready_email
@@ -249,7 +249,9 @@ You will receive the following JSON data. Analyze all fields, especially combini
 4. **CRITIQUE** the idea based ONLY on the founder's provided ambition and constraints.
 5. **SCORE** each pillar below on a scale of **1 (Poor) to 5 (Excellent)** based ONLY on the provided information.
 6. **FOCUS** on the primary geography/delivery model provided (if specified).
-7. **BUDGET RULE**: If `initial_budget` in the JSON is "Not specified" or empty, you MUST NOT mention any specific budget amounts (like "$20K", "$10,000", "budget of X", etc.) anywhere in your response. Only reference budget if the user has explicitly provided one.
+7. **BUDGET RULE**: 
+   - **IF `initial_budget` is provided** (and NOT "Not specified"): You MUST actively use this budget information in your financial analysis. Evaluate the revenue model, feasibility, and recommendations against the provided budget amount.
+   - **IF `initial_budget` is "Not specified" or empty**: You MUST NOT mention any specific budget amounts (like "$20K", "$10,000", "budget of X", etc.) anywhere in your response. Do NOT assume or invent a budget. Focus on revenue model viability, unit economics, and general feasibility without budget constraints.
 8. **NO FABRICATION**: Do NOT invent customer segments, pricing models, features, or business details not present in the input data.
 
 ### 4. REQUIRED OUTPUT STRUCTURE (Markdown Format)
@@ -265,7 +267,7 @@ Generate the full report using the exact headings and structure below:
 | **Problem-Solution Fit** | [Score 1-5] | [Critique how well the solution addresses the pain point.] |
 | **Market Viability & Scope** | [Score 1-5] | [Critique the market size for the chosen geography and industry.] |
 | **Competitive Moat** | [Score 1-5] | [Critique the strength of the differentiator against known/potential competitors.] |
-| **Financial Viability** | [Score 1-5] | [Critique the revenue model against the initial budget and feasibility.] |
+| **Financial Viability** | [Score 1-5] | [If `initial_budget` is provided (not "Not specified"): Critique the revenue model against the provided budget and evaluate feasibility within that budget constraint. If budget is "Not specified": Focus on revenue model viability, unit economics, and general feasibility WITHOUT mentioning any specific budget amounts or constraints.] |
 | **Feasibility & Risk** | [Score 1-5] | [Critique the founder's constraints and current stage against the required effort.] |
 
 ---
@@ -277,8 +279,8 @@ Generate the full report using the exact headings and structure below:
 * **Verdict:** [A single sentence verdict.]
 
 ### 2. Business Model Stress Test
-* **Analysis:** Evaluate the chosen `revenue_model` against the solution type and archetype. Are they compatible? Is the pricing viable? ONLY reference pricing/revenue details if explicitly provided in the input data.
-* **Red Flag:** [Identify the biggest financial viability risk based ONLY on the provided information.]
+* **Analysis:** Evaluate the chosen `revenue_model` against the solution type and archetype. Are they compatible? Is the pricing viable? ONLY reference pricing/revenue details if explicitly provided in the input data. **If `initial_budget` is provided (not "Not specified")**: Evaluate whether the revenue model is viable within the provided budget constraints. **If budget is "Not specified"**: Focus on revenue model compatibility and unit economics WITHOUT mentioning any specific budget amounts or constraints.
+* **Red Flag:** [Identify the biggest financial viability risk based ONLY on the provided information. If `initial_budget` is provided, consider budget-related risks. If budget is "Not specified", focus on revenue model risks and do NOT mention budget constraints.]
 
 ### 3. Competitive Landscape
 * **Analysis:** Based ONLY on the `competitors` field and `unique_moat` provided. If competitors are "Not specified" or "Unknown", acknowledge this gap. Do NOT invent competitor names or analysis not present in the input data.
@@ -300,14 +302,16 @@ IMPORTANT: Each next step MUST incorporate specific details from the user's inpu
 - Account for their **stage** ONLY if specified (e.g., "Since you're at the [stage] stage...")
 - Respect their **commitment level** ONLY if specified (e.g., "Given your [commitment] commitment...")
 - Address their **problem category** ONLY if specified (e.g., "To validate the [problem_category] problem...")
-- Incorporate their **initial budget** ONLY if it is specified and NOT "Not specified". If budget is "Not specified" or missing, DO NOT mention any specific budget amounts (e.g., "$20K", "$5,000", etc.) in your analysis or recommendations.
+- **Budget handling**: If `initial_budget` is provided (not "Not specified"), actively use it in your recommendations and evaluate feasibility within that budget. If budget is "Not specified" or missing, DO NOT mention any specific budget amounts (e.g., "$20K", "$5,000", etc.) in your analysis or recommendations. Do NOT assume or invent a budget.
 - Use their **solution type** and **target user type** ONLY if explicitly provided
 
 CRITICAL: Do NOT invent steps, tools, competitors, market data, or resources not mentioned in the input data. Base recommendations ONLY on what the user has provided.
 
 Make steps concrete, specific, and actionable based on these inputs. Do not give generic advice, but also do NOT add details not present in the user's input.
 
-CRITICAL BUDGET RULE: If the `initial_budget` field in the JSON data is "Not specified" or empty, you MUST NOT reference any specific budget amounts (like "$20K", "$10,000", "budget of X", etc.) anywhere in your response. Only mention budget constraints if the user has actually provided a budget amount.
+CRITICAL BUDGET RULE: 
+- **IF `initial_budget` is provided** (not "Not specified"): You MUST actively use this budget in your analysis, recommendations, and feasibility evaluation.
+- **IF `initial_budget` is "Not specified" or empty**: You MUST NOT reference any specific budget amounts (like "$20K", "$10,000", "budget of X", etc.) anywhere in your response. Do NOT assume or invent a budget amount. Focus on revenue model and unit economics without budget constraints.
 
 1. **Validation Step 1:** [Most urgent task - reference industry, geography, stage, or commitment level.]
 2. **Validation Step 2:** [Product/service or market research step - incorporate problem category, solution type, or user type.]
@@ -333,7 +337,9 @@ SCORING GUIDELINES (1-5 scale):
 - 5 (Excellent): Exceptional idea with clear advantages
 
 CRITICAL DATA RULES:
-- If `initial_budget` is "Not specified" or missing, you MUST NOT mention any specific budget amounts (like "$20K", "$10,000", "budget of X dollars", etc.) anywhere in your response
+- **BUDGET HANDLING**: 
+  * If `initial_budget` is provided (not "Not specified"): USE the budget actively in your financial analysis and recommendations
+  * If `initial_budget` is "Not specified" or missing: You MUST NOT mention any specific budget amounts (like "$20K", "$10,000", "budget of X dollars", etc.) anywhere in your response. Do NOT assume or invent a budget amount.
 - If `competitors` is "Not specified" or "Unknown", do NOT invent competitor names or analysis
 - If `geography` is "Not specified", do NOT assume a specific market
 - If `revenue_model` is generic, critique what's provided but do NOT suggest specific pricing not mentioned
@@ -504,6 +510,11 @@ def _clean_budget_references(content: str, initial_budget: str) -> str:
         # Standalone budget amounts in context that suggest budget (following "with", "on", "for", etc.)
         r'(?:with|on|for|using)\s+\$?\d+[Kk]\s+(?:as|a|your|the)?\s*(?:budget|investment|capital)',  # with $20K budget
         r'(?:budget|investment|capital)\s+(?:of|is|at)\s+\$?\d+[Kk]',  # budget of $20K
+        # Additional patterns for common AI-generated budget references
+        r'within\s+(?:a\s+)?(?:your\s+)?\$?\d+[Kk]\s+budget',  # within a $20K budget
+        r'given\s+(?:a\s+)?(?:your\s+)?\$?\d+[Kk]\s+budget',  # given a $20K budget
+        r'considering\s+(?:a\s+)?(?:your\s+)?\$?\d+[Kk]\s+budget',  # considering a $20K budget
+        r'budget\s+constraint[s]?\s+(?:of|at|is)\s+\$?\d+[Kk]',  # budget constraint of $20K
     ]
     
     cleaned = content
@@ -537,11 +548,19 @@ def _parse_markdown_validation(markdown_content: str) -> dict:
         
         # Extract scores from the table (1-5 scale)
         pillar_scores = {}
-        table_match = re.search(
-            r'\| Pillar \| Score.*?\|\n\|.*?\|\n(.*?)(?=\n\n---)', 
-            markdown_content, 
-            re.DOTALL
-        )
+        # Try multiple patterns to find the table
+        table_match = None
+        table_patterns = [
+            r'\| Pillar \| Score.*?\|\n\|.*?\|\n(.*?)(?=\n\n---)',  # Original pattern
+            r'\| Pillar \| Score.*?\|\n\|.*?\|\n(.*?)(?=\n\n##)',  # Pattern without --- separator
+            r'\|.*?Pillar.*?Score.*?\|\n\|.*?\|\n(.*?)(?=\n\n)',   # More flexible pattern
+        ]
+        
+        for pattern in table_patterns:
+            table_match = re.search(pattern, markdown_content, re.DOTALL | re.IGNORECASE)
+            if table_match:
+                break
+        
         if table_match:
             table_rows = table_match.group(1).strip().split('\n')
             pillar_mapping = {
@@ -553,23 +572,26 @@ def _parse_markdown_validation(markdown_content: str) -> dict:
             }
             
             for row in table_rows:
-                if '|' in row and '**' in row:
-                    # Extract pillar name and score
+                if '|' in row:
+                    # Extract pillar name and score - be more flexible with format
                     parts = [p.strip() for p in row.split('|') if p.strip()]
                     if len(parts) >= 2:
-                        pillar_name = re.sub(r'\*\*|\*', '', parts[0]).strip()
+                        # Clean pillar name (remove markdown formatting)
+                        pillar_name = re.sub(r'\*\*|\*|`', '', parts[0]).strip()
                         score_text = parts[1].strip()
-                        # Extract numeric score (1-5)
+                        # Extract numeric score (1-5) - look for number in score column
                         score_match = re.search(r'(\d+)', score_text)
                         if score_match:
                             score_1_5 = int(score_match.group(1))
-                            # Convert 1-5 scale to 0-10 scale: (score-1)*2.5+1, then round
+                            # Convert 1-5 scale to 0-10 scale: (score-1)*2.25+1
                             # 1→2, 2→5, 3→7, 4→9, 5→10
                             score_0_10 = max(1, min(10, round((score_1_5 - 1) * 2.25 + 1)))
                             
-                            # Map to our scoring keys
-                            if pillar_name in pillar_mapping:
-                                pillar_scores[pillar_mapping[pillar_name]] = score_0_10
+                            # Map to our scoring keys (case-insensitive partial match)
+                            for key, value in pillar_mapping.items():
+                                if key.lower() in pillar_name.lower() or pillar_name.lower() in key.lower():
+                                    pillar_scores[value] = score_0_10
+                                    break
         
         # Calculate overall score as average of pillar scores (convert to 0-10)
         if pillar_scores:
@@ -637,12 +659,15 @@ def _parse_markdown_validation(markdown_content: str) -> dict:
         if table_match:
             table_rows = table_match.group(1).strip().split('\n')
             for row in table_rows:
-                if '|' in row and '**' in row:
+                if '|' in row:
                     parts = [p.strip() for p in row.split('|') if p.strip()]
                     if len(parts) >= 3:
-                        pillar_name = re.sub(r'\*\*|\*', '', parts[0]).strip()
+                        # Clean pillar name (remove markdown formatting)
+                        pillar_name = re.sub(r'\*\*|\*|`', '', parts[0]).strip()
                         reasoning = parts[2].strip() if len(parts) > 2 else ""
-                        pillar_reasoning[pillar_name] = reasoning
+                        # Only store meaningful reasoning (at least 10 characters)
+                        if reasoning and len(reasoning) > 10:
+                            pillar_reasoning[pillar_name] = reasoning
         
         # Map extracted analysis to frontend parameters with specific insights
         # Problem-Solution Fit
@@ -654,22 +679,34 @@ def _parse_markdown_validation(markdown_content: str) -> dict:
             if verdict_match:
                 details["Problem-Solution Fit"] = f"**Assessment:** {verdict_match.group(1).strip()}"
             else:
-                # Use first sentence of problem analysis
-                first_sentence = problem_analysis.split('.')[0] if problem_analysis else ""
-                details["Problem-Solution Fit"] = f"**Analysis:** {first_sentence}." if first_sentence else "See detailed analysis tab for insights."
+                # Use first meaningful sentence of problem analysis (at least 20 chars)
+                sentences = [s.strip() for s in problem_analysis.split('.') if len(s.strip()) > 20]
+                if sentences:
+                    details["Problem-Solution Fit"] = f"**Analysis:** {sentences[0]}."
+                else:
+                    # Use first 150 chars of analysis if no sentences found
+                    details["Problem-Solution Fit"] = f"**Analysis:** {problem_analysis[:150]}{'...' if len(problem_analysis) > 150 else ''}"
+        elif executive_summary:
+            # Fallback to executive summary if problem analysis not available
+            details["Problem-Solution Fit"] = f"**Summary:** {executive_summary[:150]}{'...' if len(executive_summary) > 150 else ''}"
         else:
             details["Problem-Solution Fit"] = "See detailed analysis tab for insights."
         
         # Market Opportunity
         if "Market Viability & Scope" in pillar_reasoning:
             details["Market Opportunity"] = f"**Market Assessment:** {pillar_reasoning['Market Viability & Scope']}"
-        elif problem_analysis:
-            # Try to extract market-related insights
-            market_insight = re.search(r'(?:market|size|opportunity|scope).*?\.', problem_analysis, re.IGNORECASE)
+        elif deep_dive_full:
+            # Try to extract market-related insights from deep dive
+            market_insight = re.search(r'(?:market|size|opportunity|scope|geography|audience).{20,200}\.', deep_dive_full, re.IGNORECASE)
             if market_insight:
                 details["Market Opportunity"] = f"**Market View:** {market_insight.group(0)}"
+            elif executive_summary:
+                # Use executive summary as fallback
+                details["Market Opportunity"] = f"**Overview:** {executive_summary[:150]}{'...' if len(executive_summary) > 150 else ''}"
             else:
                 details["Market Opportunity"] = "See detailed analysis tab for market insights."
+        elif executive_summary:
+            details["Market Opportunity"] = f"**Overview:** {executive_summary[:150]}{'...' if len(executive_summary) > 150 else ''}"
         else:
             details["Market Opportunity"] = "See detailed analysis tab for insights."
         
@@ -682,8 +719,13 @@ def _parse_markdown_validation(markdown_content: str) -> dict:
             if key_insight_match:
                 details["Competitive Landscape"] = f"**Key Insight:** {key_insight_match.group(1).strip()}"
             else:
-                first_sentence = competitive_analysis.split('.')[0] if competitive_analysis else ""
-                details["Competitive Landscape"] = f"**Analysis:** {first_sentence}." if first_sentence else "See detailed analysis tab for insights."
+                sentences = [s.strip() for s in competitive_analysis.split('.') if len(s.strip()) > 20]
+                if sentences:
+                    details["Competitive Landscape"] = f"**Analysis:** {sentences[0]}."
+                else:
+                    details["Competitive Landscape"] = f"**Analysis:** {competitive_analysis[:150]}{'...' if len(competitive_analysis) > 150 else ''}"
+        elif executive_summary:
+            details["Competitive Landscape"] = f"**Overview:** {executive_summary[:150]}{'...' if len(executive_summary) > 150 else ''}"
         else:
             details["Competitive Landscape"] = "See detailed analysis tab for insights."
         
@@ -696,8 +738,13 @@ def _parse_markdown_validation(markdown_content: str) -> dict:
             if red_flag_match:
                 details["Business Model Viability"] = f"**Critical Risk:** {red_flag_match.group(1).strip()}"
             else:
-                first_sentence = business_model_analysis.split('.')[0] if business_model_analysis else ""
-                details["Business Model Viability"] = f"**Analysis:** {first_sentence}." if first_sentence else "See detailed analysis tab for insights."
+                sentences = [s.strip() for s in business_model_analysis.split('.') if len(s.strip()) > 20]
+                if sentences:
+                    details["Business Model Viability"] = f"**Analysis:** {sentences[0]}."
+                else:
+                    details["Business Model Viability"] = f"**Analysis:** {business_model_analysis[:150]}{'...' if len(business_model_analysis) > 150 else ''}"
+        elif executive_summary:
+            details["Business Model Viability"] = f"**Overview:** {executive_summary[:150]}{'...' if len(executive_summary) > 150 else ''}"
         else:
             details["Business Model Viability"] = "See detailed analysis tab for insights."
         
@@ -823,6 +870,8 @@ def _parse_markdown_validation(markdown_content: str) -> dict:
         except RuntimeError:
             pass  # Not in Flask context, use standard logger
         logger.error(f"Failed to parse Markdown validation: {e}")
+        logger.error(f"Markdown content length: {len(markdown_content) if markdown_content else 0}")
+        logger.error(f"First 1000 chars: {markdown_content[:1000] if markdown_content else 'None'}")
         logger.error(traceback.format_exc())
         return None
 
@@ -868,7 +917,7 @@ def validate_idea() -> Any:
     return jsonify({"success": False, "error": "Authentication required"}), 401
   
   # Refresh session activity at the start to prevent expiration during long validation
-  session.last_activity = datetime.utcnow()
+  session.last_activity = utcnow()
   db.session.commit()
   
   user = session.user
@@ -897,112 +946,112 @@ def validate_idea() -> Any:
   # PRE-CHECK: If idea is vague/nonsensical, return harsh default score immediately (no AI call)
   # DISABLED - Let AI judge instead since we have structured data from form
   # if _is_idea_vague_or_nonsensical(idea_explanation):
-    current_app.logger.info(f"Vague/nonsensical idea detected, returning default low score: '{idea_explanation[:100]}'")
-    
-    # Return a default harsh validation without AI call
-    validation_id = f"val_{int(time.time())}"
-    default_validation = {
-      "overall_score": 1,
-      "scores": {
-        "market_opportunity": 1,
-        "problem_solution_fit": 1,
-        "competitive_landscape": 1,
-        "target_audience_clarity": 1,
-        "business_model_viability": 1,
-        "technical_feasibility": 5,  # Technically feasible but not a business
-        "financial_sustainability": 1,
-        "scalability_potential": 1,
-        "risk_assessment": 2,
-        "go_to_market_strategy": 1,
-      },
-      "details": {
-        "Market Opportunity": f"This idea ('{idea_explanation[:100]}') is too vague or nonsensical to evaluate as a business concept. No clear market opportunity exists because the idea lacks a concrete business model, target customers, or value proposition.",
-        "Problem-Solution Fit": "No clear problem is being solved. This appears to be a question, phrase, or concept rather than an actual business idea. Real business ideas solve specific problems for specific customers.",
-        "Competitive Landscape": "Cannot evaluate competition because this is not a clear business concept.",
-        "Target Audience Clarity": "No target audience can be identified. This idea is too vague to determine who would be the customer.",
-        "Business Model Viability": "No clear business model exists. This is not a viable business concept as presented.",
-        "Technical Feasibility": "While technically anything could be built, this is not a coherent business idea to evaluate.",
-        "Financial Sustainability": "No financial model can be evaluated because this is not a clear business concept.",
-        "Scalability Potential": "Cannot evaluate scalability for a non-existent business model.",
-        "Risk Assessment": "The primary risk is that this is not a coherent business idea with a clear path forward.",
-        "Go-to-Market Strategy": "No go-to-market strategy can be developed because the business concept is unclear or nonsensical.",
-      },
-      "recommendations": f"""
-## Critical Assessment
-
-**This idea is too vague or nonsensical to evaluate as a business.**
-
-What you provided: "{idea_explanation}"
-
-### Why this scored 1/10:
-
-1. **Not a Business Concept**: This appears to be a question, phrase, or abstract concept rather than an actual business idea.
-2. **No Clear Value Proposition**: There's no clear problem being solved or value being created.
-3. **No Target Market**: We cannot identify who would pay for this.
-4. **No Business Model**: There's no clear way this makes money or creates value.
-
-### What You Need to Provide:
-
-A real business idea should include:
-- **The Problem**: What specific problem are you solving?
-- **The Solution**: How does your product/service solve it?
-- **Target Customers**: Who specifically will pay for this?
-- **Revenue Model**: How will you make money?
-- **Why Now**: Why is this needed now?
-
-### Examples of Better Idea Descriptions:
-
-❌ **Bad**: "Making money online"
-✅ **Good**: "A SaaS platform that helps freelancers automatically track and invoice their billable hours, solving the problem of manual time tracking and missed billings. Target customers: Freelancers earning $50K+. Revenue: $29/month subscription."
-
-❌ **Bad**: "A business"
-✅ **Good**: "An AI-powered meal planning app for busy professionals that generates personalized weekly meal plans based on dietary restrictions, schedule, and budget. Targets: 25-45 year old professionals. Revenue: Freemium model with $9.99/month premium."
-
-❌ **Bad**: "Sell ice to eskimos"
-✅ **Good**: "A sales training consultancy that teaches B2B sales teams advanced consultative selling techniques, using frameworks like 'how to sell to customers who think they don't need it.' Targets: Mid-size B2B companies. Revenue: $5,000-$20,000 per training engagement."
-
-### Next Steps:
-
-1. **Refine Your Idea**: Clearly articulate what problem you're solving and for whom.
-2. **Do Research**: Understand your target market and competition.
-3. **Define Your Value Proposition**: What makes your solution better than alternatives?
-4. **Test the Concept**: Talk to potential customers before building.
-
-Once you have a clear business concept with these elements, we can provide a meaningful validation.
-      """,
-      "next_steps": [
-        "1. **Define the problem clearly**: What specific pain point are you solving?",
-        "2. **Identify your target customer**: Who specifically needs this solution?",
-        "3. **Articulate your solution**: How does your product/service solve the problem?",
-        "4. **Explain your business model**: How will you make money?",
-        "5. **Re-submit with details**: Once you have a clear business concept, submit it again for validation.",
-      ],
-    }
-    
-    # Save to database if user is authenticated
-    if session:
-      user = session.user
-      user_validation = UserValidation(
-        user_id=user.id,
-        validation_id=validation_id,
-        category_answers=json.dumps(category_answers),
-        idea_explanation=idea_explanation,
-        validation_result=json.dumps(default_validation),
-        status="completed",  # Explicitly set status
-        is_deleted=False,  # Explicitly set is_deleted
-      )
-      db.session.add(user_validation)
-      user.increment_validation_usage()
-      if session:
-        session.last_activity = datetime.utcnow()
-      db.session.commit()
-    
-    return jsonify({
-      "success": True,
-      "validation_id": validation_id,
-      "validation": default_validation,
-      "note": "Idea was identified as vague/nonsensical. Score capped at 1/10. Please provide a clear business concept for meaningful validation.",
-    })
+  #   current_app.logger.info(f"Vague/nonsensical idea detected, returning default low score: '{idea_explanation[:100]}'")
+  #   
+  #   # Return a default harsh validation without AI call
+  #   validation_id = f"val_{int(time.time())}"
+  #   default_validation = {
+  #     "overall_score": 1,
+  #     "scores": {
+  #       "market_opportunity": 1,
+  #       "problem_solution_fit": 1,
+  #       "competitive_landscape": 1,
+  #       "target_audience_clarity": 1,
+  #       "business_model_viability": 1,
+  #       "technical_feasibility": 5,  # Technically feasible but not a business
+  #       "financial_sustainability": 1,
+  #       "scalability_potential": 1,
+  #       "risk_assessment": 2,
+  #       "go_to_market_strategy": 1,
+  #     },
+  #     "details": {
+  #       "Market Opportunity": f"This idea ('{idea_explanation[:100]}') is too vague or nonsensical to evaluate as a business concept. No clear market opportunity exists because the idea lacks a concrete business model, target customers, or value proposition.",
+  #       "Problem-Solution Fit": "No clear problem is being solved. This appears to be a question, phrase, or concept rather than an actual business idea. Real business ideas solve specific problems for specific customers.",
+  #       "Competitive Landscape": "Cannot evaluate competition because this is not a clear business concept.",
+  #       "Target Audience Clarity": "No target audience can be identified. This idea is too vague to determine who would be the customer.",
+  #       "Business Model Viability": "No clear business model exists. This is not a viable business concept as presented.",
+  #       "Technical Feasibility": "While technically anything could be built, this is not a coherent business idea to evaluate.",
+  #       "Financial Sustainability": "No financial model can be evaluated because this is not a clear business concept.",
+  #       "Scalability Potential": "Cannot evaluate scalability for a non-existent business model.",
+  #       "Risk Assessment": "The primary risk is that this is not a coherent business idea with a clear path forward.",
+  #       "Go-to-Market Strategy": "No go-to-market strategy can be developed because the business concept is unclear or nonsensical.",
+  #     },
+  #     "recommendations": f"""
+  # ## Critical Assessment
+  # 
+  # **This idea is too vague or nonsensical to evaluate as a business.**
+  # 
+  # What you provided: "{idea_explanation}"
+  # 
+  # ### Why this scored 1/10:
+  # 
+  # 1. **Not a Business Concept**: This appears to be a question, phrase, or abstract concept rather than an actual business idea.
+  # 2. **No Clear Value Proposition**: There's no clear problem being solved or value being created.
+  # 3. **No Target Market**: We cannot identify who would pay for this.
+  # 4. **No Business Model**: There's no clear way this makes money or creates value.
+  # 
+  # ### What You Need to Provide:
+  # 
+  # A real business idea should include:
+  # - **The Problem**: What specific problem are you solving?
+  # - **The Solution**: How does your product/service solve it?
+  # - **Target Customers**: Who specifically will pay for this?
+  # - **Revenue Model**: How will you make money?
+  # - **Why Now**: Why is this needed now?
+  # 
+  # ### Examples of Better Idea Descriptions:
+  # 
+  # ❌ **Bad**: "Making money online"
+  # ✅ **Good**: "A SaaS platform that helps freelancers automatically track and invoice their billable hours, solving the problem of manual time tracking and missed billings. Target customers: Freelancers earning $50K+. Revenue: $29/month subscription."
+  # 
+  # ❌ **Bad**: "A business"
+  # ✅ **Good**: "An AI-powered meal planning app for busy professionals that generates personalized weekly meal plans based on dietary restrictions, schedule, and budget. Targets: 25-45 year old professionals. Revenue: Freemium model with $9.99/month premium."
+  # 
+  # ❌ **Bad**: "Sell ice to eskimos"
+  # ✅ **Good**: "A sales training consultancy that teaches B2B sales teams advanced consultative selling techniques, using frameworks like 'how to sell to customers who think they don't need it.' Targets: Mid-size B2B companies. Revenue: $5,000-$20,000 per training engagement."
+  # 
+  # ### Next Steps:
+  # 
+  # 1. **Refine Your Idea**: Clearly articulate what problem you're solving and for whom.
+  # 2. **Do Research**: Understand your target market and competition.
+  # 3. **Define Your Value Proposition**: What makes your solution better than alternatives?
+  # 4. **Test the Concept**: Talk to potential customers before building.
+  # 
+  # Once you have a clear business concept with these elements, we can provide a meaningful validation.
+  #       """,
+  #     "next_steps": [
+  #       "1. **Define the problem clearly**: What specific pain point are you solving?",
+  #       "2. **Identify your target customer**: Who specifically needs this solution?",
+  #       "3. **Articulate your solution**: How does your product/service solve the problem?",
+  #       "4. **Explain your business model**: How will you make money?",
+  #       "5. **Re-submit with details**: Once you have a clear business concept, submit it again for validation.",
+  #     ],
+  #   }
+  #   
+  #   # Save to database if user is authenticated
+  #   if session:
+  #     user = session.user
+  #     user_validation = UserValidation(
+  #       user_id=user.id,
+  #       validation_id=validation_id,
+  #       category_answers=json.dumps(category_answers),
+  #       idea_explanation=idea_explanation,
+  #       validation_result=json.dumps(default_validation),
+  #       status="completed",  # Explicitly set status
+  #       is_deleted=False,  # Explicitly set is_deleted
+  #     )
+  #     db.session.add(user_validation)
+  #     user.increment_validation_usage()
+  #     if session:
+  #       session.last_activity = utcnow()
+  #     db.session.commit()
+  #   
+  #   return jsonify({
+  #     "success": True,
+  #     "validation_id": validation_id,
+  #     "validation": default_validation,
+  #     "note": "Idea was identified as vague/nonsensical. Score capped at 1/10. Please provide a clear business concept for meaningful validation.",
+  #   })
   
   # Build explanation from category answers if idea_explanation is empty or very short
   if not idea_explanation or len(idea_explanation) < 10:
@@ -1113,25 +1162,27 @@ Once you have a clear business concept with these elements, we can provide a mea
     validation_data = _parse_markdown_validation(content)
     
     if not validation_data:
-      # Fallback: try to parse as JSON (backward compatibility)
-      try:
-        json_match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', content, re.DOTALL)
-        if json_match:
-          content = json_match.group(1)
-        else:
-          json_match = re.search(r'\{.*?\}', content, re.DOTALL)
-          if json_match:
-            content = json_match.group(0)
-        
-        validation_data = json.loads(content)
-      except:
-        current_app.logger.error(f"Failed to parse validation (both Markdown and JSON failed). Raw content: {content[:500]}")
-        return jsonify({
-          "success": False,
-          "error": "We couldn't generate a properly structured validation for your idea. Please try again or provide more details about your business concept.",
-          "error_type": "invalid_response",
-          "suggestion": "Make sure your idea description is clear and includes: what problem you're solving, who your customers are, and how your solution works.",
-        }), 422
+        current_app.logger.error(f"Failed to parse validation response. Content length: {len(content) if content else 0}")
+        current_app.logger.error(f"First 1000 chars of content: {content[:1000] if content else 'None'}")
+        # Fallback: try to parse as JSON (backward compatibility)
+        try:
+            json_match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', content, re.DOTALL)
+            if json_match:
+                content = json_match.group(1)
+            else:
+                json_match = re.search(r'\{.*?\}', content, re.DOTALL)
+                if json_match:
+                    content = json_match.group(0)
+            
+            validation_data = json.loads(content)
+        except:
+            current_app.logger.error(f"Failed to parse validation (both Markdown and JSON failed). Raw content: {content[:500]}")
+            return jsonify({
+                "success": False,
+                "error": "We couldn't generate a properly structured validation for your idea. Please try again or provide more details about your business concept.",
+                "error_type": "invalid_response",
+                "suggestion": "Make sure your idea description is clear and includes: what problem you're solving, who your customers are, and how your solution works.",
+            }), 422
     
     # POST-PROCESSING: Skip capping - let AI scores stand with structured data
     # if validation_data and isinstance(validation_data, dict):
@@ -1196,7 +1247,7 @@ Once you have a clear business concept with these elements, we can provide a mea
       user.increment_validation_usage()
       # Refresh session activity after long operation completes
       if session:
-        session.last_activity = datetime.utcnow()
+        session.last_activity = utcnow()
       db.session.commit()
       
       # Send validation ready email
@@ -1241,11 +1292,28 @@ def update_validation(validation_id: str) -> Any:
   user = session.user
   
   # Check if validation exists and belongs to user (exclude deleted)
+  # Try to convert validation_id to integer if it's numeric (for database id matching)
+  validation_id_int = None
+  try:
+    validation_id_int = int(validation_id)
+  except (ValueError, TypeError):
+    pass
+  
+  # Find validation by validation_id (string) or id (integer)
+  # Try validation_id first (most common case)
   user_validation = UserValidation.query.filter_by(
     user_id=user.id,
     validation_id=validation_id,
     is_deleted=False
   ).first()
+  
+  # If not found by validation_id, try by database id (if validation_id is numeric)
+  if not user_validation and validation_id_int:
+    user_validation = UserValidation.query.filter_by(
+      user_id=user.id,
+      id=validation_id_int,
+      is_deleted=False
+    ).first()
   
   if not user_validation:
     return jsonify({
@@ -1329,7 +1397,7 @@ def update_validation(validation_id: str) -> Any:
     user_validation.idea_explanation = idea_explanation
     user_validation.category_answers = json.dumps(new_category_answers if new_category_answers else user_validation.category_answers or {})
     user_validation.validation_result = json.dumps(default_validation)
-    user_validation.created_at = datetime.utcnow()  # Update timestamp
+    user_validation.created_at = utcnow()  # Update timestamp
     
     user.increment_validation_usage()
     db.session.commit()
@@ -1442,7 +1510,7 @@ def update_validation(validation_id: str) -> Any:
     user_validation.idea_explanation = idea_explanation
     user_validation.category_answers = json.dumps(new_category_answers if new_category_answers else (user_validation.category_answers or {}))
     user_validation.validation_result = json.dumps(validation_data)
-    user_validation.created_at = datetime.utcnow()  # Update timestamp
+    user_validation.created_at = utcnow()  # Update timestamp
     
     user.increment_validation_usage()
     db.session.commit()
@@ -1456,6 +1524,67 @@ def update_validation(validation_id: str) -> Any:
     
   except Exception as exc:
     current_app.logger.exception("Validation update failed: %s", exc)
+    db.session.rollback()
+    return jsonify({
+      "success": False,
+      "error": str(exc),
+    }), 500
+
+
+@bp.delete("/api/validate-idea/<validation_id>")
+@require_auth
+def delete_validation(validation_id: str) -> Any:
+  """Delete a validation (soft delete by setting is_deleted=True)."""
+  session = get_current_session()
+  if not session:
+    return jsonify({"success": False, "error": "Not authenticated"}), 401
+  
+  user = session.user
+  
+  try:
+    # Try to convert validation_id to integer if it's numeric (for database id matching)
+    validation_id_int = None
+    try:
+      validation_id_int = int(validation_id)
+    except (ValueError, TypeError):
+      pass
+    
+    # Find validation by validation_id (string) or id (integer)
+    # Try validation_id first (most common case)
+    user_validation = UserValidation.query.filter_by(
+      user_id=user.id,
+      validation_id=validation_id,
+      is_deleted=False
+    ).first()
+    
+    # If not found by validation_id, try by database id (if validation_id is numeric)
+    if not user_validation and validation_id_int:
+      user_validation = UserValidation.query.filter_by(
+        user_id=user.id,
+        id=validation_id_int,
+        is_deleted=False
+      ).first()
+    
+    if not user_validation:
+      current_app.logger.warning(
+        f"Validation delete failed: validation_id={validation_id} not found for user_id={user.id}"
+      )
+      return jsonify({
+        "success": False,
+        "error": "Validation not found or access denied. It may have already been deleted."
+      }), 404
+    
+    # Soft delete by setting is_deleted=True
+    user_validation.is_deleted = True
+    db.session.commit()
+    
+    return jsonify({
+      "success": True,
+      "message": "Validation deleted successfully"
+    })
+    
+  except Exception as exc:
+    current_app.logger.exception("Validation deletion failed: %s", exc)
     db.session.rollback()
     return jsonify({
       "success": False,

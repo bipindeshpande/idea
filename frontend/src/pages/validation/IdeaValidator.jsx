@@ -13,11 +13,6 @@ const SCREEN2_QUESTIONS = validationQuestions.screen2_questions || validationQue
 const OPTIONAL_FIELDS = validationQuestions.optional_fields || [];
 
 export default function IdeaValidator() {
-  // TEST LOG - This should always appear
-  console.log('🎬 [IdeaValidator] Component rendered/updated');
-  console.warn('⚠️ TEST: If you see this, console logging is working!');
-  console.error('❌ TEST: Error logging test');
-  
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   
@@ -52,9 +47,8 @@ export default function IdeaValidator() {
   const [activityData, setActivityData] = useState(null); // Store activity data for reuse
   const isRevalidate = searchParams.get("revalidate") === "true";
   const editValidationIdRaw = searchParams.get("edit");
-  // Keep the full validation_id (including val_ prefix if present)
-  // We'll handle matching with/without prefix in the lookup logic
-  const editValidationId = editValidationIdRaw || null;
+  // Strip "val_" prefix if present - backend and API return validation_id without prefix
+  const editValidationId = editValidationIdRaw ? editValidationIdRaw.replace(/^val_/, '') : null;
   const [isEditMode, setIsEditMode] = useState(!!editValidationId);
   const [loadingValidationData, setLoadingValidationData] = useState(false);
 
@@ -136,101 +130,126 @@ export default function IdeaValidator() {
       setLoadingValidationData(true);
       setError(null); // Clear any previous errors
       
-      // Use cached activityData if available, otherwise fetch
-      let validations = [];
-      if (activityData?.validations) {
-        console.log('✅ [Edit Mode] Using cached activity data');
-        validations = activityData.validations;
-      } else {
-        console.log('🌐 [Edit Mode] Fetching from /api/user/activity (cache miss)...');
-        try {
-          const response = await fetch(`/api/user/activity`, {
-            headers: getAuthHeaders(),
-          });
-          console.log('📥 [Edit Mode] Response status:', response.status, response.ok ? 'OK' : 'ERROR');
+      try {
+        // Use cached activityData if available, otherwise fetch
+        let validations = [];
+        if (activityData?.validations) {
+          console.log('✅ [Edit Mode] Using cached activity data');
+          validations = activityData.validations;
+        } else {
+          console.log('🌐 [Edit Mode] Fetching from /api/user/activity (cache miss)...');
+          try {
+            const response = await fetch(`/api/user/activity`, {
+              headers: getAuthHeaders(),
+            });
+            console.log('📥 [Edit Mode] Response status:', response.status, response.ok ? 'OK' : 'ERROR');
 
-          if (response.ok) {
-            const data = await response.json();
-            validations = data.activity?.validations || [];
-            // Cache the data for future use
-            setActivityData(data.activity);
+            if (response.ok) {
+              const data = await response.json();
+              validations = data.activity?.validations || [];
+              // Cache the data for future use
+              setActivityData(data.activity);
+            }
+          } catch (err) {
+            console.error("❌ Failed to fetch validation data:", err);
           }
-        } catch (err) {
-          console.error("❌ Failed to fetch validation data:", err);
         }
-      }
-      
-      // Always log for debugging (remove NODE_ENV check)
-      console.log('📡 [Edit Mode] API Response received');
-      console.log('📊 [Edit Mode] Total validations returned:', validations.length);
-      console.log('📋 [Edit Mode] Available validations:', validations.map(v => ({ 
-        validation_id: v.validation_id,
-        id: v.id,
-        overall_score: v.overall_score
-      })));
-      
-      // If no validations found at all, check if it's an authentication issue
-      if (validations.length === 0) {
-        console.warn('⚠️ [Edit Mode] No validations returned from API. Possible reasons:');
-        console.warn('  - User has no validations');
-        console.warn('  - Authentication issue');
-        console.warn('  - All validations are filtered out (not completed or deleted)');
-      }
-      
-      // Find the validation we want to edit
-      // Try multiple matching strategies to handle different ID formats
-      let validationToEdit = null;
-      if (editValidationId) {
-        validationToEdit = validations.find(v => {
-          const vid = v.validation_id || v.id;
-          const searchId = editValidationId;
+        
+        // Always log for debugging
+        console.log('📡 [Edit Mode] API Response received');
+        console.log('📊 [Edit Mode] Total validations returned:', validations.length);
+        console.log('📋 [Edit Mode] Available validations:', validations.map(v => ({ 
+          validation_id: v.validation_id,
+          id: v.id,
+          overall_score: v.overall_score
+        })));
+        console.log('🔍 [Edit Mode] Searching for validation_id:', editValidationId);
+        console.log('🔍 [Edit Mode] ID type:', typeof editValidationId);
+        
+        // If no validations found at all, check if it's an authentication issue
+        if (validations.length === 0) {
+          console.warn('⚠️ [Edit Mode] No validations returned from API. Possible reasons:');
+          console.warn('  - User has no validations');
+          console.warn('  - Authentication issue');
+          console.warn('  - All validations are filtered out (not completed or deleted)');
+        }
+        
+        // Find the validation we want to edit
+        // editValidationId is already stripped of "val_" prefix
+        let validationToEdit = null;
+        if (editValidationId) {
+          const searchId = String(editValidationId).trim();
+          console.log('🔍 [Edit Mode] Searching for validation with cleaned ID:', searchId);
           
-          // Strategy 1: Exact match
-          if (vid === searchId) return true;
-          
-          // Strategy 2: Match with val_ prefix (if searchId doesn't have it)
-          if (!searchId.startsWith('val_') && vid === `val_${searchId}`) return true;
-          
-          // Strategy 3: Match without val_ prefix (if searchId has it)
-          if (searchId.startsWith('val_') && vid === searchId.replace(/^val_/, '')) return true;
-          
-          // Strategy 4: Match by numeric part only (strip prefixes)
-          const vidNum = String(vid).replace(/^val_/, '');
-          const searchIdNum = String(searchId).replace(/^val_/, '');
-          if (vidNum === searchIdNum && vidNum) return true;
-          
-          // Strategy 5: Match by database ID as fallback
-          if (String(v.id) === String(searchId)) return true;
-          
-          return false;
-        });
-      }
-      
-      // Always log for debugging (remove NODE_ENV check)
-      console.log('🔍 [Edit Mode] Searching for validation_id:', editValidationId);
-      console.log('📊 [Edit Mode] Total validations available:', validations.length);
-      console.log('📋 [Edit Mode] Available validation_ids:', validations.map(v => ({
-        id: v.id,
-        validation_id: v.validation_id,
-        has_category_answers: !!v.category_answers
-      })));
-      console.log('✅ [Edit Mode] Found validation:', validationToEdit ? 'YES' : 'NO');
-      if (validationToEdit) {
-        console.log('📝 [Edit Mode] Validation details:', {
-          id: validationToEdit.id,
-          validation_id: validationToEdit.validation_id,
-          has_category_answers: !!validationToEdit.category_answers,
-          category_answers_type: typeof validationToEdit.category_answers
-        });
-      } else {
-        console.warn('⚠️ [Edit Mode] Validation NOT FOUND! Check if:');
-        console.warn('  - Validation exists in database');
-        console.warn('  - Validation belongs to current user');
-        console.warn('  - Validation status is "completed"');
-        console.warn('  - Validation is not deleted');
-      }
+          validationToEdit = validations.find(v => {
+            // API returns validation_id as the actual ID (string or number)
+            const vid = v.validation_id ? String(v.validation_id).trim() : null;
+            const dbId = v.id ? String(v.id).trim() : null;
+            
+            // Strategy 1: Direct match on validation_id (most common case)
+            if (vid && vid === searchId) {
+              console.log('✅ [Edit Mode] Found by validation_id match:', vid);
+              return true;
+            }
+            
+            // Strategy 2: Match by database ID (strip prefix if present)
+            if (dbId) {
+              const cleanDbId = dbId.replace(/^val_/, '');
+              if (cleanDbId === searchId) {
+                console.log('✅ [Edit Mode] Found by id match (stripped):', dbId, '->', cleanDbId);
+                return true;
+              }
+            }
+            
+            // Strategy 3: Match by numeric value (handle string vs number conversion)
+            try {
+              const searchNum = Number(searchId);
+              if (!isNaN(searchNum)) {
+                if (vid && Number(vid) === searchNum) {
+                  console.log('✅ [Edit Mode] Found by numeric validation_id match:', vid);
+                  return true;
+                }
+                if (dbId) {
+                  const cleanDbId = dbId.replace(/^val_/, '');
+                  if (Number(cleanDbId) === searchNum) {
+                    console.log('✅ [Edit Mode] Found by numeric id match:', dbId);
+                    return true;
+                  }
+                }
+              }
+            } catch (e) {
+              // Ignore number conversion errors
+            }
+            
+            return false;
+          });
+        }
+        
+        // Always log for debugging (remove NODE_ENV check)
+        console.log('🔍 [Edit Mode] Searching for validation_id:', editValidationId);
+        console.log('📊 [Edit Mode] Total validations available:', validations.length);
+        console.log('📋 [Edit Mode] Available validation_ids:', validations.map(v => ({
+          id: v.id,
+          validation_id: v.validation_id,
+          has_category_answers: !!v.category_answers
+        })));
+        console.log('✅ [Edit Mode] Found validation:', validationToEdit ? 'YES' : 'NO');
+        if (validationToEdit) {
+          console.log('📝 [Edit Mode] Validation details:', {
+            id: validationToEdit.id,
+            validation_id: validationToEdit.validation_id,
+            has_category_answers: !!validationToEdit.category_answers,
+            category_answers_type: typeof validationToEdit.category_answers
+          });
+        } else {
+          console.warn('⚠️ [Edit Mode] Validation NOT FOUND! Check if:');
+          console.warn('  - Validation exists in database');
+          console.warn('  - Validation belongs to current user');
+          console.warn('  - Validation status is "completed"');
+          console.warn('  - Validation is not deleted');
+        }
 
-      if (validationToEdit) {
+        if (validationToEdit) {
         // Parse category_answers if it's a string
         let categoryAnswersData = {};
         if (validationToEdit.category_answers) {
@@ -336,14 +355,25 @@ export default function IdeaValidator() {
       } else {
         console.error('❌ [Edit Mode] Validation not found for ID:', editValidationId);
         console.error('🔍 [Edit Mode] This could mean:');
-        console.error('  1. Validation does not exist');
+        console.error('  1. Validation does not exist (may have been deleted)');
         console.error('  2. Validation belongs to different user');
         console.error('  3. Validation status is not "completed"');
-        console.error('  4. Validation is deleted');
+        console.error('  4. Validation is deleted (is_deleted=True)');
         console.error('  5. ID format mismatch');
-        setError(`Validation not found or access denied. The validation with ID "${editValidationId}" could not be loaded. Please check that it exists and belongs to your account.`);
+        console.error('📊 [Edit Mode] Available validation IDs:', validations.map(v => v.validation_id || v.id));
+        
+        // Show the original ID from URL in error message for user clarity
+        const originalId = editValidationIdRaw || editValidationId;
+        const availableIds = validations.map(v => v.validation_id || v.id).join(', ');
+        setError(
+          `Validation not found or access denied. The validation with ID "${originalId}" could not be loaded. ` +
+          `This validation may have been deleted or doesn't belong to your account. ` +
+          (validations.length > 0 
+            ? `Available validations: ${availableIds}` 
+            : 'You have no validations available to edit.')
+        );
       }
-      } catch (err) {
+        } catch (err) {
         console.error('💥 [Edit Mode] Exception caught while loading validation:', err);
         console.error('💥 [Edit Mode] Error details:', {
           message: err.message,

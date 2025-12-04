@@ -501,12 +501,39 @@ export default function DashboardPage() {
   const handleDelete = async (session) => {
     if (window.confirm("Are you sure you want to delete this session? This action cannot be undone.")) {
       // Handle validation deletion
-      if (session.is_validation && session.from_api && session.validation_id) {
-        // Note: Validation delete endpoint not yet implemented
-        // For now, just remove from local state
-        setApiValidations(prev => prev.filter(v => v.validation_id !== session.validation_id));
-        // Reload dashboard data to refresh the list
-        await loadDashboardData();
+      if (session.is_validation || session.validation_id) {
+        // Use validation_id if available, otherwise use id
+        const validationId = session.validation_id || session.id;
+        // Remove 'val_' prefix if present (from local storage validations)
+        const cleanId = validationId.toString().replace(/^val_/, '');
+        
+        try {
+          console.log('🗑️ [Delete] Attempting to delete validation with ID:', cleanId);
+          const response = await fetch(`/api/validate-idea/${cleanId}`, {
+            method: "DELETE",
+            headers: getAuthHeaders(),
+          });
+          
+          const responseData = await response.json().catch(() => ({}));
+          
+          if (response.ok) {
+            console.log('✅ [Delete] Validation deleted successfully');
+            // Remove from local state immediately
+            setApiValidations(prev => prev.filter(v => {
+              const vId = v.validation_id || v.id;
+              const vCleanId = vId?.toString().replace(/^val_/, '') || '';
+              return vCleanId !== cleanId;
+            }));
+            // Reload dashboard data to refresh the list
+            await loadDashboardData();
+          } else {
+            console.error('❌ [Delete] Delete failed:', response.status, responseData);
+            alert(responseData.error || `Failed to delete validation (${response.status}). Please try again.`);
+          }
+        } catch (error) {
+          console.error("❌ [Delete] Exception while deleting validation:", error);
+          alert("Failed to delete validation. Please try again.");
+        }
         return;
       }
       
@@ -571,6 +598,40 @@ export default function DashboardPage() {
     }
   };
 
+  const handleEditValidation = (validation) => {
+    // Navigate to validation form with edit mode
+    // Priority: validation_id > id (with prefix stripped)
+    console.log('🔧 [Edit] handleEditValidation called with:', {
+      validation_id: validation.validation_id,
+      id: validation.id,
+      full_validation: validation
+    });
+    
+    let validationId = null;
+    
+    // First try validation_id (should be the actual ID without prefix)
+    if (validation.validation_id) {
+      validationId = String(validation.validation_id);
+      console.log('✅ [Edit] Using validation_id:', validationId);
+    } else if (validation.id) {
+      // Fallback to id, but strip "val_" prefix if present
+      const id = String(validation.id);
+      validationId = id.replace(/^val_/, '');
+      console.log('⚠️ [Edit] Using id (stripped prefix):', id, '->', validationId);
+    }
+    
+    if (!validationId) {
+      console.error('❌ [Edit] Cannot edit validation: no ID found', validation);
+      alert('Unable to edit validation: ID not found');
+      return;
+    }
+    
+    // Ensure we're using the clean ID (no prefix) - double check
+    const cleanId = validationId.replace(/^val_/, '');
+    console.log('🚀 [Edit] Navigating to edit page with ID:', cleanId);
+    navigate(`/validate-idea?edit=${cleanId}`);
+  };
+
   // Merge localStorage runs with API runs, removing duplicates
   // If user is authenticated and API has loaded, only show API data (ignore localStorage)
   const allRuns = useMemo(() => {
@@ -631,15 +692,19 @@ export default function DashboardPage() {
   // If user is authenticated and API has loaded, only show API data (ignore localStorage)
   const allValidations = useMemo(() => {
     // Get validations from API
-    const apiVals = apiValidations.map(v => ({
-      id: `val_${v.validation_id}`,
-      validation_id: v.validation_id,
-      timestamp: v.created_at ? new Date(v.created_at).getTime() : Date.now(),
-      overall_score: v.overall_score,
-      idea_explanation: v.idea_explanation,
-      from_api: true,
-      is_validation: true,
-    }));
+    const apiVals = apiValidations.map(v => {
+      // Ensure validation_id is always set - use id as fallback if validation_id is missing
+      const validationId = v.validation_id || v.id || null;
+      return {
+        id: validationId ? `val_${validationId}` : `val_${Date.now()}`,
+        validation_id: validationId, // Always set validation_id (without prefix)
+        timestamp: v.created_at ? new Date(v.created_at).getTime() : Date.now(),
+        overall_score: v.overall_score,
+        idea_explanation: v.idea_explanation,
+        from_api: true,
+        is_validation: true,
+      };
+    });
 
     // If authenticated and API has loaded, only use API data (ignore localStorage completely)
     if (isAuthenticated && !loadingRuns) {
@@ -1047,6 +1112,7 @@ export default function DashboardPage() {
             sessionHasNotes={sessionHasNotes}
             handleDelete={handleDelete}
             handleNewRequest={handleNewRequest}
+            handleEditValidation={handleEditValidation}
           />
         )}
 

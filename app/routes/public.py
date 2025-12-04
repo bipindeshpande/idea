@@ -4,9 +4,9 @@ from typing import Any, Dict
 import os
 import re
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 
-from app.models.database import db, User, UserValidation, UserRun
+from app.models.database import db, User, UserValidation, UserRun, utcnow
 from app.services.email_service import email_service
 from app.services.email_templates import get_base_template
 
@@ -146,7 +146,7 @@ def get_public_usage_stats() -> Any:
             total_users = 0
         
         # Count total validations (this month) - use index on created_at
-        this_month_start = datetime.utcnow().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        this_month_start = utcnow().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
         
         try:
             validations_this_month = UserValidation.query.filter(

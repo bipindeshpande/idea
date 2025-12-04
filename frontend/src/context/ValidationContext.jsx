@@ -26,7 +26,7 @@ export function ValidationProvider({ children }) {
   const [ideaExplanation, setIdeaExplanationState] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const { getAuthHeaders } = useAuth();
+  const { getAuthHeaders, isAuthenticated } = useAuth();
 
   const setCategoryAnswers = useCallback((valueOrUpdater) => {
     if (typeof valueOrUpdater === "function") {
@@ -102,17 +102,69 @@ export function ValidationProvider({ children }) {
     }
   }, [getAuthHeaders]);
 
-  const loadValidationById = useCallback((validationId) => {
+  const loadValidationById = useCallback(async (validationId) => {
+    // Strip "val_" prefix if present
+    const cleanId = validationId.toString().replace(/^val_/, '');
+    
+    // If authenticated, try to load from API first
+    if (isAuthenticated && getAuthHeaders) {
+      try {
+        // Try to fetch from /api/user/activity and find the validation
+        const response = await fetch('/api/user/activity', {
+          headers: getAuthHeaders(),
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          const validations = data.activity?.validations || [];
+          
+          // Find validation by validation_id or id
+          const validation = validations.find(v => {
+            const vid = v.validation_id || v.id;
+            const vidStr = String(vid).replace(/^val_/, '');
+            return vidStr === cleanId || String(vid) === cleanId;
+          });
+          
+          if (validation) {
+            // Parse validation_result to get the full validation data
+            const validationResult = validation.validation_result || {};
+            const validationData = {
+              id: validation.validation_id || validation.id,
+              validation_id: validation.validation_id,
+              timestamp: validation.created_at ? new Date(validation.created_at).getTime() : Date.now(),
+              categoryAnswers: validation.category_answers || {},
+              ideaExplanation: validation.idea_explanation || "",
+              validation: validationResult,
+            };
+            
+            setCurrentValidation(validationData);
+            setCategoryAnswers(validation.category_answers || {});
+            setIdeaExplanation(validation.idea_explanation || "");
+            return validationData;
+          }
+        }
+      } catch (error) {
+        console.error("Failed to load validation from API:", error);
+      }
+    }
+    
+    // Fallback to localStorage
     const validations = loadSavedValidations();
-    const validation = validations.find((v) => v.id === validationId);
+    const validation = validations.find((v) => {
+      const vId = v.id || v.validation_id;
+      const vIdStr = String(vId).replace(/^val_/, '');
+      return vIdStr === cleanId || String(vId) === cleanId;
+    });
+    
     if (validation) {
       setCurrentValidation(validation);
       setCategoryAnswers(validation.categoryAnswers || {});
       setIdeaExplanation(validation.ideaExplanation || "");
       return validation;
     }
+    
     return null;
-  }, []);
+  }, [isAuthenticated, getAuthHeaders]);
 
   const getSavedValidations = useCallback(() => {
     return loadSavedValidations();

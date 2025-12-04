@@ -81,15 +81,25 @@ export function AuthProvider({ children }) {
         const data = await response.json();
         setUser(data.user);
         await checkSubscription();
+      } else if (response.status === 401) {
+        // Invalid or expired session - silently clear it
+        localStorage.removeItem(SESSION_TOKEN_KEY);
+        setSessionToken(null);
+        setUser(null);
+        setSubscription(null);
       } else {
-        // Invalid session
+        // Other error - log it
+        console.error("Auth check failed with status:", response.status);
         localStorage.removeItem(SESSION_TOKEN_KEY);
         setSessionToken(null);
         setUser(null);
         setSubscription(null);
       }
     } catch (error) {
-      console.error("Auth check failed:", error);
+      // Only log network errors, not expected 401s
+      if (error.name !== 'TypeError' || !error.message.includes('fetch')) {
+        console.error("Auth check failed:", error);
+      }
       localStorage.removeItem(SESSION_TOKEN_KEY);
       setSessionToken(null);
       setUser(null);
@@ -157,6 +167,7 @@ export function AuthProvider({ children }) {
 
   const login = useCallback(async (email, password) => {
     try {
+      console.log('🔐 [Login] Attempting login for:', email);
       const response = await fetch("/api/auth/login", {
         method: "POST",
         headers: {
@@ -165,29 +176,46 @@ export function AuthProvider({ children }) {
         body: JSON.stringify({ email, password }),
       });
 
+      console.log('📥 [Login] Response status:', response.status, response.ok ? 'OK' : 'ERROR');
+
       if (!response.ok) {
         const errorText = await response.text();
         let errorData;
         try {
           errorData = JSON.parse(errorText);
         } catch {
+          console.error('❌ [Login] Failed to parse error response:', errorText);
           return { success: false, error: `Server error: ${response.status}` };
         }
+        console.error('❌ [Login] Login failed:', errorData);
         return { success: false, error: errorData.error || "Login failed" };
       }
 
       const data = await response.json();
+      console.log('✅ [Login] Response data:', { 
+        hasSuccess: !!data.success, 
+        hasSessionToken: !!data.session_token, 
+        hasUser: !!data.user,
+        dataKeys: Object.keys(data)
+      });
+      
       if (data.success) {
+        if (!data.session_token) {
+          console.error('❌ [Login] No session_token in response:', data);
+          return { success: false, error: "Login succeeded but no session token received" };
+        }
         localStorage.setItem(SESSION_TOKEN_KEY, data.session_token);
         setSessionToken(data.session_token);
         setUser(data.user);
         await checkSubscription();
+        console.log('✅ [Login] Login successful, user set');
         return { success: true };
       } else {
+        console.error('❌ [Login] Response indicates failure:', data);
         return { success: false, error: data.error || "Login failed" };
       }
     } catch (error) {
-      console.error("Login error:", error);
+      console.error("❌ [Login] Exception during login:", error);
       return { success: false, error: error.message || "Network error" };
     }
   }, [checkSubscription]);

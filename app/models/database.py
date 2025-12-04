@@ -1,13 +1,30 @@
 """
 Database models and setup for user authentication and subscriptions.
 """
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
 from sqlalchemy import Index, Enum as SQLEnum
 import secrets
 
 db = SQLAlchemy()
+
+# Helper function to get UTC now (replaces deprecated datetime.utcnow())
+def utcnow():
+    """Get current UTC datetime. Replaces deprecated datetime.utcnow()."""
+    return datetime.now(timezone.utc)
+
+# Helper function to normalize datetime to timezone-aware (UTC)
+def normalize_datetime(dt):
+    """Normalize a datetime to timezone-aware UTC. Handles both naive and aware datetimes."""
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        # Naive datetime - assume it's UTC and make it aware
+        return dt.replace(tzinfo=timezone.utc)
+    else:
+        # Already aware - convert to UTC
+        return dt.astimezone(timezone.utc)
 
 
 class User(db.Model):
@@ -17,12 +34,12 @@ class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     email = db.Column(db.String(255), unique=True, nullable=False, index=True)
     password_hash = db.Column(db.String(255), nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+    created_at = db.Column(db.DateTime, default=utcnow, index=True)
     is_active = db.Column(db.Boolean, default=True, index=True)
     
     # Subscription fields
     subscription_type = db.Column(db.String(50), default="free", index=True)  # free, starter, pro, annual (monthly migrated to pro)
-    subscription_started_at = db.Column(db.DateTime, default=datetime.utcnow)
+    subscription_started_at = db.Column(db.DateTime, default=utcnow)
     subscription_expires_at = db.Column(db.DateTime, index=True)
     payment_status = db.Column(db.String(50), default="trial", index=True)  # trial, active, expired, cancelled
     
@@ -54,14 +71,14 @@ class User(db.Model):
         """Generate password reset token."""
         token = secrets.token_urlsafe(32)
         self.reset_token = token
-        self.reset_token_expires_at = datetime.utcnow() + timedelta(hours=1)
+        self.reset_token_expires_at = utcnow() + timedelta(hours=1)
         return token
     
     def verify_reset_token(self, token: str) -> bool:
         """Verify password reset token."""
         if not self.reset_token or not self.reset_token_expires_at:
             return False
-        if datetime.utcnow() > self.reset_token_expires_at:
+        if normalize_datetime(utcnow()) > normalize_datetime(self.reset_token_expires_at):
             return False
         return secrets.compare_digest(self.reset_token, token)
     
@@ -86,7 +103,7 @@ class User(db.Model):
             if subscription_type == "free":
                 # If expiration is not set for free tier, set it far in the future
                 if not self.subscription_expires_at:
-                    self.subscription_expires_at = datetime.utcnow() + timedelta(days=365*10)  # 10 years
+                    self.subscription_expires_at = utcnow() + timedelta(days=365*10)  # 10 years
                     self.payment_status = "active"
                     try:
                         db.session.commit()
@@ -122,8 +139,8 @@ class User(db.Model):
                             "pro": 30,
                             "annual": 365,
                         }.get(subscription_type, 30)
-                        self.subscription_expires_at = datetime.utcnow() + timedelta(days=duration_days)
-                        self.subscription_started_at = datetime.utcnow()
+                        self.subscription_expires_at = utcnow() + timedelta(days=duration_days)
+                        self.subscription_started_at = utcnow()
                     
                     try:
                         db.session.commit()
@@ -141,7 +158,7 @@ class User(db.Model):
             if not self.subscription_expires_at:
                 # If we still don't have an expiration date after trying to set it, return False
                 return False
-            return datetime.utcnow() < self.subscription_expires_at
+            return normalize_datetime(utcnow()) < normalize_datetime(self.subscription_expires_at)
         except Exception as e:
             # Log error but don't crash - default to False for safety
             import logging
@@ -153,7 +170,7 @@ class User(db.Model):
             # For paid subscriptions, if there's an error, check if expiration exists and is in future
             if self.subscription_expires_at:
                 try:
-                    return datetime.utcnow() < self.subscription_expires_at
+                    return normalize_datetime(utcnow()) < normalize_datetime(self.subscription_expires_at)
                 except:
                     pass
             return False
@@ -162,15 +179,15 @@ class User(db.Model):
         """Get days remaining in subscription."""
         if not self.subscription_expires_at:
             return 0
-        remaining = (self.subscription_expires_at - datetime.utcnow()).days
+        remaining = (normalize_datetime(self.subscription_expires_at) - normalize_datetime(utcnow())).days
         return max(0, remaining)
     
     def activate_subscription(self, subscription_type: str, duration_days: int):
         """Activate subscription."""
         self.subscription_type = subscription_type
         self.payment_status = "active"
-        self.subscription_started_at = datetime.utcnow()
-        self.subscription_expires_at = datetime.utcnow() + timedelta(days=duration_days)
+        self.subscription_started_at = utcnow()
+        self.subscription_expires_at = utcnow() + timedelta(days=duration_days)
         
         # Set usage reset date for monthly plans (starter, pro, annual)
         if subscription_type in ["starter", "pro", "annual"]:
@@ -367,7 +384,7 @@ class User(db.Model):
                 # For paid subscriptions, check expiration
                 if self.subscription_expires_at:
                     # Check if expiration is in the future (read-only)
-                    is_active = datetime.utcnow() < self.subscription_expires_at
+                    is_active = normalize_datetime(utcnow()) < normalize_datetime(self.subscription_expires_at)
                 elif self.subscription_started_at:
                     # No expiration set but has start date - calculate expiration
                     duration_days = {
@@ -376,14 +393,14 @@ class User(db.Model):
                         "annual": 365,
                     }.get(subscription_type, 30)
                     calculated_expiry = self.subscription_started_at + timedelta(days=duration_days)
-                    is_active = datetime.utcnow() < calculated_expiry
+                    is_active = normalize_datetime(utcnow()) < normalize_datetime(calculated_expiry)
                 else:
                     # No expiration and no start date - assume inactive
                     is_active = False
             else:
                 # Unknown subscription type - check expiration if exists
                 if self.subscription_expires_at:
-                    is_active = datetime.utcnow() < self.subscription_expires_at
+                    is_active = normalize_datetime(utcnow()) < normalize_datetime(self.subscription_expires_at)
                 else:
                     is_active = False
         except Exception as e:
@@ -395,7 +412,7 @@ class User(db.Model):
         try:
             days_remaining = 0
             if self.subscription_expires_at:
-                remaining = (self.subscription_expires_at - datetime.utcnow()).days
+                remaining = (normalize_datetime(self.subscription_expires_at) - normalize_datetime(utcnow())).days
                 days_remaining = max(0, remaining)
         except Exception as e:
             import logging
@@ -420,9 +437,9 @@ class UserSession(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
     session_token = db.Column(db.String(255), unique=True, nullable=False, index=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+    created_at = db.Column(db.DateTime, default=utcnow, index=True)
     expires_at = db.Column(db.DateTime, nullable=False, index=True)
-    last_activity = db.Column(db.DateTime, default=datetime.utcnow)
+    last_activity = db.Column(db.DateTime, default=utcnow)
     ip_address = db.Column(db.String(45), nullable=True)
     user_agent = db.Column(db.String(255), nullable=True)
     
@@ -436,12 +453,19 @@ class UserSession(db.Model):
     
     def is_valid(self) -> bool:
         """Check if session is still valid (not expired and not inactive)."""
-        if datetime.utcnow() >= self.expires_at:
+        if not self.expires_at:
+            return False
+        
+        # Normalize both datetimes to timezone-aware for comparison
+        now = utcnow()
+        expires = normalize_datetime(self.expires_at)
+        if now >= expires:
             return False
         
         # Check for inactivity timeout (15 minutes - increased for long operations like validation)
         if self.last_activity:
-            time_since_activity = datetime.utcnow() - self.last_activity
+            last_activity = normalize_datetime(self.last_activity)
+            time_since_activity = now - last_activity
             if time_since_activity > timedelta(minutes=15):
                 return False
         
@@ -449,8 +473,8 @@ class UserSession(db.Model):
     
     def refresh(self, duration_hours: int = 24 * 7):  # 7 days default
         """Refresh session expiration."""
-        self.expires_at = datetime.utcnow() + timedelta(hours=duration_hours)
-        self.last_activity = datetime.utcnow()
+        self.expires_at = utcnow() + timedelta(hours=duration_hours)
+        self.last_activity = utcnow()
 
 
 class UserRun(db.Model):
@@ -463,8 +487,8 @@ class UserRun(db.Model):
     inputs = db.Column(db.Text)  # JSON string
     reports = db.Column(db.Text)  # JSON string
     status = db.Column(db.String(50), default="pending", index=True)  # pending, processing, completed, failed
-    created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=utcnow, index=True)
+    updated_at = db.Column(db.DateTime, default=utcnow, onupdate=utcnow)
     is_deleted = db.Column(db.Boolean, default=False, index=True)
     archived_at = db.Column(db.DateTime, nullable=True)
     
@@ -488,8 +512,8 @@ class UserValidation(db.Model):
     idea_explanation = db.Column(db.Text)
     validation_result = db.Column(db.Text)  # JSON string
     status = db.Column(db.String(50), default="completed", index=True)  # pending, completed, failed
-    created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=utcnow, index=True)
+    updated_at = db.Column(db.DateTime, default=utcnow, onupdate=utcnow)
     is_deleted = db.Column(db.Boolean, default=False, index=True)
     archived_at = db.Column(db.DateTime, nullable=True)
     
@@ -518,8 +542,8 @@ class UserAction(db.Model):
     )
     due_date = db.Column(db.DateTime, nullable=True)
     completed_at = db.Column(db.DateTime, nullable=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=utcnow, index=True)
+    updated_at = db.Column(db.DateTime, default=utcnow, onupdate=utcnow)
     is_deleted = db.Column(db.Boolean, default=False, index=True)
     archived_at = db.Column(db.DateTime, nullable=True)
     
@@ -536,8 +560,8 @@ class UserNote(db.Model):
     idea_id = db.Column(db.String(255), nullable=False, index=True)  # Can be run_id or validation_id
     content = db.Column(db.Text, nullable=False)
     tags = db.Column(db.Text)  # JSON string array of tags
-    created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, index=True)
+    created_at = db.Column(db.DateTime, default=utcnow, index=True)
+    updated_at = db.Column(db.DateTime, default=utcnow, onupdate=utcnow, index=True)
     # Note: is_deleted column removed - not present in database table
     archived_at = db.Column(db.DateTime, nullable=True)
     
@@ -559,13 +583,13 @@ class Admin(db.Model):
     email = db.Column(db.String(255), unique=True, nullable=False, index=True)
     password_hash = db.Column(db.String(255), nullable=False)
     mfa_secret = db.Column(db.String(255), nullable=True)  # TOTP secret
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=utcnow)
+    updated_at = db.Column(db.DateTime, default=utcnow, onupdate=utcnow)
     
     def set_password(self, password: str):
         """Set admin password."""
         self.password_hash = generate_password_hash(password)
-        self.updated_at = datetime.utcnow()
+        self.updated_at = utcnow()
     
     def check_password(self, password: str) -> bool:
         """Check admin password."""
@@ -596,11 +620,11 @@ class AdminResetToken(db.Model):
     email = db.Column(db.String(255), nullable=False)
     expires_at = db.Column(db.DateTime, nullable=False)
     used = db.Column(db.Boolean, default=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=utcnow)
     
     def is_valid(self) -> bool:
         """Check if token is still valid."""
-        return not self.used and datetime.utcnow() < self.expires_at
+        return not self.used and normalize_datetime(utcnow()) < normalize_datetime(self.expires_at)
 
 
 class SystemSettings(db.Model):
@@ -611,7 +635,7 @@ class SystemSettings(db.Model):
     key = db.Column(db.String(255), unique=True, nullable=False, index=True)
     value = db.Column(db.Text, nullable=False)
     description = db.Column(db.Text, nullable=True)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=utcnow, onupdate=utcnow)
     updated_by = db.Column(db.String(255), nullable=True)  # Admin email who updated
     
     @staticmethod
@@ -636,7 +660,7 @@ class SystemSettings(db.Model):
                 setting.description = description
             if updated_by:
                 setting.updated_by = updated_by
-            setting.updated_at = datetime.utcnow()
+            setting.updated_at = utcnow()
         else:
             setting = SystemSettings(
                 key=key,
@@ -664,7 +688,7 @@ class Payment(db.Model):
     payment_method = db.Column(db.String(50), default="stripe")
     stripe_payment_intent_id = db.Column(db.String(255), nullable=True, unique=True)
     status = db.Column(db.String(50), default="pending", index=True)  # pending, completed, failed, refunded
-    created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+    created_at = db.Column(db.DateTime, default=utcnow, index=True)
     completed_at = db.Column(db.DateTime, nullable=True)
     
     # Composite indexes for common queries
@@ -685,7 +709,7 @@ class SubscriptionCancellation(db.Model):
     subscription_type = db.Column(db.String(50), nullable=False)  # weekly, monthly
     cancellation_reason = db.Column(db.Text, nullable=True)  # User-provided reason
     cancellation_category = db.Column(db.String(100), nullable=True)  # Optional: categorize reasons
-    cancelled_at = db.Column(db.DateTime, default=datetime.utcnow)
+    cancelled_at = db.Column(db.DateTime, default=utcnow)
     subscription_expires_at = db.Column(db.DateTime, nullable=True)  # When access actually expires
     
     # Relationship
@@ -740,7 +764,7 @@ class StripeEvent(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     stripe_event_id = db.Column(db.String(255), unique=True, nullable=False, index=True)
     event_type = db.Column(db.String(100), nullable=False, index=True)
-    processed_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+    processed_at = db.Column(db.DateTime, default=utcnow, index=True)
     details = db.Column(db.Text)  # JSON string of event data
     
     def __repr__(self):
@@ -760,7 +784,7 @@ class AuditLog(db.Model):
     details = db.Column(db.Text, nullable=True)  # JSON string with additional context
     ip_address = db.Column(db.String(45), nullable=True)
     user_agent = db.Column(db.String(255), nullable=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+    created_at = db.Column(db.DateTime, default=utcnow, index=True)
     
     # Composite indexes for common queries
     __table_args__ = (

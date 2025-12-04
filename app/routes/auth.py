@@ -1,16 +1,18 @@
 """Authentication routes blueprint."""
 from flask import Blueprint, request, current_app
 from typing import Any, Dict
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import os
 import traceback
 
 from app.models.database import db, User, SubscriptionTier, PaymentStatus
+from app.models.database import utcnow, normalize_datetime
 from app.utils import create_user_session, get_current_session, require_auth
 from app.utils.response_helpers import (
     success_response, error_response, not_found_response,
     unauthorized_response, internal_error_response
 )
+from app.utils.serialization import serialize_datetime
 from app.constants import (
     DEFAULT_SUBSCRIPTION_TYPE, DEFAULT_PAYMENT_STATUS,
     MIN_PASSWORD_LENGTH, SUBSCRIPTION_DURATIONS,
@@ -66,8 +68,8 @@ def register() -> Any:
     user = User(
         email=email,
         subscription_type=SubscriptionTier.FREE_TRIAL,
-        subscription_started_at=datetime.utcnow(),
-        subscription_expires_at=datetime.utcnow() + timedelta(days=trial_duration),
+        subscription_started_at=utcnow(),
+        subscription_expires_at=utcnow() + timedelta(days=trial_duration),
         payment_status=DEFAULT_PAYMENT_STATUS,
     )
     user.set_password(password)
@@ -104,7 +106,7 @@ def register() -> Any:
                 admin_html = f"""
                 <h2 style="color: #333; margin-top: 0;">New User Registration</h2>
                 <p><strong>Email:</strong> {user.email}</p>
-                <p><strong>Registered:</strong> {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')}</p>
+                <p><strong>Registered:</strong> {utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')}</p>
                 <p><strong>Subscription:</strong> {user.subscription_type} (Free Trial)</p>
                 <p><strong>Expires:</strong> {user.subscription_expires_at.strftime('%Y-%m-%d') if user.subscription_expires_at else 'N/A'}</p>
                 """
@@ -112,7 +114,7 @@ def register() -> Any:
                     to_email=admin_email,
                     subject=f"New User: {user.email}",
                     html_content=get_base_template(admin_html),
-                    text_content=f"New user registered: {user.email}\nRegistered: {datetime.utcnow().isoformat()}",
+                    text_content=f"New user registered: {user.email}\nRegistered: {utcnow().isoformat()}",
                 )
         except Exception as e:
             current_app.logger.warning(f"Failed to send admin notification: {e}")
@@ -184,11 +186,11 @@ def login() -> Any:
             subscription_type = user.subscription_type or DEFAULT_SUBSCRIPTION_TYPE
             is_active = subscription_type == SubscriptionTier.FREE
             if user.subscription_expires_at:
-                is_active = datetime.utcnow() < user.subscription_expires_at
+                is_active = normalize_datetime(utcnow()) < normalize_datetime(user.subscription_expires_at)
             
             days_remaining = 0
             if user.subscription_expires_at:
-                remaining = (user.subscription_expires_at - datetime.utcnow()).days
+                remaining = (normalize_datetime(user.subscription_expires_at) - normalize_datetime(utcnow())).days
                 days_remaining = max(0, remaining)
             
             user_dict = {
@@ -257,17 +259,17 @@ def login() -> Any:
                 pass
             return internal_error_response("Failed to create session token. Please try again.")
         
-        response_data = {
-            "success": True,
-            "user": user_dict,
-            "session_token": session.session_token,
-        }
-        
         # Log successful login (don't fail if this fails)
         try:
             log_login(user.id, success=True)
         except Exception as log_error:
             current_app.logger.warning(f"Failed to log login: {log_error}")
+        
+        # Don't include "success" in response_data - success_response adds it automatically
+        response_data = {
+            "user": user_dict,
+            "session_token": session.session_token,
+        }
         
         return success_response(response_data)
     except Exception as exc:

@@ -12,6 +12,7 @@ function DashboardSessionsTab({
   sessionHasNotes,
   handleDelete,
   handleNewRequest,
+  handleEditValidation,
 }) {
   return (
     <>
@@ -115,6 +116,7 @@ function DashboardSessionsTab({
                         hasOpenActions={hasOpenActions}
                         hasNotes={hasNotes}
                         onDelete={handleDelete}
+                        onEdit={handleEditValidation}
                         isValidation={true}
                       />
                     );

@@ -1,7 +1,7 @@
 """Admin routes blueprint - admin dashboard and management endpoints."""
 from flask import Blueprint, request, Response, current_app
 from typing import Any, Dict
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import os
 import json
@@ -9,13 +9,13 @@ import secrets
 import csv
 from io import StringIO
 
-from sqlalchemy import func, extract
+from sqlalchemy import func, extract, delete
 from sqlalchemy.orm import joinedload
 
 from app.models.database import (
     db, User, UserSession, UserRun, UserValidation, Payment,
     SubscriptionCancellation, Admin, AdminResetToken, SystemSettings,
-    SubscriptionTier, PaymentStatus
+    SubscriptionTier, PaymentStatus, utcnow, normalize_datetime
 )
 from app.utils import check_admin_auth
 from app.utils.json_helpers import safe_json_dumps
@@ -113,9 +113,11 @@ def get_admin_stats() -> Any:
         total_revenue = db.session.query(func.sum(Payment.amount)).filter_by(status=PaymentStatus.COMPLETED).scalar() or 0
         
         # Subscription stats
+        # Compare directly - PostgreSQL handles timezone-aware datetime comparisons
+        now = utcnow()
         active_subscriptions = User.query.filter(
             User.payment_status == PaymentStatus.ACTIVE,
-            User.subscription_expires_at > datetime.utcnow()
+            User.subscription_expires_at > now
         ).count()
         free_trial_users = User.query.filter_by(subscription_type=SubscriptionTier.FREE_TRIAL).count()
         weekly_subscribers = User.query.filter_by(subscription_type="weekly").count()  # Legacy
@@ -478,10 +480,15 @@ def admin_forgot_password() -> Any:
     
     # Generate reset token
     token = secrets.token_urlsafe(32)
-    expires_at = datetime.utcnow() + timedelta(hours=1)  # Token expires in 1 hour
+    expires_at = utcnow() + timedelta(hours=1)  # Token expires in 1 hour
     
     # Delete any existing unused tokens for this email
-    AdminResetToken.query.filter_by(email=email, used=False).delete()
+    db.session.execute(
+        delete(AdminResetToken).where(
+            AdminResetToken.email == email,
+            AdminResetToken.used == False
+        )
+    )
     
     # Create new reset token
     reset_token = AdminResetToken(
@@ -560,13 +567,13 @@ def clear_validations_and_runs() -> Any:
         sessions_count = UserSession.query.count()
         
         # Delete all runs
-        UserRun.query.delete()
+        db.session.execute(delete(UserRun))
         
         # Delete all validations
-        UserValidation.query.delete()
+        db.session.execute(delete(UserValidation))
         
         # Delete all user sessions
-        UserSession.query.delete()
+        db.session.execute(delete(UserSession))
         
         # Commit the deletions
         db.session.commit()
@@ -741,7 +748,7 @@ def export_report() -> Any:
         return Response(
             output.getvalue(),
             mimetype="text/csv",
-            headers={"Content-Disposition": f"attachment; filename={report_type}_report_{datetime.utcnow().strftime('%Y%m%d')}.csv"}
+            headers={"Content-Disposition": f"attachment; filename={report_type}_report_{utcnow().strftime('%Y%m%d')}.csv"}
         )
     except Exception as exc:
         current_app.logger.exception("Failed to export report: %s", exc)

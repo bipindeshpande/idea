@@ -1,5 +1,5 @@
 import { useState, memo } from "react";
-import { intakeScreen } from "../../../config/intakeScreen.js";
+import { intakeScreen } from "../../config/intakeScreen.js";
 
 function DashboardSearchTab({
   advancedSearch,

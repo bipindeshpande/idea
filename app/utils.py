@@ -1,11 +1,11 @@
 """Shared utility functions for routes."""
 import secrets
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional
 from flask import request, jsonify
 
-from app.models.database import db, UserSession
+from app.models.database import db, UserSession, utcnow, normalize_datetime
 
 OUTPUT_DIR = Path("output")
 
@@ -41,7 +41,7 @@ def create_user_session(user_id: int, ip_address: Optional[str] = None, user_age
     while retry_count < max_retries:
         try:
             session_token = secrets.token_urlsafe(32)
-            expires_at = datetime.utcnow() + timedelta(days=7)  # 7 days
+            expires_at = utcnow() + timedelta(days=7)  # 7 days
             
             session = UserSession(
                 user_id=user_id,
@@ -92,7 +92,9 @@ def get_current_session() -> Optional[UserSession]:
     # Check for inactivity timeout (15 minutes - increased for long operations like validation)
     INACTIVITY_TIMEOUT_MINUTES = 15
     if session.last_activity:
-        time_since_activity = datetime.utcnow() - session.last_activity
+        now = normalize_datetime(utcnow())
+        last_activity = normalize_datetime(session.last_activity)
+        time_since_activity = now - last_activity
         if time_since_activity > timedelta(minutes=INACTIVITY_TIMEOUT_MINUTES):
             # Session expired due to inactivity
             db.session.delete(session)
@@ -100,7 +102,7 @@ def get_current_session() -> Optional[UserSession]:
             return None
     
     # Update last activity timestamp
-    session.last_activity = datetime.utcnow()
+    session.last_activity = utcnow()
     db.session.commit()
     return session
 

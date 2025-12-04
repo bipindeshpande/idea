@@ -679,10 +679,10 @@ function ProtectedRoute({ children }) {
   useEffect(() => {
     if (!loading && !isAuthenticated) {
       // Will redirect via Navigate
-    } else if (!loading && isAuthenticated && !isSubscriptionActive) {
+    } else if (!loading && isAuthenticated && subscription !== null && !isSubscriptionActive) {
       setShowPaymentPrompt(true);
     }
-  }, [loading, isAuthenticated, isSubscriptionActive]);
+  }, [loading, isAuthenticated, isSubscriptionActive, subscription]);
 
   if (loading) {
     return <LoadingIndicator simple={true} message="Checking authentication..." />;
@@ -692,7 +692,9 @@ function ProtectedRoute({ children }) {
     return <Navigate to="/login" state={{ from: { pathname: window.location.pathname } }} replace />;
   }
 
-  if (!isSubscriptionActive) {
+  // Only show subscription screen if subscription has been checked (not null) and is inactive
+  // This prevents the flash when subscription is still loading
+  if (subscription !== null && !isSubscriptionActive) {
     return (
       <div className="mx-auto max-w-4xl px-6 py-12">
         <div className="rounded-3xl border-2 border-amber-200 bg-amber-50/80 p-8 text-center shadow-soft">
@@ -712,6 +714,11 @@ function ProtectedRoute({ children }) {
         </div>
       </div>
     );
+  }
+
+  // If subscription is still loading (null), show loading indicator instead of subscription screen
+  if (subscription === null) {
+    return <LoadingIndicator simple={true} message="Loading subscription status..." />;
   }
 
   return <>{children}</>;

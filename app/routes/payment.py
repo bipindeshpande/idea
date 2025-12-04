@@ -1,13 +1,13 @@
 """Payment and subscription routes blueprint."""
 from flask import Blueprint, request, current_app
 from typing import Any, Dict
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import os
 import secrets
 
 from app.models.database import (
     db, User, Payment, SubscriptionCancellation, StripeEvent,
-    SubscriptionTier, PaymentStatus
+    SubscriptionTier, PaymentStatus, utcnow, normalize_datetime
 )
 from app.utils import get_current_session, require_auth
 from app.utils.json_helpers import safe_json_loads, safe_json_dumps
@@ -69,12 +69,12 @@ def get_subscription_status() -> Any:
             if subscription_type == SubscriptionTier.FREE:
                 is_active = True
             elif user.subscription_expires_at:
-                is_active = datetime.utcnow() < user.subscription_expires_at
+                is_active = normalize_datetime(utcnow()) < normalize_datetime(user.subscription_expires_at)
             elif user.subscription_started_at and subscription_type in [SubscriptionTier.STARTER, SubscriptionTier.PRO, SubscriptionTier.ANNUAL]:
                 # Calculate expiration from start date
                 duration_days = SUBSCRIPTION_DURATIONS.get(subscription_type, 30)
                 calculated_expiry = user.subscription_started_at + timedelta(days=duration_days)
-                is_active = datetime.utcnow() < calculated_expiry
+                is_active = normalize_datetime(utcnow()) < normalize_datetime(calculated_expiry)
             else:
                 is_active = False
         
@@ -170,7 +170,7 @@ def cancel_subscription() -> Any:
                 {f'<p><strong>Category:</strong> {cancellation_category}</p>' if cancellation_category else ''}
                 {f'<p><strong>Additional Comments:</strong> {additional_comments}</p>' if additional_comments else ''}
                 <p><strong>Access Until:</strong> {user.subscription_expires_at.strftime('%Y-%m-%d') if user.subscription_expires_at else 'N/A'}</p>
-                <p><strong>Date:</strong> {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')}</p>
+                <p><strong>Date:</strong> {utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')}</p>
                 """
                 email_service.send_email(
                     to_email=admin_email,
@@ -266,12 +266,12 @@ def change_subscription_plan() -> Any:
         
         # If user has time remaining, extend from current expiration
         # Otherwise, start from now
-        if user.subscription_expires_at and user.subscription_expires_at > datetime.utcnow():
+        if user.subscription_expires_at and normalize_datetime(user.subscription_expires_at) > normalize_datetime(utcnow()):
             # Extend from current expiration
             user.subscription_expires_at = user.subscription_expires_at + timedelta(days=duration_days)
         else:
             # Start new period from now
-            user.subscription_expires_at = datetime.utcnow() + timedelta(days=duration_days)
+            user.subscription_expires_at = utcnow() + timedelta(days=duration_days)
         
         user.subscription_type = new_subscription_type
         user.payment_status = PaymentStatus.ACTIVE
@@ -366,7 +366,7 @@ def activate_subscription_dev() -> Any:
                 subscription_type=subscription_type,
                 stripe_payment_intent_id=f"dev_{secrets.token_urlsafe(16)}",
                 status=PaymentStatus.COMPLETED,
-                completed_at=datetime.utcnow(),
+                completed_at=utcnow(),
             )
             db.session.add(payment)
             db.session.commit()
@@ -560,7 +560,7 @@ def confirm_payment() -> Any:
             subscription_type=subscription_type,
             stripe_payment_intent_id=payment_intent_id,
             status="completed",
-            completed_at=datetime.utcnow(),
+            completed_at=utcnow(),
         )
         db.session.add(payment)
         db.session.commit()
@@ -642,7 +642,7 @@ def stripe_webhook() -> Any:
             if payment and payment.status != 'completed':
                 # Update payment status
                 payment.status = 'completed'
-                payment.completed_at = datetime.utcnow()
+                payment.completed_at = utcnow()
                 
                 # Activate user subscription if not already active
                 user = payment.user

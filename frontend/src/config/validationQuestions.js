@@ -10,15 +10,19 @@ const defaultValidationQuestions = {
       id: "industry",
       question: "What industry does your idea belong to?",
       options: [
-        "SaaS",
-        "Fintech",
         "Food & Beverage",
-        "E-commerce",
-        "Healthtech",
+        "Retail / E-commerce",
+        "Local Services",
+        "Healthcare / Wellness",
         "Education",
         "Real Estate",
         "Entertainment / Media",
         "Transportation / Logistics",
+        "Manufacturing / Physical Products",
+        "Consulting / Professional Services",
+        "SaaS / Software",
+        "Fintech",
+        "Healthtech",
         "Other",
       ],
     },
@@ -56,7 +60,7 @@ const defaultValidationQuestions = {
     },
   ],
   
-  // SCREEN 2 — "How Your Idea Works" (5 Required Dropdowns)
+  // SCREEN 2 — "How Your Idea Works" (6 Required Dropdowns)
   screen2_questions: [
     {
       id: "problem_category",
@@ -75,12 +79,19 @@ const defaultValidationQuestions = {
       id: "solution_type",
       question: "How would you best describe your solution type?",
       options: [
-        "Marketplace / Platform",
         "SaaS / Online Platform",
+        "Marketplace / Platform",
         "AI Automation",
+        "E-commerce Platform",
+        "Physical Service / Local Business",
+        "Physical Product / Manufacturing",
+        "Food Service / Restaurant",
+        "Retail / Brick & Mortar",
+        "Consulting / Professional Service",
+        "Content / Education / Creator",
         "On-demand Service",
-        "E-commerce",
         "Aggregator / Comparison",
+        "Other",
       ],
     },
     {

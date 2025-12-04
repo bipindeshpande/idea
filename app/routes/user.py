@@ -1,15 +1,16 @@
 """User management routes blueprint."""
 from flask import Blueprint, request, current_app, jsonify
 from typing import Any, Dict
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from urllib.parse import unquote
 import json
 
 from sqlalchemy.orm import joinedload
+from sqlalchemy import text
 
 from app.models.database import (
     db, User, UserSession, UserRun, UserValidation, UserAction, UserNote,
-    SubscriptionTier, ValidationStatus, PaymentStatus
+    SubscriptionTier, ValidationStatus, PaymentStatus, utcnow, normalize_datetime
 )
 from app.utils import get_current_session, require_auth
 from app.utils.json_helpers import safe_json_loads, safe_json_dumps
@@ -102,41 +103,111 @@ def get_user_dashboard() -> Any:
             validations_data.append({
                 "id": v.id,
                 "validation_id": v.validation_id,
-                "overall_score": validation_result.get("overall_score"),
+                "overall_score": validation_result.get("overall_score") if validation_result else None,
                 "idea_explanation": v.idea_explanation,
                 "category_answers": category_answers,  # Include category_answers for editing
+                "validation_result": validation_result,  # Include full validation result for display
                 "created_at": serialize_datetime(v.created_at),
             })
         
-        # Get actions
-        actions = UserAction.query.filter_by(user_id=user.id).order_by(UserAction.created_at.desc()).all()
+        # Get actions - handle case where is_deleted/archived_at columns don't exist
         actions_data = []
-        for action in actions:
-            actions_data.append({
-                "id": action.id,
-                "idea_id": action.idea_id,
-                "action_text": action.action_text,
-                "status": action.status,
-                "due_date": serialize_datetime(action.due_date),
-                "completed_at": serialize_datetime(action.completed_at),
-                "created_at": serialize_datetime(action.created_at),
-                "updated_at": serialize_datetime(action.updated_at),
-            })
+        try:
+            actions = UserAction.query.filter_by(user_id=user.id).order_by(UserAction.created_at.desc()).all()
+            for action in actions:
+                actions_data.append({
+                    "id": action.id,
+                    "idea_id": action.idea_id,
+                    "action_text": action.action_text,
+                    "status": action.status,
+                    "due_date": serialize_datetime(action.due_date),
+                    "completed_at": serialize_datetime(action.completed_at),
+                    "created_at": serialize_datetime(action.created_at),
+                    "updated_at": serialize_datetime(action.updated_at),
+                })
+        except Exception as e:
+            # Handle case where database schema doesn't match model (missing is_deleted/archived_at columns)
+            current_app.logger.warning(f"Failed to load user actions (schema mismatch?): {e}")
+            # Rollback the aborted transaction before trying raw SQL
+            try:
+                db.session.rollback()
+            except:
+                pass
+            # Try to load actions using raw SQL to avoid column issues
+            try:
+                result = db.session.execute(
+                    text("""
+                        SELECT id, user_id, idea_id, action_text, status, 
+                               due_date, completed_at, created_at, updated_at
+                        FROM user_actions 
+                        WHERE user_id = :user_id 
+                        ORDER BY created_at DESC
+                    """),
+                    {"user_id": user.id}
+                )
+                for row in result:
+                    actions_data.append({
+                        "id": row.id,
+                        "idea_id": row.idea_id,
+                        "action_text": row.action_text,
+                        "status": row.status,
+                        "due_date": serialize_datetime(row.due_date),
+                        "completed_at": serialize_datetime(row.completed_at),
+                        "created_at": serialize_datetime(row.created_at),
+                        "updated_at": serialize_datetime(row.updated_at),
+                    })
+            except Exception as sql_error:
+                current_app.logger.error(f"Failed to load actions with raw SQL: {sql_error}")
+                actions_data = []  # Return empty list if all attempts fail
         
-        # Get notes
-        notes = UserNote.query.filter_by(user_id=user.id).order_by(UserNote.updated_at.desc()).all()
+        # Get notes - handle case where archived_at column doesn't exist
         notes_data = []
-        for note in notes:
-            tags = safe_json_loads(note.tags, default=[], logger_context=f"for note {note.id}")
-            
-            notes_data.append({
-                "id": note.id,
-                "idea_id": note.idea_id,
-                "content": note.content,
-                "tags": tags,
-                "created_at": serialize_datetime(note.created_at),
-                "updated_at": serialize_datetime(note.updated_at),
-            })
+        try:
+            notes = UserNote.query.filter_by(user_id=user.id).order_by(UserNote.updated_at.desc()).all()
+            for note in notes:
+                tags = safe_json_loads(note.tags, default=[], logger_context=f"for note {note.id}")
+                
+                notes_data.append({
+                    "id": note.id,
+                    "idea_id": note.idea_id,
+                    "content": note.content,
+                    "tags": tags,
+                    "created_at": serialize_datetime(note.created_at),
+                    "updated_at": serialize_datetime(note.updated_at),
+                })
+        except Exception as e:
+            # Handle case where database schema doesn't match model (missing archived_at column)
+            current_app.logger.warning(f"Failed to load user notes (schema mismatch?): {e}")
+            # Rollback the aborted transaction before trying raw SQL
+            try:
+                db.session.rollback()
+            except:
+                pass
+            # Try to load notes using raw SQL to avoid column issues
+            try:
+                result = db.session.execute(
+                    text("""
+                        SELECT id, user_id, idea_id, content, tags, 
+                               created_at, updated_at
+                        FROM user_notes 
+                        WHERE user_id = :user_id 
+                        ORDER BY updated_at DESC
+                    """),
+                    {"user_id": user.id}
+                )
+                for row in result:
+                    tags = safe_json_loads(row.tags, default=[], logger_context=f"for note {row.id}")
+                    notes_data.append({
+                        "id": row.id,
+                        "idea_id": row.idea_id,
+                        "content": row.content,
+                        "tags": tags,
+                        "created_at": serialize_datetime(row.created_at),
+                        "updated_at": serialize_datetime(row.updated_at),
+                    })
+            except Exception as sql_error:
+                current_app.logger.error(f"Failed to load notes with raw SQL: {sql_error}")
+                notes_data = []  # Return empty list if all attempts fail
         
         return success_response({
             "activity": {
@@ -205,9 +276,10 @@ def get_user_activity() -> Any:
             validations_data.append({
                 "id": v.id,
                 "validation_id": v.validation_id,
-                "overall_score": validation_result.get("overall_score"),
+                "overall_score": validation_result.get("overall_score") if validation_result else None,
                 "idea_explanation": v.idea_explanation,
                 "category_answers": category_answers,  # Include category_answers for editing
+                "validation_result": validation_result,  # Include full validation result for display
                 "created_at": serialize_datetime(v.created_at),
             })
         
@@ -351,23 +423,52 @@ def get_user_actions() -> Any:
     idea_id = request.args.get("idea_id")  # Optional filter by idea
     
     try:
-        query = UserAction.query.filter_by(user_id=user.id)
-        if idea_id:
-            query = query.filter_by(idea_id=idea_id)
-        
-        actions = query.order_by(UserAction.created_at.desc()).all()
-        actions_data = []
-        for action in actions:
-            actions_data.append({
-                "id": action.id,
-                "idea_id": action.idea_id,
-                "action_text": action.action_text,
-                "status": action.status,
-                "due_date": serialize_datetime(action.due_date),
-                "completed_at": serialize_datetime(action.completed_at),
-                "created_at": serialize_datetime(action.created_at),
-                "updated_at": serialize_datetime(action.updated_at),
-            })
+        try:
+            query = UserAction.query.filter_by(user_id=user.id)
+            if idea_id:
+                query = query.filter_by(idea_id=idea_id)
+            
+            actions = query.order_by(UserAction.created_at.desc()).all()
+            actions_data = []
+            for action in actions:
+                actions_data.append({
+                    "id": action.id,
+                    "idea_id": action.idea_id,
+                    "action_text": action.action_text,
+                    "status": action.status,
+                    "due_date": serialize_datetime(action.due_date),
+                    "completed_at": serialize_datetime(action.completed_at),
+                    "created_at": serialize_datetime(action.created_at),
+                    "updated_at": serialize_datetime(action.updated_at),
+                })
+        except Exception as schema_error:
+            # Handle schema mismatch - use raw SQL
+            current_app.logger.warning(f"Schema mismatch loading actions, using raw SQL: {schema_error}")
+            # Rollback the aborted transaction before trying raw SQL
+            try:
+                db.session.rollback()
+            except:
+                pass
+            sql_query = "SELECT id, user_id, idea_id, action_text, status, due_date, completed_at, created_at, updated_at FROM user_actions WHERE user_id = :user_id"
+            params = {"user_id": user.id}
+            if idea_id:
+                sql_query += " AND idea_id = :idea_id"
+                params["idea_id"] = idea_id
+            sql_query += " ORDER BY created_at DESC"
+            
+            result = db.session.execute(text(sql_query), params)
+            actions_data = []
+            for row in result:
+                actions_data.append({
+                    "id": row.id,
+                    "idea_id": row.idea_id,
+                    "action_text": row.action_text,
+                    "status": row.status,
+                    "due_date": serialize_datetime(row.due_date),
+                    "completed_at": serialize_datetime(row.completed_at),
+                    "created_at": serialize_datetime(row.created_at),
+                    "updated_at": serialize_datetime(row.updated_at),
+                })
         
         return success_response({"actions": actions_data})
     except Exception as exc:
@@ -456,7 +557,91 @@ def update_user_action(action_id: int) -> Any:
     data: Dict[str, Any] = request.get_json(force=True, silent=True) or {}
     
     try:
-        action = UserAction.query.filter_by(id=action_id, user_id=user.id).first()
+        # Try ORM query first, fall back to raw SQL if schema mismatch
+        use_raw_sql = False
+        try:
+            action = UserAction.query.filter_by(id=action_id, user_id=user.id).first()
+        except Exception as schema_error:
+            # Schema mismatch - use raw SQL for all operations
+            use_raw_sql = True
+            current_app.logger.warning(f"Schema mismatch, using raw SQL for action update: {schema_error}")
+            # Rollback the aborted transaction before trying raw SQL
+            try:
+                db.session.rollback()
+            except:
+                pass
+            result = db.session.execute(
+                text("SELECT id FROM user_actions WHERE id = :id AND user_id = :user_id"),
+                {"id": action_id, "user_id": user.id}
+            )
+            if not result.first():
+                return not_found_response("Action")
+        
+        if use_raw_sql:
+            # Use raw SQL for updates
+            updates = []
+            params = {"id": action_id, "user_id": user.id}
+            
+            if "action_text" in data:
+                action_text = data["action_text"].strip()
+                if len(action_text) > 1000:
+                    return error_response(ErrorMessages.ACTION_TEXT_TOO_LONG, 400)
+                updates.append("action_text = :action_text")
+                params["action_text"] = action_text
+            
+            if "status" in data:
+                allowed_statuses = ["pending", "in_progress", "completed", "blocked"]
+                if data["status"] not in allowed_statuses:
+                    return error_response(f"status must be one of: {', '.join(allowed_statuses)}", 400)
+                updates.append("status = :status")
+                params["status"] = data["status"]
+                if data["status"] == "completed":
+                    updates.append("completed_at = :completed_at")
+                    params["completed_at"] = utcnow()
+                else:
+                    updates.append("completed_at = NULL")
+            
+            if "due_date" in data:
+                due_date = data.get("due_date")
+                if due_date:
+                    try:
+                        due_date = datetime.fromisoformat(due_date.replace("Z", "+00:00"))
+                        updates.append("due_date = :due_date")
+                        params["due_date"] = due_date
+                    except:
+                        return error_response("Invalid due_date format", 400)
+                else:
+                    updates.append("due_date = NULL")
+            
+            if updates:
+                updates.append("updated_at = :updated_at")
+                params["updated_at"] = utcnow()
+                db.session.execute(
+                    text(f"UPDATE user_actions SET {', '.join(updates)} WHERE id = :id AND user_id = :user_id"),
+                    params
+                )
+                db.session.commit()
+            
+            # Return updated action
+            result = db.session.execute(
+                text("SELECT id, user_id, idea_id, action_text, status, due_date, completed_at, created_at, updated_at FROM user_actions WHERE id = :id AND user_id = :user_id"),
+                {"id": action_id, "user_id": user.id}
+            )
+            row = result.first()
+            return success_response({
+                "action": {
+                    "id": row.id,
+                    "idea_id": row.idea_id,
+                    "action_text": row.action_text,
+                    "status": row.status,
+                    "due_date": serialize_datetime(row.due_date),
+                    "completed_at": serialize_datetime(row.completed_at),
+                    "created_at": serialize_datetime(row.created_at),
+                    "updated_at": serialize_datetime(row.updated_at),
+                }
+            })
+        
+        # Normal ORM path
         if not action:
             return not_found_response("Action")
         
@@ -471,7 +656,7 @@ def update_user_action(action_id: int) -> Any:
                 return error_response(f"status must be one of: {', '.join(allowed_statuses)}", 400)
             action.status = data["status"]
             if data["status"] == "completed" and not action.completed_at:
-                action.completed_at = datetime.utcnow()
+                action.completed_at = utcnow()
             elif data["status"] != "completed":
                 action.completed_at = None
         if "due_date" in data:
@@ -487,7 +672,7 @@ def update_user_action(action_id: int) -> Any:
             else:
                 action.due_date = None
         
-        action.updated_at = datetime.utcnow()
+        action.updated_at = utcnow()
         db.session.commit()
         
         return jsonify({
@@ -519,12 +704,30 @@ def delete_user_action(action_id: int) -> Any:
     user = session.user
     
     try:
-        action = UserAction.query.filter_by(id=action_id, user_id=user.id).first()
-        if not action:
-            return not_found_response("Action")
-        
-        db.session.delete(action)
-        db.session.commit()
+        try:
+            action = UserAction.query.filter_by(id=action_id, user_id=user.id).first()
+            if action:
+                db.session.delete(action)
+                db.session.commit()
+        except Exception as schema_error:
+            # Handle schema mismatch - use raw SQL
+            current_app.logger.warning(f"Schema mismatch deleting action, using raw SQL: {schema_error}")
+            # Rollback the aborted transaction before trying raw SQL
+            try:
+                db.session.rollback()
+            except:
+                pass
+            result = db.session.execute(
+                text("SELECT id FROM user_actions WHERE id = :id AND user_id = :user_id"),
+                {"id": action_id, "user_id": user.id}
+            )
+            if not result.first():
+                return not_found_response("Action")
+            db.session.execute(
+                text("DELETE FROM user_actions WHERE id = :id AND user_id = :user_id"),
+                {"id": action_id, "user_id": user.id}
+            )
+            db.session.commit()
         
         return jsonify({"success": True})
     except Exception as exc:
@@ -644,7 +847,7 @@ def update_user_note(note_id: int) -> Any:
         if "tags" in data:
             note.tags = json.dumps(data["tags"]) if data["tags"] else None
         
-        note.updated_at = datetime.utcnow()
+        note.updated_at = utcnow()
         db.session.commit()
         
         tags = []
@@ -884,7 +1087,7 @@ def get_smart_recommendations() -> Any:
 def check_expiring_subscriptions() -> Any:
     """Check and send emails for expiring trials/subscriptions (can be called by cron job)."""
     try:
-        now = datetime.utcnow()
+        now = utcnow()
         emails_sent = 0
         
         # Check trial users expiring in 1 day - use index on subscription_type and subscription_expires_at
@@ -896,7 +1099,7 @@ def check_expiring_subscriptions() -> Any:
         ).all()
         
         for user in trial_expiring:
-            days_remaining = (user.subscription_expires_at - now).days
+            days_remaining = (normalize_datetime(user.subscription_expires_at) - normalize_datetime(now)).days
             if days_remaining <= 1:
                 try:
                     html_content, text_content = trial_ending_email(
@@ -923,7 +1126,7 @@ def check_expiring_subscriptions() -> Any:
         ).all()
         
         for user in paid_expiring:
-            days_remaining = (user.subscription_expires_at - now).days
+            days_remaining = (normalize_datetime(user.subscription_expires_at) - normalize_datetime(now)).days
             if days_remaining <= 3:
                 try:
                     html_content, text_content = subscription_expiring_email(

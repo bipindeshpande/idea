@@ -93,7 +93,7 @@ function SessionCard({
         </div>
         
         <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
-          {!isValidation && session.inputs && Object.keys(session.inputs).length > 0 && onEdit && (
+          {onEdit && (
             <button
               onClick={() => onEdit(session)}
               className="rounded-lg border border-brand-200/60 dark:border-brand-700/60 bg-brand-50/80 dark:bg-brand-900/20 px-3 py-1.5 text-xs font-semibold text-brand-700 dark:text-brand-300 transition-all duration-200 hover:border-brand-300 hover:bg-brand-100 dark:hover:bg-brand-900/30 hover:-translate-y-0.5 whitespace-nowrap"

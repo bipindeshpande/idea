@@ -1,7 +1,7 @@
 """Discovery routes blueprint - idea discovery endpoints."""
 from flask import Blueprint, request, jsonify, current_app
 from typing import Any, Dict
-from datetime import datetime
+from datetime import datetime, timezone
 import os
 import json
 import time
@@ -9,7 +9,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from openai import OpenAI
 from startup_idea_crew.crew import StartupIdeaCrew
-from app.models.database import db, User, UserSession, UserRun
+from app.models.database import db, User, UserSession, UserRun, utcnow
 from app.utils import (
     PROFILE_FIELDS,
     read_output_file as _read_output_file,
@@ -215,7 +215,7 @@ def run_crew() -> Any:
             user.increment_discovery_usage()
             # Refresh session activity after long operation completes
             if session:
-                session.last_activity = datetime.utcnow()
+                session.last_activity = utcnow()
             db.session.commit()
 
         response = {
