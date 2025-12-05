@@ -4,6 +4,7 @@ import ReactMarkdown from "react-markdown";
 import Seo from "../../components/common/Seo.jsx";
 import { useReports } from "../../context/ReportsContext.jsx";
 import { useAuth } from "../../context/AuthContext.jsx";
+import OpenForCollaboratorsButton from "../../components/founder/OpenForCollaboratorsButton.jsx";
 import { parseTopIdeas, trimFromHeading } from "../../utils/markdown/markdown.js";
 import {
   splitIdeaSections,
@@ -244,11 +245,7 @@ export default function RecommendationDetail() {
   );
 
   const ideas = useMemo(() => {
-    const parsed = parseTopIdeas(markdown, 10);
-    if (process.env.NODE_ENV === 'development') {
-      console.log("Parsed ideas:", parsed);
-    }
-    return parsed;
+    return parseTopIdeas(markdown, 10);
   }, [markdown]);
   
   const numericIndex = Number.parseInt(ideaIndex ?? "", 10);
@@ -394,17 +391,6 @@ export default function RecommendationDetail() {
     }
   }, [newNoteContent, ideaId, getAuthHeaders]);
   
-  // Debug logging (only in development)
-  if (process.env.NODE_ENV === 'development') {
-    console.log("RecommendationDetail Debug:", {
-      ideaIndex,
-      numericIndex,
-      ideasCount: ideas.length,
-      activeIdea: activeIdea ? { index: activeIdea.index, title: activeIdea.title } : null,
-      hasMarkdown: !!markdown,
-      hasReports: !!reports,
-    });
-  }
 
   // All sections start closed by default - user can expand as needed
 
@@ -629,10 +615,22 @@ export default function RecommendationDetail() {
         path={`/results/recommendations/${ideaIndex}`}
       />
 
-      <div className="flex items-center gap-3 text-sm">
-        <Link to={backPath} className="inline-flex items-center gap-2 text-brand-700 hover:text-brand-800">
-          <span aria-hidden="true">←</span> Back to recommendations
-        </Link>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3 text-sm">
+          <Link to={backPath} className="inline-flex items-center gap-2 text-brand-700 hover:text-brand-800">
+            <span aria-hidden="true">←</span> Back to recommendations
+          </Link>
+        </div>
+        {activeIdea && runQuery && (
+          <OpenForCollaboratorsButton
+            runId={runQuery}
+            sourceType="advisor"
+            sourceId={runQuery}
+            ideaTitle={activeIdea.title}
+            ideaIndex={activeIdea.index}
+            categoryAnswers={inputs}
+          />
+        )}
       </div>
 
       {loading && (

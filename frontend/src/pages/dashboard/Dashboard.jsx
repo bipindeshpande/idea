@@ -508,7 +508,6 @@ export default function DashboardPage() {
         const cleanId = validationId.toString().replace(/^val_/, '');
         
         try {
-          console.log('🗑️ [Delete] Attempting to delete validation with ID:', cleanId);
           const response = await fetch(`/api/validate-idea/${cleanId}`, {
             method: "DELETE",
             headers: getAuthHeaders(),
@@ -517,7 +516,6 @@ export default function DashboardPage() {
           const responseData = await response.json().catch(() => ({}));
           
           if (response.ok) {
-            console.log('✅ [Delete] Validation deleted successfully');
             // Remove from local state immediately
             setApiValidations(prev => prev.filter(v => {
               const vId = v.validation_id || v.id;
@@ -601,34 +599,25 @@ export default function DashboardPage() {
   const handleEditValidation = (validation) => {
     // Navigate to validation form with edit mode
     // Priority: validation_id > id (with prefix stripped)
-    console.log('🔧 [Edit] handleEditValidation called with:', {
-      validation_id: validation.validation_id,
-      id: validation.id,
-      full_validation: validation
-    });
-    
     let validationId = null;
     
     // First try validation_id (should be the actual ID without prefix)
     if (validation.validation_id) {
       validationId = String(validation.validation_id);
-      console.log('✅ [Edit] Using validation_id:', validationId);
     } else if (validation.id) {
       // Fallback to id, but strip "val_" prefix if present
       const id = String(validation.id);
       validationId = id.replace(/^val_/, '');
-      console.log('⚠️ [Edit] Using id (stripped prefix):', id, '->', validationId);
     }
     
     if (!validationId) {
-      console.error('❌ [Edit] Cannot edit validation: no ID found', validation);
+      console.error('Cannot edit validation: no ID found', validation);
       alert('Unable to edit validation: ID not found');
       return;
     }
     
     // Ensure we're using the clean ID (no prefix) - double check
     const cleanId = validationId.replace(/^val_/, '');
-    console.log('🚀 [Edit] Navigating to edit page with ID:', cleanId);
     navigate(`/validate-idea?edit=${cleanId}`);
   };
 
@@ -1018,6 +1007,12 @@ export default function DashboardPage() {
             </p>
           </div>
           <div className="flex gap-3">
+            <Link
+              to="/founder-connect"
+              className="rounded-xl border border-slate-200/60 dark:border-slate-700/60 bg-white dark:bg-slate-800 px-4 py-2.5 text-sm font-semibold text-slate-700 dark:text-slate-300 shadow-sm transition-all duration-200 hover:bg-slate-50 dark:hover:bg-slate-800 hover:-translate-y-0.5 whitespace-nowrap"
+            >
+              🤝 Founder Connect
+            </Link>
             <Link
               to="/dashboard/analytics"
               className="rounded-xl border border-slate-200/60 dark:border-slate-700/60 bg-white dark:bg-slate-800 px-4 py-2.5 text-sm font-semibold text-slate-700 dark:text-slate-300 shadow-sm transition-all duration-200 hover:bg-slate-50 dark:hover:bg-slate-800 hover:-translate-y-0.5 whitespace-nowrap"

@@ -190,20 +190,11 @@ export default function RecommendationsReport() {
         const data = await response.json();
         if (data.success) {
           setEnhancements(data.enhancements);
-          if (process.env.NODE_ENV === 'development') {
-            console.log("Enhancements loaded:", data.metadata);
-          }
         }
       }
     } catch (error) {
-      if (error.name === 'AbortError') {
-        if (process.env.NODE_ENV === 'development') {
-          console.log("Enhancements cancelled");
-        }
-      } else {
-        if (process.env.NODE_ENV === 'development') {
-          console.error("Failed to load enhancements:", error);
-        }
+      if (error.name !== 'AbortError') {
+        console.error("Failed to load enhancements:", error);
       }
     } finally {
       setEnhancementsLoading(false);
@@ -224,14 +215,6 @@ export default function RecommendationsReport() {
   const allIdeas = useMemo(() => {
     try {
       const parsed = parseTopIdeas(markdown, 10);
-      // Debug logging (only in development)
-      if (process.env.NODE_ENV === 'development' && parsed.length === 0 && markdown.length > 0) {
-        console.log("Failed to parse ideas from markdown:", {
-          markdownLength: markdown.length,
-          markdownPreview: markdown.substring(0, 500),
-          firstLines: markdown.split('\n').slice(0, 10),
-        });
-      }
       return parsed;
     } catch (err) {
       if (process.env.NODE_ENV === 'development') {

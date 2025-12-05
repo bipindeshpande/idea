@@ -48,6 +48,7 @@ class User(db.Model):
     free_discoveries_used = db.Column(db.Integer, default=0)  # Lifetime free discoveries used
     monthly_validations_used = db.Column(db.Integer, default=0)  # Current month validations (for Starter/Pro)
     monthly_discoveries_used = db.Column(db.Integer, default=0)  # Current month discoveries (for Starter/Pro)
+    monthly_connections_used = db.Column(db.Integer, default=0)  # Current month connection requests sent (for all tiers)
     usage_reset_date = db.Column(db.Date)  # Date when monthly usage resets
     
     # Password reset
@@ -201,6 +202,7 @@ class User(db.Model):
             # Reset monthly counters
             self.monthly_validations_used = 0
             self.monthly_discoveries_used = 0
+            self.monthly_connections_used = 0
     
     def check_and_reset_monthly_usage(self):
         """Check if monthly usage needs to be reset and reset if needed."""
@@ -210,6 +212,7 @@ class User(db.Model):
                 # Reset monthly counters
                 self.monthly_validations_used = 0
                 self.monthly_discoveries_used = 0
+                self.monthly_connections_used = 0
                 # Set next reset date
                 today = date.today()
                 if today.month == 12:
@@ -276,6 +279,36 @@ class User(db.Model):
         
         return False, "Invalid subscription type."
     
+    def can_send_connection_request(self) -> tuple[bool, str]:
+        """Check if user can send a connection request. Returns (can_send, error_message)."""
+        subscription_type = self.subscription_type or "free"
+        
+        # Handle backward compatibility for subscription types
+        if subscription_type == "free_trial":
+            subscription_type = "free"
+        elif subscription_type == "monthly":
+            subscription_type = "pro"  # Monthly migrated to pro (unlimited)
+        
+        # Check and reset monthly usage if needed
+        self.check_and_reset_monthly_usage()
+        
+        # Usage limits by subscription type
+        if subscription_type in ["pro", "annual"]:
+            # Effectively unlimited - treat as 999/month for display purposes
+            return True, ""
+        
+        if subscription_type == "free":
+            if self.monthly_connections_used >= 3:
+                return False, "You've used your 3 free connection invitations this month. Upgrade to send more."
+            return True, ""
+        
+        if subscription_type == "starter":
+            if self.monthly_connections_used >= 15:
+                return False, "You've reached your monthly limit of 15 connection invitations. Upgrade to Pro for unlimited."
+            return True, ""
+        
+        return False, "Invalid subscription type."
+    
     def increment_validation_usage(self):
         """Increment validation usage counter."""
         subscription_type = self.subscription_type or "free"
@@ -291,6 +324,22 @@ class User(db.Model):
         elif subscription_type == "starter":
             self.monthly_validations_used += 1
         # pro and weekly are unlimited, no increment needed
+        
+        db.session.commit()
+    
+    def increment_connection_usage(self):
+        """Increment connection request usage counter."""
+        subscription_type = self.subscription_type or "free"
+        
+        # Handle legacy subscription types
+        if subscription_type == "free_trial":
+            subscription_type = "free"
+        elif subscription_type == "monthly":
+            subscription_type = "pro"
+        
+        # All tiers (including free) track monthly connections
+        # Pro/annual are effectively unlimited but we still track for analytics
+        self.monthly_connections_used += 1
         
         db.session.commit()
     
@@ -337,6 +386,11 @@ class User(db.Model):
                     "limit": 4,
                     "remaining": max(0, 4 - self.free_discoveries_used),
                 },
+                "connections": {
+                    "used": self.monthly_connections_used,
+                    "limit": 3,
+                    "remaining": max(0, 3 - self.monthly_connections_used),
+                },
             }
         elif subscription_type == "starter":
             return {
@@ -350,6 +404,11 @@ class User(db.Model):
                     "used": self.monthly_discoveries_used,
                     "limit": 10,
                     "remaining": max(0, 10 - self.monthly_discoveries_used),
+                },
+                "connections": {
+                    "used": self.monthly_connections_used,
+                    "limit": 15,
+                    "remaining": max(0, 15 - self.monthly_connections_used),
                 },
                 "reset_date": self.usage_reset_date.isoformat() if self.usage_reset_date else None,
             }
@@ -365,6 +424,11 @@ class User(db.Model):
                     "used": None,
                     "limit": None,
                     "remaining": None,
+                },
+                "connections": {
+                    "used": self.monthly_connections_used,
+                    "limit": 999,  # Effectively unlimited, but show high number for display
+                    "remaining": 999 - self.monthly_connections_used,
                 },
             }
         
@@ -716,6 +780,145 @@ class SubscriptionCancellation(db.Model):
     user = db.relationship("User", backref="cancellations")
 
 
+class FounderProfile(db.Model):
+    """Founder profile for Founder Connect feature."""
+    __tablename__ = "founder_profiles"
+    
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), unique=True, nullable=False, index=True)
+    
+    # Profile information (visible after connection accepted)
+    full_name = db.Column(db.String(255), nullable=True)
+    bio = db.Column(db.Text, nullable=True)
+    skills = db.Column(db.Text)  # JSON array of skills
+    experience_summary = db.Column(db.Text, nullable=True)
+    location = db.Column(db.String(255), nullable=True)
+    linkedin_url = db.Column(db.String(500), nullable=True)
+    website_url = db.Column(db.String(500), nullable=True)
+    
+    # Anonymized browsing fields (visible before connection)
+    # These are shown in browse views without revealing identity
+    primary_skills = db.Column(db.Text)  # JSON array - subset of skills for matching
+    industries_of_interest = db.Column(db.Text)  # JSON array
+    looking_for = db.Column(db.Text, nullable=True)  # e.g., "Technical co-founder", "Business partner"
+    commitment_level = db.Column(db.String(50), nullable=True)  # "part-time", "full-time", "flexible"
+    
+    # Status
+    is_active = db.Column(db.Boolean, default=True, index=True)
+    is_public = db.Column(db.Boolean, default=True, index=True)  # Allow others to find this profile
+    
+    # Timestamps
+    created_at = db.Column(db.DateTime, default=utcnow, index=True)
+    updated_at = db.Column(db.DateTime, default=utcnow, onupdate=utcnow)
+    
+    # Relationships
+    user = db.relationship("User", backref="founder_profile", uselist=False)
+    idea_listings = db.relationship("IdeaListing", backref="founder_profile", lazy="selectin", cascade="all, delete-orphan")
+    sent_requests = db.relationship("ConnectionRequest", foreign_keys="[ConnectionRequest.sender_id]", backref="sender_profile", lazy="selectin")
+    received_requests = db.relationship("ConnectionRequest", foreign_keys="[ConnectionRequest.recipient_id]", backref="recipient_profile", lazy="selectin")
+    
+    # Composite indexes
+    __table_args__ = (
+        Index('idx_founder_user_active', 'user_id', 'is_active'),
+        Index('idx_founder_public_active', 'is_public', 'is_active'),
+    )
+
+
+class IdeaListing(db.Model):
+    """Idea listing (teaser-only) for Founder Connect."""
+    __tablename__ = "idea_listings"
+    
+    id = db.Column(db.Integer, primary_key=True)
+    founder_profile_id = db.Column(db.Integer, db.ForeignKey("founder_profiles.id"), nullable=False, index=True)
+    
+    # Source linking - generic reference to validation or advisor run
+    source_type = db.Column(db.String(50), nullable=False, index=True)  # "validation" or "advisor"
+    source_id = db.Column(db.Integer, nullable=False, index=True)  # ID from user_validations or user_runs table
+    
+    # Teaser information (visible in browse)
+    title = db.Column(db.String(255), nullable=False)
+    industry = db.Column(db.String(100), nullable=True, index=True)
+    stage = db.Column(db.String(50), nullable=True, index=True)  # "idea", "mvp", "launched", etc.
+    skills_needed = db.Column(db.Text)  # JSON array of skills needed
+    commitment_level = db.Column(db.String(50), nullable=True)  # "part-time", "full-time", "flexible"
+    brief_description = db.Column(db.Text, nullable=True)  # Short teaser, not full idea
+    
+    # Status
+    is_active = db.Column(db.Boolean, default=True, index=True)
+    is_open_for_collaborators = db.Column(db.Boolean, default=True, index=True)
+    
+    # Timestamps
+    created_at = db.Column(db.DateTime, default=utcnow, index=True)
+    updated_at = db.Column(db.DateTime, default=utcnow, onupdate=utcnow)
+    
+    # Composite indexes
+    __table_args__ = (
+        Index('idx_listing_profile_active', 'founder_profile_id', 'is_active'),
+        Index('idx_listing_source', 'source_type', 'source_id'),
+        Index('idx_listing_open_active', 'is_open_for_collaborators', 'is_active'),
+        Index('idx_listing_industry_stage', 'industry', 'stage'),
+    )
+
+
+class ConnectionRequest(db.Model):
+    """Connection request between founders."""
+    __tablename__ = "connection_requests"
+    
+    id = db.Column(db.Integer, primary_key=True)
+    sender_id = db.Column(db.Integer, db.ForeignKey("founder_profiles.id"), nullable=False, index=True)
+    recipient_id = db.Column(db.Integer, db.ForeignKey("founder_profiles.id"), nullable=False, index=True)
+    
+    # Optional: link to specific idea listing that triggered the connection
+    idea_listing_id = db.Column(db.Integer, db.ForeignKey("idea_listings.id"), nullable=True, index=True)
+    
+    # Request details
+    message = db.Column(db.Text, nullable=True)  # Optional message from sender
+    status = db.Column(db.String(50), default="pending", index=True)  # "pending", "accepted", "declined"
+    
+    # Timestamps
+    created_at = db.Column(db.DateTime, default=utcnow, index=True)
+    updated_at = db.Column(db.DateTime, default=utcnow, onupdate=utcnow)
+    responded_at = db.Column(db.DateTime, nullable=True)  # When recipient accepted/declined
+    
+    # Relationships
+    idea_listing = db.relationship("IdeaListing", backref="connection_requests", lazy="selectin")
+    
+    # Composite indexes
+    __table_args__ = (
+        Index('idx_connection_sender_status', 'sender_id', 'status', 'created_at'),
+        Index('idx_connection_recipient_status', 'recipient_id', 'status', 'created_at'),
+        Index('idx_connection_sender_recipient', 'sender_id', 'recipient_id'),  # Prevent duplicate requests
+    )
+
+
+class ConnectionCreditLedger(db.Model):
+    """Optional audit/history table for connection credit usage (not used in business logic for v1)."""
+    __tablename__ = "connection_credit_ledger"
+    
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    connection_request_id = db.Column(db.Integer, db.ForeignKey("connection_requests.id"), nullable=True, index=True)
+    
+    # Credit transaction details
+    action = db.Column(db.String(50), nullable=False)  # "sent_request", "reset_monthly"
+    credits_before = db.Column(db.Integer, nullable=False)
+    credits_after = db.Column(db.Integer, nullable=False)
+    subscription_type = db.Column(db.String(50), nullable=False)
+    
+    # Timestamps
+    created_at = db.Column(db.DateTime, default=utcnow, index=True)
+    
+    # Relationships
+    user = db.relationship("User", backref="connection_credit_history")
+    connection_request = db.relationship("ConnectionRequest", backref="credit_transactions")
+    
+    # Composite indexes
+    __table_args__ = (
+        Index('idx_ledger_user_created', 'user_id', 'created_at'),
+        Index('idx_ledger_request', 'connection_request_id'),
+    )
+
+
 # Enums for better data integrity
 class SubscriptionTier(str):
     """Subscription tier enum."""
@@ -755,6 +958,13 @@ class ActionStatus(str):
     IN_PROGRESS = "in_progress"
     COMPLETED = "completed"
     BLOCKED = "blocked"
+
+
+class ConnectionStatus(str):
+    """Connection request status enum."""
+    PENDING = "pending"
+    ACCEPTED = "accepted"
+    DECLINED = "declined"
 
 
 class StripeEvent(db.Model):

@@ -167,7 +167,6 @@ export function AuthProvider({ children }) {
 
   const login = useCallback(async (email, password) => {
     try {
-      console.log('🔐 [Login] Attempting login for:', email);
       const response = await fetch("/api/auth/login", {
         method: "POST",
         headers: {
@@ -176,46 +175,37 @@ export function AuthProvider({ children }) {
         body: JSON.stringify({ email, password }),
       });
 
-      console.log('📥 [Login] Response status:', response.status, response.ok ? 'OK' : 'ERROR');
-
       if (!response.ok) {
         const errorText = await response.text();
         let errorData;
         try {
           errorData = JSON.parse(errorText);
         } catch {
-          console.error('❌ [Login] Failed to parse error response:', errorText);
+          console.error('Failed to parse error response:', errorText);
           return { success: false, error: `Server error: ${response.status}` };
         }
-        console.error('❌ [Login] Login failed:', errorData);
+        console.error('Login failed:', errorData);
         return { success: false, error: errorData.error || "Login failed" };
       }
 
       const data = await response.json();
-      console.log('✅ [Login] Response data:', { 
-        hasSuccess: !!data.success, 
-        hasSessionToken: !!data.session_token, 
-        hasUser: !!data.user,
-        dataKeys: Object.keys(data)
-      });
       
       if (data.success) {
         if (!data.session_token) {
-          console.error('❌ [Login] No session_token in response:', data);
+          console.error('No session_token in response:', data);
           return { success: false, error: "Login succeeded but no session token received" };
         }
         localStorage.setItem(SESSION_TOKEN_KEY, data.session_token);
         setSessionToken(data.session_token);
         setUser(data.user);
         await checkSubscription();
-        console.log('✅ [Login] Login successful, user set');
         return { success: true };
       } else {
-        console.error('❌ [Login] Response indicates failure:', data);
+        console.error('Login response indicates failure:', data);
         return { success: false, error: data.error || "Login failed" };
       }
     } catch (error) {
-      console.error("❌ [Login] Exception during login:", error);
+      console.error("Login exception:", error);
       return { success: false, error: error.message || "Network error" };
     }
   }, [checkSubscription]);

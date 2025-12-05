@@ -17,6 +17,7 @@ import RadarChart from "../../components/validation/RadarChart.jsx";
 import ParameterScores from "../../components/validation/ParameterScores.jsx";
 import ScoreLegend from "../../components/validation/ScoreLegend.jsx";
 import ParameterCard from "../../components/validation/ParameterCard.jsx";
+import OpenForCollaboratorsButton from "../../components/founder/OpenForCollaboratorsButton.jsx";
 
 
 export default function ValidationResult() {
@@ -142,10 +143,6 @@ export default function ValidationResult() {
       // Restore proper bold markers
       .replace(/___BOLD___/g, '**');
     
-    // Debug logging (only in development)
-    if (process.env.NODE_ENV === 'development') {
-      console.log('[Recommendations] Raw text preview:', text.substring(0, 500));
-    }
     
     // Process each line to convert numbered lists to bullets and break down descriptions
     const lines = text.split('\n');
@@ -402,10 +399,6 @@ export default function ValidationResult() {
       .replace(/___BOLD_START___/g, '**')
       .replace(/___BOLD_END___/g, '**');
     
-    // Debug logging (only in development)
-    if (process.env.NODE_ENV === 'development') {
-      console.log('[Recommendations] Processed result preview:', result.substring(0, 500));
-    }
     
     return result;
   }, [rawRecommendations]);
@@ -656,6 +649,15 @@ export default function ValidationResult() {
           >
             Validate Another Idea
           </Link>
+          {currentValidation && (
+            <OpenForCollaboratorsButton 
+              validationId={currentValidation?.id || currentValidation?.validation_id}
+              sourceType="validation"
+              sourceId={currentValidation?.id || currentValidation?.validation_id}
+              ideaTitle={ideaExplanation?.substring(0, 100) || "My validated idea"}
+              categoryAnswers={categoryAnswers}
+            />
+          )}
         </div>
       </div>
 

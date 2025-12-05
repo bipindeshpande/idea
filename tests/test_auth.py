@@ -63,11 +63,11 @@ def test_login_success(client, app, test_user):
         assert response.status_code == 200
         data = response.get_json()
         assert data["success"] is True
-        # Response structure: {"success": True, "data": {"user": {...}, "session_token": "..."}}
-        assert "data" in data
-        assert "user" in data["data"]
-        assert "session_token" in data["data"]
-        assert data["data"]["user"]["email"] == test_user.email
+        # Response structure: {"success": True, "user": {...}, "session_token": "..."}
+        # (success_response merges dict data directly into response)
+        assert "user" in data
+        assert "session_token" in data
+        assert data["user"]["email"] == test_user.email
 
 
 def test_login_invalid_credentials(client, app, test_user):

@@ -16,7 +16,6 @@ export default function IdeaValidator() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   
-  console.log('🔗 [IdeaValidator] URL search params:', Object.fromEntries(searchParams.entries()));
   const { validateIdea, loading, error, setError, setCategoryAnswers, setIdeaExplanation, categoryAnswers } = useValidation();
   const { inputs, loadRunById } = useReports();
   const { getAuthHeaders, isAuthenticated } = useAuth();
@@ -107,17 +106,8 @@ export default function IdeaValidator() {
 
   // Load validation data when editing - uses cached activityData if available
   useEffect(() => {
-    console.log('⚡ [IdeaValidator] useEffect triggered for edit mode');
-    console.log('⚡ [IdeaValidator] editValidationId:', editValidationId);
-    console.log('⚡ [IdeaValidator] isAuthenticated:', isAuthenticated);
-    
     const loadValidationForEdit = async () => {
-      console.log('🚀 [Edit Mode] loadValidationForEdit started');
-      console.log('🔑 [Edit Mode] editValidationId:', editValidationId);
-      console.log('👤 [Edit Mode] isAuthenticated:', isAuthenticated);
-      
       if (!editValidationId) {
-        console.log('⏭️ [Edit Mode] No editValidationId provided, skipping load');
         return;
       }
       
@@ -134,15 +124,12 @@ export default function IdeaValidator() {
         // Use cached activityData if available, otherwise fetch
         let validations = [];
         if (activityData?.validations) {
-          console.log('✅ [Edit Mode] Using cached activity data');
           validations = activityData.validations;
         } else {
-          console.log('🌐 [Edit Mode] Fetching from /api/user/activity (cache miss)...');
           try {
             const response = await fetch(`/api/user/activity`, {
               headers: getAuthHeaders(),
             });
-            console.log('📥 [Edit Mode] Response status:', response.status, response.ok ? 'OK' : 'ERROR');
 
             if (response.ok) {
               const data = await response.json();
@@ -155,23 +142,9 @@ export default function IdeaValidator() {
           }
         }
         
-        // Always log for debugging
-        console.log('📡 [Edit Mode] API Response received');
-        console.log('📊 [Edit Mode] Total validations returned:', validations.length);
-        console.log('📋 [Edit Mode] Available validations:', validations.map(v => ({ 
-          validation_id: v.validation_id,
-          id: v.id,
-          overall_score: v.overall_score
-        })));
-        console.log('🔍 [Edit Mode] Searching for validation_id:', editValidationId);
-        console.log('🔍 [Edit Mode] ID type:', typeof editValidationId);
-        
         // If no validations found at all, check if it's an authentication issue
         if (validations.length === 0) {
-          console.warn('⚠️ [Edit Mode] No validations returned from API. Possible reasons:');
-          console.warn('  - User has no validations');
-          console.warn('  - Authentication issue');
-          console.warn('  - All validations are filtered out (not completed or deleted)');
+          console.warn('No validations returned from API');
         }
         
         // Find the validation we want to edit
@@ -179,7 +152,6 @@ export default function IdeaValidator() {
         let validationToEdit = null;
         if (editValidationId) {
           const searchId = String(editValidationId).trim();
-          console.log('🔍 [Edit Mode] Searching for validation with cleaned ID:', searchId);
           
           validationToEdit = validations.find(v => {
             // API returns validation_id as the actual ID (string or number)
@@ -188,7 +160,6 @@ export default function IdeaValidator() {
             
             // Strategy 1: Direct match on validation_id (most common case)
             if (vid && vid === searchId) {
-              console.log('✅ [Edit Mode] Found by validation_id match:', vid);
               return true;
             }
             
@@ -196,7 +167,6 @@ export default function IdeaValidator() {
             if (dbId) {
               const cleanDbId = dbId.replace(/^val_/, '');
               if (cleanDbId === searchId) {
-                console.log('✅ [Edit Mode] Found by id match (stripped):', dbId, '->', cleanDbId);
                 return true;
               }
             }
@@ -206,13 +176,11 @@ export default function IdeaValidator() {
               const searchNum = Number(searchId);
               if (!isNaN(searchNum)) {
                 if (vid && Number(vid) === searchNum) {
-                  console.log('✅ [Edit Mode] Found by numeric validation_id match:', vid);
                   return true;
                 }
                 if (dbId) {
                   const cleanDbId = dbId.replace(/^val_/, '');
                   if (Number(cleanDbId) === searchNum) {
-                    console.log('✅ [Edit Mode] Found by numeric id match:', dbId);
                     return true;
                   }
                 }
@@ -225,28 +193,8 @@ export default function IdeaValidator() {
           });
         }
         
-        // Always log for debugging (remove NODE_ENV check)
-        console.log('🔍 [Edit Mode] Searching for validation_id:', editValidationId);
-        console.log('📊 [Edit Mode] Total validations available:', validations.length);
-        console.log('📋 [Edit Mode] Available validation_ids:', validations.map(v => ({
-          id: v.id,
-          validation_id: v.validation_id,
-          has_category_answers: !!v.category_answers
-        })));
-        console.log('✅ [Edit Mode] Found validation:', validationToEdit ? 'YES' : 'NO');
-        if (validationToEdit) {
-          console.log('📝 [Edit Mode] Validation details:', {
-            id: validationToEdit.id,
-            validation_id: validationToEdit.validation_id,
-            has_category_answers: !!validationToEdit.category_answers,
-            category_answers_type: typeof validationToEdit.category_answers
-          });
-        } else {
-          console.warn('⚠️ [Edit Mode] Validation NOT FOUND! Check if:');
-          console.warn('  - Validation exists in database');
-          console.warn('  - Validation belongs to current user');
-          console.warn('  - Validation status is "completed"');
-          console.warn('  - Validation is not deleted');
+        if (!validationToEdit) {
+          console.warn('Validation not found for edit');
         }
 
         if (validationToEdit) {
@@ -263,10 +211,6 @@ export default function IdeaValidator() {
             categoryAnswersData = validationToEdit.category_answers;
           }
         }
-        
-        // Always log for debugging
-        console.log('📦 [Edit Mode] Raw category_answers from API:', validationToEdit.category_answers);
-        console.log('🔓 [Edit Mode] Parsed categoryAnswersData:', categoryAnswersData);
 
         // Pre-fill Screen 1 answers (About Your Idea - 4 dropdowns)
         // Direct mapping - use exact field names from form
@@ -280,16 +224,10 @@ export default function IdeaValidator() {
           }
         });
         
-        // Always log for debugging
-        console.log('📝 [Edit Mode] Screen 1 data to set:', screen1Data);
-        
         // Set screen1 answers - set immediately even if only partial data
         // This ensures dropdowns show values as soon as they're loaded
         if (Object.keys(screen1Data).length > 0) {
           setScreen1Answers(prev => ({ ...prev, ...screen1Data }));
-          console.log('✅ [Edit Mode] Set screen1Answers:', screen1Data);
-        } else {
-          console.warn('⚠️ [Edit Mode] No screen1 data found in category_answers');
         }
 
         // Pre-fill Screen 2 answers (How Your Idea Works - 5 dropdowns)
@@ -314,15 +252,9 @@ export default function IdeaValidator() {
           }
         });
         
-        // Always log for debugging
-        console.log('📝 [Edit Mode] Screen 2 data to set:', screen2Data);
-        
         // Set screen2 answers - set immediately even if only partial data
         if (Object.keys(screen2Data).length > 0) {
           setScreen2Answers(prev => ({ ...prev, ...screen2Data }));
-          console.log('✅ [Edit Mode] Set screen2Answers:', screen2Data);
-        } else {
-          console.warn('⚠️ [Edit Mode] No screen2 data found in category_answers');
         }
 
         // Pre-fill Screen 3 (Tell Us More)
@@ -343,24 +275,8 @@ export default function IdeaValidator() {
         // Set category answers in context
         setCategoryAnswers(categoryAnswersData);
         setIdeaExplanation(validationToEdit.idea_explanation || "");
-        
-        // Always log for debugging
-        console.log('✅ [Edit Mode] Pre-filled data summary:', {
-          categoryAnswersData,
-          screen1Answers: screen1Data,
-          screen2Answers: screen2Data,
-          structuredDescription: validationToEdit.idea_explanation,
-          optionalAnswers
-        });
       } else {
-        console.error('❌ [Edit Mode] Validation not found for ID:', editValidationId);
-        console.error('🔍 [Edit Mode] This could mean:');
-        console.error('  1. Validation does not exist (may have been deleted)');
-        console.error('  2. Validation belongs to different user');
-        console.error('  3. Validation status is not "completed"');
-        console.error('  4. Validation is deleted (is_deleted=True)');
-        console.error('  5. ID format mismatch');
-        console.error('📊 [Edit Mode] Available validation IDs:', validations.map(v => v.validation_id || v.id));
+        console.error('Validation not found for ID:', editValidationId);
         
         // Show the original ID from URL in error message for user clarity
         const originalId = editValidationIdRaw || editValidationId;
@@ -374,15 +290,9 @@ export default function IdeaValidator() {
         );
       }
         } catch (err) {
-        console.error('💥 [Edit Mode] Exception caught while loading validation:', err);
-        console.error('💥 [Edit Mode] Error details:', {
-          message: err.message,
-          stack: err.stack,
-          name: err.name
-        });
+        console.error('Exception caught while loading validation:', err);
         setError("Failed to load validation data. Please try again.");
       } finally {
-        console.log('🏁 [Edit Mode] loadValidationForEdit finished');
         setLoadingValidationData(false);
       }
     };

@@ -15,6 +15,7 @@ def register_blueprints(app: Flask):
     from app.routes.discovery import bp as discovery_bp
     from app.routes.admin import bp as admin_bp
     from app.routes.resources import bp as resources_bp
+    from app.routes.founder import bp as founder_bp
     
     # Only register if not already registered
     if health_bp.name not in registered_names:
@@ -35,3 +36,5 @@ def register_blueprints(app: Flask):
         app.register_blueprint(admin_bp)
     if resources_bp.name not in registered_names:
         app.register_blueprint(resources_bp)
+    if founder_bp.name not in registered_names:
+        app.register_blueprint(founder_bp)
