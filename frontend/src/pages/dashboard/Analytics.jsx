@@ -39,9 +39,9 @@ export default function AnalyticsPage() {
         if (response.ok) {
           const data = await response.json();
           if (data.success) {
-            // API returns data.activity.runs and data.activity.validations
-            setApiRuns(data.activity?.runs || []);
-            setApiValidations(data.activity?.validations || []);
+            // API returns data.runs and data.validations directly
+            setApiRuns(data.runs || []);
+            setApiValidations(data.validations || []);
           }
         }
       }

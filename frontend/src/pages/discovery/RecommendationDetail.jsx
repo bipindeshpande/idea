@@ -229,15 +229,14 @@ export default function RecommendationDetail() {
   const [newNoteContent, setNewNoteContent] = useState("");
 
   useEffect(() => {
-    // Only load if we don't already have the reports data to prevent multiple API calls
-    // Add a ref to track if we've already attempted to load to prevent duplicate calls
-    if (runId && (!reports || Object.keys(reports).length === 0)) {
+    // Only load if we don't already have the reports data and we're not currently loading
+    if (runId && !loading && (!reports || Object.keys(reports).length === 0)) {
       loadRunById(runId);
-    } else if (currentRunId && !runId && (!reports || Object.keys(reports).length === 0)) {
+    } else if (currentRunId && !runId && !loading && (!reports || Object.keys(reports).length === 0)) {
       // If no runId in URL but we have a currentRunId, load it
       loadRunById(currentRunId);
     }
-  }, [runId, currentRunId]); // Removed reports and loadRunById from deps to prevent infinite loops
+  }, [runId, currentRunId, loading, reports, loadRunById]); // Include all dependencies to ensure proper loading
 
   const markdown = useMemo(
     () => trimFromHeading(reports?.personalized_recommendations ?? "", "### Comprehensive Recommendation Report"),

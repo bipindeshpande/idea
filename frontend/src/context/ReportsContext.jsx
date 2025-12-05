@@ -139,6 +139,8 @@ export function ReportsProvider({ children }) {
   }, [getAuthHeaders]);
 
   const loadRunById = useCallback(async (runId) => {
+    if (!runId) return null;
+    
     // First try localStorage
     const runs = loadSavedRuns();
     const match = runs.find((run) => run.id === runId);
@@ -149,34 +151,46 @@ export function ReportsProvider({ children }) {
       return match;
     }
     
-    // If not found in localStorage, try API (if it looks like an API run_id)
-    if (runId && (runId.startsWith('run_') || runId.includes('_'))) {
-      try {
-        const headers = getAuthHeaders();
-        const response = await fetch(`/api/user/run/${runId}`, {
-          headers: headers,
-        });
-        if (response.ok) {
-          const data = await response.json();
-          if (data.success && data.run) {
-            setCurrentRunId(data.run.run_id);
-            setInputsState(normalizeInputs(data.run.inputs || {}));
-            try {
-              setReports(data.run.reports || {});
-            } catch (e) {
-              setReports({});
-            }
-            return {
-              id: data.run.run_id,
-              inputs: data.run.inputs || {},
-              outputs: data.run.reports || {},
-              from_api: true,
-            };
+    // If not found in localStorage, try API
+    // The API endpoint handles both "run_123" and "123" formats
+    try {
+      setLoading(true);
+      const headers = getAuthHeaders();
+      // Remove 'run_' prefix if present, API will handle normalization
+      const apiRunId = runId.startsWith('run_') ? runId.substring(4) : runId;
+      const response = await fetch(`/api/user/run/${encodeURIComponent(apiRunId)}`, {
+        headers: headers,
+      });
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.run) {
+          setCurrentRunId(data.run.run_id);
+          setInputsState(normalizeInputs(data.run.inputs || {}));
+          try {
+            // Parse reports if it's a string
+            const reports = typeof data.run.reports === 'string' 
+              ? JSON.parse(data.run.reports) 
+              : (data.run.reports || {});
+            setReports(reports);
+          } catch (e) {
+            console.error("Failed to parse reports:", e);
+            setReports({});
           }
+          return {
+            id: data.run.run_id,
+            inputs: data.run.inputs || {},
+            outputs: data.run.reports || {},
+            from_api: true,
+          };
         }
-      } catch (error) {
-        console.error("Failed to load run from API:", error);
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        console.error("Failed to load run from API:", errorData.error || "Unknown error");
       }
+    } catch (error) {
+      console.error("Failed to load run from API:", error);
+    } finally {
+      setLoading(false);
     }
     
     return null;
