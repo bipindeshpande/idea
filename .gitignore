@@ -52,3 +52,22 @@ frontend/.vite/
 
 # Output files (generated content)
 output/
+
+# Test results and reports
+pytest_results.txt
+frontend/screenshots/
+frontend/playwright-report/
+frontend/test-results/
+*.test.js.snap
+
+# Temporary files and folders
+tempx/
+ideonedriveprojectsidea/
+*.tmp
+*.temp
+
+# Test runner scripts (temporary)
+execute_tests.py
+run_tests_direct.py
+setup_and_run_tests.py
+tests/run_*.py
