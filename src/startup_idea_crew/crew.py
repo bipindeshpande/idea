@@ -83,7 +83,8 @@ class StartupIdeaCrew():
         return Task(
             config=self.tasks_config['idea_research_task'], # type: ignore[index]
             output_file='output/startup_ideas_research.md',
-            context=[self.profile_analysis_task()]  # This task depends on profile analysis
+            # NO context dependency - runs in parallel with profile_analysis_task
+            # recommendation_task will read both outputs
         )
 
     @task
@@ -91,7 +92,9 @@ class StartupIdeaCrew():
         return Task(
             config=self.tasks_config['recommendation_task'], # type: ignore[index]
             output_file='output/personalized_recommendations.md',
-            context=[self.profile_analysis_task(), self.idea_research_task()]  # Depends on both previous tasks
+            # Note: Hierarchical process will handle dependencies automatically
+            # recommendation_task will have access to outputs from both profile_analysis_task and idea_research_task
+            # No explicit context needed - manager_llm coordinates execution order
         )
 
     @crew
@@ -100,7 +103,8 @@ class StartupIdeaCrew():
         return Crew(
             agents=self.agents,  # Automatically created by the @agent decorator
             tasks=self.tasks,    # Automatically created by the @task decorator
-            process=Process.sequential,  # Tasks run in sequence
+            process=Process.hierarchical,  # Use hierarchical to allow profile_analysis and idea_research to run in parallel
+            manager_llm="openai/gpt-4o-mini",  # Required for hierarchical process - coordinates agent execution
             verbose=True,
         )
 

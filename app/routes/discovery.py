@@ -17,39 +17,104 @@ from app.utils import (
     require_auth,
     _validate_discovery_inputs,
 )
+from app.utils.validators import validate_text_field, sanitize_text
 from app.utils.output_manager import archive_existing_outputs, cleanup_old_temp_files
+from app.utils.performance_metrics import (
+    start_metrics_collection,
+    get_current_metrics,
+    finalize_metrics,
+    record_task,
+)
 
 bp = Blueprint("discovery", __name__)
 
-# Note: Rate limits will be applied after blueprint registration in api.py
+# Import limiter lazily to avoid circular imports
+_limiter = None
+
+def get_limiter():
+    """Get limiter instance lazily to avoid circular imports."""
+    global _limiter
+    if _limiter is None:
+        try:
+            from api import limiter
+            _limiter = limiter
+        except (ImportError, AttributeError, RuntimeError):
+            _limiter = None
+    return _limiter
+
+
+def apply_rate_limit(limit_string):
+    """Helper to apply rate limit decorator if limiter is available."""
+    def decorator(func):
+        limiter = get_limiter()
+        if limiter:
+            return limiter.limit(limit_string)(func)
+        return func
+    return decorator
 
 
 @bp.post("/api/run")
 @require_auth
+@apply_rate_limit("5 per hour")
 def run_crew() -> Any:
     """Run the Startup Idea Crew with provided inputs."""
     data: Dict[str, Any] = request.get_json(force=True, silent=True) or {}
 
-    payload = {
-        key: str(data.get(key, "")).strip() if data.get(key) is not None else ""
-        for key in PROFILE_FIELDS
+    # Define max lengths for each field based on validation matrix
+    field_max_lengths = {
+        "goal_type": 200,
+        "time_commitment": 100,
+        "budget_range": 200,
+        "interest_area": 200,
+        "sub_interest_area": 200,
+        "work_style": 100,
+        "skill_strength": 200,
+        "experience_summary": 10000,
     }
 
-    if not payload["goal_type"]:
+    payload = {}
+    for key in PROFILE_FIELDS:
+        value = data.get(key)
+        if value is not None:
+            # Sanitize and validate each field
+            value_str = str(value).strip()
+            value_str = sanitize_text(value_str, max_length=field_max_lengths.get(key, 200))
+            
+            # Validate field length and content
+            max_len = field_max_lengths.get(key, 200)
+            is_valid, error_msg = validate_text_field(
+                value_str,
+                key.replace("_", " ").title(),
+                required=False,
+                max_length=max_len,
+                allow_html=False
+            )
+            if not is_valid:
+                return jsonify({
+                    "success": False,
+                    "error": error_msg,
+                }), 400
+            
+            payload[key] = value_str
+        else:
+            payload[key] = ""
+
+    # Set defaults for empty fields
+    if not payload.get("goal_type"):
         payload["goal_type"] = "Extra Income"
-    if not payload["time_commitment"]:
+    if not payload.get("time_commitment"):
         payload["time_commitment"] = "<5 hrs/week"
-    if not payload["budget_range"]:
+    if not payload.get("budget_range"):
         payload["budget_range"] = "Free / Sweat-equity only"
-    if not payload["interest_area"]:
+    if not payload.get("interest_area"):
         payload["interest_area"] = "AI / Automation"
-    if not payload["sub_interest_area"]:
+    if not payload.get("sub_interest_area"):
         payload["sub_interest_area"] = "Chatbots"
-    if not payload["work_style"]:
+    if not payload.get("work_style"):
         payload["work_style"] = "Solo"
-    if not payload["skill_strength"]:
+    if not payload.get("skill_strength"):
         payload["skill_strength"] = "Analytical / Strategic"
-    if not payload["experience_summary"]:
+    if not payload.get("experience_summary"):
         payload["experience_summary"] = "No detailed experience summary provided."
 
     try:
@@ -66,8 +131,34 @@ def run_crew() -> Any:
                     "usage_limit_reached": True,
                     "upgrade_required": True,
                 }), 403
+            
+            # PART A: Pass founder_psychology into Discovery pipeline
+            # Ensure the value is always a dict
+            founder_psychology = {}
+            if hasattr(user, 'founder_psychology') and user.founder_psychology:
+                if isinstance(user.founder_psychology, dict):
+                    founder_psychology = user.founder_psychology
+                elif isinstance(user.founder_psychology, str):
+                    # If stored as JSON string, parse it
+                    import json as json_lib
+                    try:
+                        founder_psychology = json_lib.loads(user.founder_psychology)
+                        if not isinstance(founder_psychology, dict):
+                            founder_psychology = {}
+                    except (json_lib.JSONDecodeError, TypeError):
+                        founder_psychology = {}
+            
+            payload["founder_psychology"] = founder_psychology
+        else:
+            # Anonymous user - empty dict
+            payload["founder_psychology"] = {}
         
         current_app.logger.info("Starting crew run with inputs: %s", payload)
+        
+        # Start performance metrics collection
+        discovery_start_time = time.time()
+        run_id_for_metrics = f"{int(time.time())}_{user.id if user else 'anonymous'}"
+        metrics = start_metrics_collection(run_id=run_id_for_metrics)
         
         # Validate inputs for weird/incompatible combinations
         validation_error = _validate_discovery_inputs(payload)
@@ -114,12 +205,92 @@ def run_crew() -> Any:
             crew = crew_instance.crew()
             
             # Override output_file in tasks to use unique temp files
+            task_timings = {}  # Track when each task's output file is written
             for task in crew.tasks:
                 if hasattr(task, 'output_file') and task.output_file:
-                    if task.output_file in output_file_map:
-                        task.output_file = output_file_map[task.output_file]
+                    original_output_file = task.output_file  # Store original path before modifying
+                    if original_output_file in output_file_map:
+                        temp_file_path = output_file_map[original_output_file]
+                        task.output_file = temp_file_path  # Set to temp file path
+                        # Store task name for timing - use the temp file path we just set
+                        task_name = getattr(task, 'description', 'unknown_task')
+                        if 'profile' in task_name.lower() or 'profile_analysis' in original_output_file:
+                            task_timings['profile_analysis_task'] = {'file': temp_file_path}
+                        elif 'research' in task_name.lower() or 'research' in original_output_file:
+                            task_timings['idea_research_task'] = {'file': temp_file_path}
+                        elif 'recommendation' in task_name.lower() or 'recommendation' in original_output_file:
+                            task_timings['recommendation_task'] = {'file': temp_file_path}
             
-            result = crew.kickoff(inputs=payload)
+            # Track crew execution with timeout (100 seconds to allow some buffer before 120s frontend timeout)
+            crew_start_time = time.time()
+            CREW_TIMEOUT_SECONDS = 100
+            
+            current_app.logger.info(f"Starting crew execution with {CREW_TIMEOUT_SECONDS}s timeout for user {user.id if user else 'anonymous'}")
+            
+            # Use ThreadPoolExecutor to add timeout to crew execution
+            executor = ThreadPoolExecutor(max_workers=1)
+            future = executor.submit(crew.kickoff, inputs=payload)
+            
+            try:
+                result = future.result(timeout=CREW_TIMEOUT_SECONDS)
+                elapsed = time.time() - crew_start_time
+                current_app.logger.info(f"Crew execution completed in {elapsed:.2f} seconds")
+            except TimeoutError:
+                executor.shutdown(wait=False, cancel_futures=True)
+                elapsed = time.time() - crew_start_time
+                current_app.logger.error(f"Crew execution timed out after {elapsed:.2f} seconds (limit: {CREW_TIMEOUT_SECONDS}s) for user {user.id if user else 'anonymous'}")
+                raise TimeoutError(f"Recommendation generation timed out after {CREW_TIMEOUT_SECONDS} seconds. The analysis is taking longer than expected. Please try again with simpler inputs or contact support.")
+            except Exception as e:
+                elapsed = time.time() - crew_start_time
+                current_app.logger.error(f"Crew execution failed after {elapsed:.2f} seconds: {e}")
+                raise
+            finally:
+                try:
+                    executor.shutdown(wait=False)
+                except Exception:
+                    pass  # Ignore shutdown errors
+            
+            crew_end_time = time.time()
+            crew_duration = crew_end_time - crew_start_time
+            
+            # Approximate task timing by checking file modification times
+            # This is approximate since tasks may run in parallel
+            profile_start = crew_start_time
+            research_start = crew_start_time  # May run in parallel with profile
+            recommendation_start = None
+            
+            # Check file modification times to infer task completion
+            for task_name, task_info in task_timings.items():
+                file_path = Path(task_info['file'])
+                if file_path.exists():
+                    mtime = file_path.stat().st_mtime
+                    task_info['end_time'] = mtime
+                    task_info['start_time'] = crew_start_time  # Approximate
+                    task_info['duration'] = mtime - crew_start_time
+                    
+                    # Record task metric
+                    record_task(
+                        task_name=task_name,
+                        duration=task_info['duration'],
+                        start_time=task_info['start_time'],
+                        end_time=task_info['end_time']
+                    )
+                    
+                    # Recommendation task starts after both profile and research
+                    if task_name == 'recommendation_task':
+                        recommendation_start = max(
+                            task_timings.get('profile_analysis_task', {}).get('end_time', crew_start_time),
+                            task_timings.get('idea_research_task', {}).get('end_time', crew_start_time)
+                        )
+                        if recommendation_start:
+                            task_info['start_time'] = recommendation_start
+                            task_info['duration'] = mtime - recommendation_start
+                            record_task(
+                                task_name=task_name,
+                                duration=task_info['duration'],
+                                start_time=task_info['start_time'],
+                                end_time=task_info['end_time']
+                            )
 
             # Read from temp files with retry logic for high concurrency scenarios
             outputs = {}
@@ -200,6 +371,26 @@ def run_crew() -> Any:
                 "suggestion": "Try providing more detailed information about your interests, skills, or goals. You can also adjust your time commitment, budget, or work style preferences.",
             }), 422  # 422 Unprocessable Entity - valid request but couldn't process
         
+        # Finalize performance metrics
+        total_duration = time.time() - discovery_start_time
+        final_metrics = finalize_metrics(total_duration)
+        
+        # Generate and log performance report
+        if final_metrics:
+            report = final_metrics.generate_report()
+            current_app.logger.info("Discovery Performance Report:\n%s", report)
+            
+            # Also save metrics to a file for analysis (optional)
+            try:
+                metrics_dir = Path(tempfile.gettempdir()) / "idea_crew_metrics"
+                metrics_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
+                metrics_file = metrics_dir / f"metrics_{run_id_for_metrics}.json"
+                with open(metrics_file, 'w', encoding='utf-8') as f:
+                    json.dump(final_metrics.to_dict(), f, indent=2)
+                current_app.logger.debug("Saved metrics to %s", metrics_file)
+            except Exception as e:
+                current_app.logger.warning("Failed to save metrics file: %s", e)
+        
         # Save to database if user is authenticated
         run_id = None
         if user:
@@ -225,14 +416,56 @@ def run_crew() -> Any:
             "outputs": outputs,
             "raw_result": str(result),
         }
+        
+        # Include performance metrics in response (for debugging/analysis)
+        if final_metrics:
+            response["performance_metrics"] = {
+                "total_duration_seconds": round(final_metrics.total_duration_seconds, 2),
+                "cache_hit_rate": round(final_metrics.cache_hit_rate, 1),
+                "total_cache_hits": final_metrics.total_cache_hits,
+                "total_cache_misses": final_metrics.total_cache_misses,
+            }
+        
         return jsonify(response)
     except Exception as exc:  # pylint: disable=broad-except
+        import traceback
+        import re
+        error_traceback = traceback.format_exc()
         current_app.logger.exception("Crew run failed: %s", exc)
+        current_app.logger.error("Full traceback:\n%s", error_traceback)
+        
+        # Sanitize error message to remove file paths and technical details
+        error_message = str(exc)
+        
+        # Remove file paths (Windows and Unix style)
+        error_message = re.sub(r'[A-Za-z]:\\[^\s]+|/[^\s]+\.(py|md|json|yaml|yml)', '[file path]', error_message)
+        error_message = re.sub(r'C:\\Users\\[^\\]+\\[^\s]+|/tmp/[^\s]+|/var/[^\s]+', '[file path]', error_message)
+        
+        # Remove UUIDs and timestamps that might appear in file paths
+        error_message = re.sub(r'[a-f0-9]{8,}_\d+_[^\s]+', '[temp file]', error_message)
+        
+        # Provide user-friendly error message
+        user_error = "We encountered an issue generating your recommendations. "
+        
+        # Add specific guidance based on error type
+        error_type = type(exc).__name__
+        if "validation" in error_type.lower() or "validation" in error_message.lower():
+            user_error += "Please check your inputs and try again."
+        elif "timeout" in error_type.lower() or "timeout" in error_message.lower() or "time" in error_message.lower():
+            user_error += "The analysis is taking longer than expected. Please try again with simpler inputs, or contact support if the issue persists."
+        elif "openai" in error_message.lower() or "api" in error_message.lower():
+            user_error += "We're experiencing issues with our AI service. Please try again in a few minutes."
+        elif "database" in error_message.lower() or "db" in error_message.lower():
+            user_error += "We're experiencing a temporary service issue. Please try again shortly."
+        else:
+            user_error += "Please try again, or contact support if the issue persists."
+        
         return (
             jsonify(
                 {
                     "success": False,
-                    "error": str(exc),
+                    "error": user_error,
+                    "error_type": error_type,
                 }
             ),
             500,

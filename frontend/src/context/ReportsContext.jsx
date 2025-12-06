@@ -97,6 +97,10 @@ export function ReportsProvider({ children }) {
     setReports(null);
 
     try {
+      // Create AbortController for timeout handling (120 seconds)
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 120000); // 120 seconds
+
       const response = await fetch("/api/run", {
         method: "POST",
         headers: {
@@ -104,7 +108,10 @@ export function ReportsProvider({ children }) {
           ...getAuthHeaders(),
         },
         body: JSON.stringify(payload),
+        signal: controller.signal,
       });
+      
+      clearTimeout(timeoutId);
 
       if (!response.ok) {
         const err = await response.json().catch(() => ({}));
@@ -131,7 +138,12 @@ export function ReportsProvider({ children }) {
       setReports(run.outputs);
       return { success: true, runId: run.id };
     } catch (err) {
-      setError(err.message || "Unexpected error");
+      // Handle timeout/abort errors
+      if (err.name === 'AbortError' || err.message?.includes('aborted')) {
+        setError("Request timed out. The analysis is taking longer than expected. Please try again.");
+      } else {
+        setError(err.message || "Unexpected error");
+      }
       return { success: false };
     } finally {
       setLoading(false);

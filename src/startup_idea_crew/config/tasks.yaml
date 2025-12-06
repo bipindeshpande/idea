@@ -28,6 +28,7 @@ profile_analysis_task:
     - Preferred Work Style: {work_style}
     - Primary Skill Strength: {skill_strength}
     - Experience Summary: {experience_summary}
+    - Founder Psychology: {founder_psychology}
 
     WRITING RULES (non-negotiable):
     - Use "You" not "the user" or "they"
@@ -88,7 +89,17 @@ profile_analysis_task:
     
     [Actionable steps in bullet format. Include specific platform/tool choices, concrete project framing, weekly milestones (Week 1: X, Week 2: Y, Week 3: Z, Week 4: W), learning approach, community resources, success metrics as questions.]
 
-    ## 7. Clarifications Needed (for downstream agents)
+    ## 7. Founder Psychology Summary (INTERNAL - for downstream agents)
+    
+    [Interpret the founder_psychology data and provide structured insights. This section is for downstream agents to use, not shown directly to user. Include:
+    - psyche_summary: Brief interpretation of psychological signals (motivation_primary, motivation_secondary, biggest_fear, decision_style, energy_pattern, constraints, success_definition)
+    - execution_tendencies: How they likely approach execution based on decision_style and energy_pattern
+    - risk_reactivity: How they respond to risks based on biggest_fear and decision_style
+    - confidence_signals: Indicators of confidence level from their inputs
+    - ideal_work_patterns: Optimal work patterns based on energy_pattern and constraints
+    Keep this concise - 2-3 bullet points per field.]
+
+    ## 8. Clarifications Needed (for downstream agents)
     
     [3-5 questions. Format as questions, not statements. Example: "Which chatbot niche interests you most?" NOT "It would be helpful to know which chatbot niche..."]
 
@@ -139,7 +150,17 @@ profile_analysis_task:
     - Community resources (specific: "Botpress Discord, Rasa Forum, Langflow GitHub")
     - Success metrics as questions (e.g., "Did you understand how a bot manages context?")
 
-    ## 7. Clarifications Needed (for downstream agents)
+    ## 7. Founder Psychology Summary (INTERNAL - for downstream agents)
+    
+    Interpret the founder_psychology data and provide structured insights. This section is for downstream agents to use, not shown directly to user. Include:
+    - psyche_summary: Brief interpretation of psychological signals (motivation_primary, motivation_secondary, biggest_fear, decision_style, energy_pattern, constraints, success_definition)
+    - execution_tendencies: How they likely approach execution based on decision_style and energy_pattern
+    - risk_reactivity: How they respond to risks based on biggest_fear and decision_style
+    - confidence_signals: Indicators of confidence level from their inputs
+    - ideal_work_patterns: Optimal work patterns based on energy_pattern and constraints
+    Keep this concise - 2-3 bullet points per field.
+
+    ## 8. Clarifications Needed (for downstream agents)
     
     List 3-5 questions. Format as questions, not statements. Example: "Which chatbot niche interests you most?" NOT "It would be helpful to know which chatbot niche..."
 
@@ -162,6 +183,7 @@ idea_research_task:
     - Leverage their primary skill strength: {skill_strength}
     - Support the preferred work style: {work_style}
     - Build on context from the experience summary: {experience_summary}
+    - Consider founder psychology factors: {founder_psychology} (optional context for idea generation)
 
     IMPORTANT STRUCTURE REQUIREMENT:
     - Begin your response with the exact heading `### Idea Research Report`
@@ -214,7 +236,7 @@ recommendation_task:
   description: >
     Based on the profile analysis and researched startup ideas, create personalized recommendations:
     - Rank the top 3 startup ideas that best match the user
-    - Provide detailed reasoning grounded in goal type {goal_type}, time commitment {time_commitment}, budget {budget_range}, interest area {interest_area}, sub-focus {sub_interest_area}, work style {work_style}, skill strength {skill_strength}, and experience summary {experience_summary}
+    - Provide detailed reasoning grounded in goal type {goal_type}, time commitment {time_commitment}, budget {budget_range}, interest area {interest_area}, sub-focus {sub_interest_area}, work style {work_style}, skill strength {skill_strength}, experience summary {experience_summary}, and founder_psychology {founder_psychology}
     - Include actionable next steps for each top idea, highlighting how to leverage strengths and cover gaps
     - Outline execution timeline and milestones compatible with their availability and budget
     - Address potential challenges, capital requirements, and mitigation tactics
@@ -236,7 +258,19 @@ recommendation_task:
     - If inputs are minimal, still create detailed recommendations by making educated inferences from what's provided.
     - Before finalizing, check that each idea contains at least one execution milestone, risk, and validation prompt that references the idea's unique focus or audience; if not, rework that idea's section until all elements are distinct.
 
-    IMPORTANT: Tool results have been pre-computed for your top recommended idea. Use the provided tool results context instead of calling tools directly. This saves significant time.
+    LAYER 1 (Shared Facts - Pre-computed):
+    Domain research data for {interest_area} has been pre-computed and is available in domain_research JSON files.
+    This includes:
+    - Market trends (market_trends)
+    - Competitor overview (competitor_overview)
+    - Market size estimates (market_size)
+    - Opportunity map (opportunity_map)
+    - Cost templates (cost_templates)
+    
+    These are objective, non-personalized facts that apply to the interest area. Use these as foundation data.
+    
+    LAYER 2 (Idea Themes):
+    Tool results have been pre-computed for your top recommended idea. Use the provided tool results context instead of calling tools directly. This saves significant time.
     
     The following tool results are available in your context:
     - Risk assessment (pre-computed)
@@ -248,6 +282,41 @@ recommendation_task:
     Reference these pre-computed results in your analysis. Only call tools if you need additional information not in the context.
     
     You may still use generate_validation_questions tool for all 3 ideas (this is fast).
+    
+    LAYER 3 (Personalization - YOUR JOB):
+    Your task is to synthesize:
+    - Domain research data (Layer 1 - shared facts)
+    - Tool outputs (Layer 2 - structured data)
+    - Profile analysis output (user-specific insights including Founder Psychology Summary section)
+    - Idea research output (idea themes)
+    - User profile inputs: goal_type, time_commitment, budget_range, interest_area, sub_interest_area, work_style, skill_strength, experience_summary
+    - Founder psychology: {founder_psychology} (raw psychology data)
+    - Profile analysis interpreted psyche signals (from profile_analysis_task section 7)
+    
+    Use founder_psychology and interpreted psyche signals to:
+    - Rank ideas based on founder fit (how well each idea matches their psychological profile)
+    - Personalize tone and narrative (match their decision_style, energy_pattern, motivation_primary)
+    - Highlight risks based on fears (if biggest_fear = fear of failure, emphasize safe validation and quick wins)
+    - Emphasize strengths and motivations (align recommendations with motivation_primary and motivation_secondary)
+    - Adjust execution pacing using energy_pattern (if short bursts, break tasks into smaller blocks)
+    - Tailor roadmap steps using decision_style (if fast: short, crisp, action-heavy; if slow: include checkpoints, reflection tasks)
+    - Respect constraints (time, money, lifestyle) from constraints field
+    - Explain why each idea uniquely fits this founder (connect idea features to psychological profile)
+    
+    BEHAVIORAL RULES:
+    - If biggest_fear = fear of failure: emphasize safe validation, quick wins, and confidence building
+    - If decision_style = fast: roadmap tasks should be short, crisp, and action-heavy
+    - If decision_style = slow: roadmap should include checkpoints, reflection tasks, structured analysis
+    - If energy_pattern = short bursts: break roadmap tasks into smaller, high impact blocks
+    - If constraints include time/money: prioritize lean, low-commitment tasks early
+    
+    Generate a 100% personalized, unique recommendation that:
+    - Combines shared domain facts with user-specific context
+    - Ranks ideas based on user's goals, constraints, skills, and psychological profile
+    - Provides personalized tone, examples, and next steps that match their psychology
+    - Creates unique output for each user (no two users should see identical recommendations)
+    
+    This personalization step MUST use OpenAI every time to ensure uniqueness and relevance.
 
     Always return the full detailed recommendation in markdown. Be concise but complete. The output should contain detailed sections so the frontend can display structured insights.
   expected_output: >
