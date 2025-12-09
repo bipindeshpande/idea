@@ -6,11 +6,51 @@ Provides tools for researching markets, trends, and competition - AI-powered for
 from crewai.tools import tool
 from openai import OpenAI
 import os
+import time
 from typing import Optional, Dict, Any
 
+# Import cache utility (will work if Flask context is available)
+try:
+    from app.utils.tool_cache import ToolCache
+    CACHE_AVAILABLE = True
+except ImportError:
+    CACHE_AVAILABLE = False
+    ToolCache = None
+
+# Import metrics for tracking
+try:
+    from app.utils.performance_metrics import record_tool_call
+    METRICS_AVAILABLE = True
+except ImportError:
+    METRICS_AVAILABLE = False
+    record_tool_call = None
+
+# Import domain research manager for Layer 1 (shared facts)
+try:
+    from app.utils.domain_research import (
+        load_domain_research,
+        save_domain_research,
+        update_domain_research_field,
+        has_domain_research
+    )
+    DOMAIN_RESEARCH_AVAILABLE = True
+except ImportError:
+    DOMAIN_RESEARCH_AVAILABLE = False
+    load_domain_research = None
+    save_domain_research = None
+    update_domain_research_field = None
+    has_domain_research = None
+
+
+# Injectable mock client for testing (set via monkeypatch)
+_MOCK_OPENAI_CLIENT = None
 
 def _get_openai_client() -> OpenAI:
-    """Get OpenAI client with API key from environment."""
+    """Get OpenAI client with API key from environment or injected mock."""
+    # Allow injection of mock client for testing
+    if _MOCK_OPENAI_CLIENT is not None:
+        return _MOCK_OPENAI_CLIENT
+    
     api_key = os.environ.get("OPENAI_API_KEY")
     if not api_key:
         raise ValueError("OPENAI_API_KEY environment variable is not set")
@@ -107,6 +147,41 @@ Growth Indicators:
 RECOMMENDATION: [Specific recommendation for THIS topic/market - should focus on what makes sense for this particular idea, not generic startup advice]
 """
 
+    tool_start_time = time.time()
+    tool_name = "research_market_trends"
+    cache_hit = False
+    cache_miss = False
+    
+    # LAYER 1: Check domain_research JSON first (shared facts - always cached)
+    interest_area = market_segment if market_segment and market_segment.strip() else topic
+    if DOMAIN_RESEARCH_AVAILABLE and load_domain_research:
+        domain_data = load_domain_research(interest_area)
+        if domain_data and domain_data.get("market_trends"):
+            cache_hit = True
+            duration = time.time() - tool_start_time
+            if METRICS_AVAILABLE and record_tool_call:
+                record_tool_call(tool_name, duration, cache_hit=True, params={"topic": topic, "market_segment": market_segment})
+            return domain_data["market_trends"]
+    
+    # Check PostgreSQL cache as fallback (always allow cache for Layer 1 data)
+    if CACHE_AVAILABLE and ToolCache:
+        cached_result = ToolCache.get(
+            tool_name,
+            topic=topic,
+            market_segment=market_segment
+        )
+        if cached_result:
+            cache_hit = True
+            duration = time.time() - tool_start_time
+            if METRICS_AVAILABLE and record_tool_call:
+                record_tool_call(tool_name, duration, cache_hit=True, params={"topic": topic, "market_segment": market_segment})
+            # Also save to domain_research for future use
+            if DOMAIN_RESEARCH_AVAILABLE and update_domain_research_field:
+                update_domain_research_field(interest_area, "market_trends", cached_result)
+            return cached_result
+        else:
+            cache_miss = True
+    
     try:
         client = _get_openai_client()
         response = client.chat.completions.create(
@@ -126,6 +201,26 @@ RECOMMENDATION: [Specific recommendation for THIS topic/market - should focus on
         )
         
         research_content = response.choices[0].message.content.strip()
+        
+        # LAYER 1: Save to domain_research JSON (shared facts - always cached)
+        interest_area = market_segment if market_segment and market_segment.strip() else topic
+        if DOMAIN_RESEARCH_AVAILABLE and update_domain_research_field:
+            update_domain_research_field(interest_area, "market_trends", research_content)
+        
+        # Also store in PostgreSQL cache (7 day TTL for market trends)
+        if CACHE_AVAILABLE and ToolCache:
+            ToolCache.set(
+                tool_name,
+                research_content,
+                ttl_days=7,
+                topic=topic,
+                market_segment=market_segment
+            )
+        
+        duration = time.time() - tool_start_time
+        if METRICS_AVAILABLE and record_tool_call:
+            record_tool_call(tool_name, duration, cache_hit=cache_hit, cache_miss=cache_miss, params={"topic": topic, "market_segment": market_segment})
+        
         return research_content
         
     except Exception as e:
@@ -248,6 +343,41 @@ How to Differentiate:
 RECOMMENDATION: [Specific recommendation for competing in THIS market with THIS idea. What should the founder focus on given these actual competitors?]
 """
 
+    tool_start_time = time.time()
+    tool_name = "analyze_competitors"
+    cache_hit = False
+    cache_miss = False
+    
+    # LAYER 1: Check domain_research JSON first (shared facts - always cached)
+    interest_area = industry if industry and industry.strip() else startup_idea
+    if DOMAIN_RESEARCH_AVAILABLE and load_domain_research:
+        domain_data = load_domain_research(interest_area)
+        if domain_data and domain_data.get("competitor_overview"):
+            cache_hit = True
+            duration = time.time() - tool_start_time
+            if METRICS_AVAILABLE and record_tool_call:
+                record_tool_call(tool_name, duration, cache_hit=True, params={"startup_idea": startup_idea, "industry": industry})
+            return domain_data["competitor_overview"]
+    
+    # Check PostgreSQL cache as fallback (always allow cache for Layer 1 data)
+    if CACHE_AVAILABLE and ToolCache:
+        cached_result = ToolCache.get(
+            tool_name,
+            startup_idea=startup_idea,
+            industry=industry
+        )
+        if cached_result:
+            cache_hit = True
+            duration = time.time() - tool_start_time
+            if METRICS_AVAILABLE and record_tool_call:
+                record_tool_call(tool_name, duration, cache_hit=True, params={"startup_idea": startup_idea, "industry": industry})
+            # Also save to domain_research for future use
+            if DOMAIN_RESEARCH_AVAILABLE and update_domain_research_field:
+                update_domain_research_field(interest_area, "competitor_overview", cached_result)
+            return cached_result
+        else:
+            cache_miss = True
+    
     try:
         client = _get_openai_client()
         response = client.chat.completions.create(
@@ -267,6 +397,26 @@ RECOMMENDATION: [Specific recommendation for competing in THIS market with THIS 
         )
         
         competitor_content = response.choices[0].message.content.strip()
+        
+        # LAYER 1: Save to domain_research JSON (shared facts - always cached)
+        interest_area = industry if industry and industry.strip() else startup_idea
+        if DOMAIN_RESEARCH_AVAILABLE and update_domain_research_field:
+            update_domain_research_field(interest_area, "competitor_overview", competitor_content)
+        
+        # Also store in PostgreSQL cache (14 day TTL for competitor analysis)
+        if CACHE_AVAILABLE and ToolCache:
+            ToolCache.set(
+                tool_name,
+                competitor_content,
+                ttl_days=14,
+                startup_idea=startup_idea,
+                industry=industry
+            )
+        
+        duration = time.time() - tool_start_time
+        if METRICS_AVAILABLE and record_tool_call:
+            record_tool_call(tool_name, duration, cache_hit=cache_hit, cache_miss=cache_miss, params={"startup_idea": startup_idea, "industry": industry})
+        
         return competitor_content
         
     except Exception as e:
@@ -388,6 +538,41 @@ Validation Needed:
 RECOMMENDATION: [Specific recommendation based on THIS market size - is it sufficient? What should the founder focus on given these numbers?]
 """
 
+    tool_start_time = time.time()
+    tool_name = "estimate_market_size"
+    cache_hit = False
+    cache_miss = False
+    
+    # LAYER 1: Check domain_research JSON first (shared facts - always cached)
+    interest_area = target_audience if target_audience and target_audience.strip() else topic
+    if DOMAIN_RESEARCH_AVAILABLE and load_domain_research:
+        domain_data = load_domain_research(interest_area)
+        if domain_data and domain_data.get("market_size"):
+            cache_hit = True
+            duration = time.time() - tool_start_time
+            if METRICS_AVAILABLE and record_tool_call:
+                record_tool_call(tool_name, duration, cache_hit=True, params={"topic": topic, "target_audience": target_audience})
+            return domain_data["market_size"]
+    
+    # Check PostgreSQL cache as fallback (always allow cache for Layer 1 data)
+    if CACHE_AVAILABLE and ToolCache:
+        cached_result = ToolCache.get(
+            tool_name,
+            topic=topic,
+            target_audience=target_audience
+        )
+        if cached_result:
+            cache_hit = True
+            duration = time.time() - tool_start_time
+            if METRICS_AVAILABLE and record_tool_call:
+                record_tool_call(tool_name, duration, cache_hit=True, params={"topic": topic, "target_audience": target_audience})
+            # Also save to domain_research for future use
+            if DOMAIN_RESEARCH_AVAILABLE and update_domain_research_field:
+                update_domain_research_field(interest_area, "market_size", cached_result)
+            return cached_result
+        else:
+            cache_miss = True
+    
     try:
         client = _get_openai_client()
         response = client.chat.completions.create(
@@ -407,6 +592,26 @@ RECOMMENDATION: [Specific recommendation based on THIS market size - is it suffi
         )
         
         market_size_content = response.choices[0].message.content.strip()
+        
+        # LAYER 1: Save to domain_research JSON (shared facts - always cached)
+        interest_area = target_audience if target_audience and target_audience.strip() else topic
+        if DOMAIN_RESEARCH_AVAILABLE and update_domain_research_field:
+            update_domain_research_field(interest_area, "market_size", market_size_content)
+        
+        # Also store in PostgreSQL cache (30 day TTL for market size estimates)
+        if CACHE_AVAILABLE and ToolCache:
+            ToolCache.set(
+                tool_name,
+                market_size_content,
+                ttl_days=30,
+                topic=topic,
+                target_audience=target_audience
+            )
+        
+        duration = time.time() - tool_start_time
+        if METRICS_AVAILABLE and record_tool_call:
+            record_tool_call(tool_name, duration, cache_hit=cache_hit, cache_miss=cache_miss, params={"topic": topic, "target_audience": target_audience})
+        
         return market_size_content
         
     except Exception as e:

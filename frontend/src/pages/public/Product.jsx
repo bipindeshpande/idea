@@ -273,6 +273,45 @@ export default function ProductPage() {
         </div>
       </section>
 
+      {/* Founder Connect Section */}
+      <section className="mb-8 rounded-3xl border-2 border-brand-300/80 dark:border-brand-700/80 bg-gradient-to-br from-brand-50 via-white to-brand-50/30 dark:from-brand-900/30 dark:via-slate-800/50 dark:to-brand-900/20 p-6 shadow-xl shadow-brand-500/10 dark:shadow-brand-500/5">
+        <div className="flex items-start gap-4">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-brand-100 to-brand-200 dark:from-brand-900/50 dark:to-brand-800/50 text-2xl shadow-sm">
+            🤝
+          </div>
+          <div className="flex-1">
+            <h2 className="mb-2 text-xl font-bold text-slate-900 dark:text-slate-50">Founder Connect - Find Your Co-Founder</h2>
+            <p className="mb-3 text-sm leading-relaxed text-slate-600 dark:text-slate-300">
+              After validating your idea or discovering new opportunities, connect with other founders to find co-founders, collaborators, and build your startup team. Browse anonymized profiles and listings, send connection requests, and reveal identities when both sides accept.
+            </p>
+            <ul className="mb-4 space-y-1.5 text-xs text-slate-600 dark:text-slate-300">
+              <li className="flex items-start gap-2">
+                <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-brand-100 dark:bg-brand-900/50 text-[10px] font-semibold text-brand-700 dark:text-brand-300">✓</span>
+                <span>Create your founder profile and list validated ideas for collaboration</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-brand-100 dark:bg-brand-900/50 text-[10px] font-semibold text-brand-700 dark:text-brand-300">✓</span>
+                <span>Browse anonymized founder profiles and idea listings</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-brand-100 dark:bg-brand-900/50 text-[10px] font-semibold text-brand-700 dark:text-brand-300">✓</span>
+                <span>Privacy-first: identities only revealed after mutual acceptance</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-brand-100 dark:bg-brand-900/50 text-[10px] font-semibold text-brand-700 dark:text-brand-300">✓</span>
+                <span>Credit-based limits: Free (3/month), Starter (15/month), Pro (unlimited)</span>
+              </li>
+            </ul>
+            <Link
+              to="/founder-connect"
+              className="inline-flex items-center justify-center whitespace-nowrap rounded-xl bg-gradient-to-r from-brand-500 to-brand-600 px-5 py-2.5 text-xs font-semibold text-white shadow-lg shadow-brand-500/25 transition-all duration-200 hover:from-brand-600 hover:to-brand-700 hover:shadow-xl hover:shadow-brand-500/30 hover:-translate-y-0.5"
+            >
+              Explore Founder Connect 🤝
+            </Link>
+          </div>
+        </div>
+      </section>
+
       {/* CTA Section */}
       <div className="rounded-2xl border border-coral-200/60 dark:border-coral-800/60 bg-gradient-to-br from-coral-50/80 via-aqua-50/40 to-white dark:from-coral-900/20 dark:via-aqua-900/10 dark:to-slate-800/50 p-6 shadow-lg">
         <div className="mx-auto max-w-3xl text-center">

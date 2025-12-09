@@ -6,12 +6,36 @@ Tools to validate startup ideas and check feasibility - AI-powered for personali
 from crewai.tools import tool
 from openai import OpenAI
 import os
+import time
 from typing import Optional, Dict, Any
 import re
 
+# Import cache utility (will work if Flask context is available)
+try:
+    from app.utils.tool_cache import ToolCache
+    CACHE_AVAILABLE = True
+except ImportError:
+    CACHE_AVAILABLE = False
+    ToolCache = None
+
+# Import metrics for tracking
+try:
+    from app.utils.performance_metrics import record_tool_call
+    METRICS_AVAILABLE = True
+except ImportError:
+    METRICS_AVAILABLE = False
+    record_tool_call = None
+
+
+# Injectable mock client for testing (set via monkeypatch)
+_MOCK_OPENAI_CLIENT = None
 
 def _get_openai_client() -> OpenAI:
-    """Get OpenAI client with API key from environment."""
+    """Get OpenAI client with API key from environment or injected mock."""
+    # Allow injection of mock client for testing
+    if _MOCK_OPENAI_CLIENT is not None:
+        return _MOCK_OPENAI_CLIENT
+    
     api_key = os.environ.get("OPENAI_API_KEY")
     if not api_key:
         raise ValueError("OPENAI_API_KEY environment variable is not set")
@@ -361,6 +385,15 @@ Generate risks that are:
 Focus on risks that matter for THIS idea, not generic startup risks.
 """
 
+    tool_start_time = time.time()
+    tool_name = "assess_startup_risks"
+    
+    # NEVER cache risk assessment - it uses user-specific context:
+    # - time_commitment (personal constraint)
+    # - financial_resources (personal constraint)
+    # - user_profile (goal_type, skill_strength, work_style, budget_range - all personal)
+    # Risk assessment is personalized to the user's specific situation
+    
     try:
         client = _get_openai_client()
         response = client.chat.completions.create(
@@ -380,6 +413,14 @@ Focus on risks that matter for THIS idea, not generic startup risks.
         )
         
         risk_content = response.choices[0].message.content.strip()
+        
+        # NEVER cache risk assessment - it's personalized to user's constraints and profile
+        # (time_commitment, financial_resources, work_style, goal_type, etc.)
+        
+        duration = time.time() - tool_start_time
+        if METRICS_AVAILABLE and record_tool_call:
+            record_tool_call(tool_name, duration, cache_hit=False, cache_miss=False, params={"idea": idea, "time_commitment": time_commitment})
+        
         return risk_content
         
     except Exception as e:

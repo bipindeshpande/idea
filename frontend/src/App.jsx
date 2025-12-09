@@ -37,6 +37,7 @@ import FrameworksPage from "./pages/resources/Frameworks.jsx";
 import DashboardPage from "./pages/dashboard/Dashboard.jsx";
 import CompareSessionsPage from "./pages/dashboard/CompareSessions.jsx";
 import FounderConnectPage from "./pages/founder/FounderConnect.jsx";
+import FounderPsychologyPage from "./pages/founder/FounderPsychology.jsx";
 // Lazy load heavy pages
 const AnalyticsPage = lazy(() => import("./pages/dashboard/Analytics.jsx"));
 const AccountPage = lazy(() => import("./pages/dashboard/Account.jsx"));
@@ -573,6 +574,14 @@ export default function App() {
               element={
                 <ProtectedRoute>
                   <FounderConnectPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/founder-psychology"
+              element={
+                <ProtectedRoute>
+                  <FounderPsychologyPage />
                 </ProtectedRoute>
               }
             />

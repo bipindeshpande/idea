@@ -3,7 +3,15 @@ import { useEffect, useState } from "react";
 import Seo from "../../components/common/Seo.jsx";
 
 export default function LandingPage() {
-  const [usageStats, setUsageStats] = useState(null);
+  // Default stats to show even if API fails
+  const defaultStats = {
+    total_users: 0,
+    validations_this_month: 0,
+    total_validations: 0,
+    average_score: 0,
+  };
+  
+  const [usageStats, setUsageStats] = useState(defaultStats);
   const [loadingStats, setLoadingStats] = useState(true);
 
   useEffect(() => {
@@ -12,12 +20,20 @@ export default function LandingPage() {
         const response = await fetch("/api/public/usage-stats");
         if (response.ok) {
           const data = await response.json();
-          if (data.success) {
+          if (data.success && data.stats) {
             setUsageStats(data.stats);
+          } else {
+            // If API returns but no stats, keep defaults
+            setUsageStats(defaultStats);
           }
+        } else {
+          // If API fails, keep defaults
+          setUsageStats(defaultStats);
         }
       } catch (error) {
         console.error("Failed to load usage stats:", error);
+        // On error, keep defaults so stats section still shows
+        setUsageStats(defaultStats);
       } finally {
         setLoadingStats(false);
       }
@@ -35,44 +51,34 @@ export default function LandingPage() {
       />
 
       {/* Usage Stats / Social Proof Section */}
-      {usageStats && (
-        <div className="mb-8 rounded-3xl border-2 border-brand-200/80 dark:border-brand-700/80 bg-gradient-to-br from-brand-50 via-white to-brand-50/30 dark:from-brand-900/30 dark:via-slate-800/50 dark:to-brand-900/20 p-6 shadow-xl shadow-brand-500/10 dark:shadow-brand-500/5">
-          <div className="grid grid-cols-2 gap-6 text-center md:grid-cols-4">
-            {usageStats.total_users > 0 && (
-              <div className="transition-transform hover:scale-105">
-                <div className="text-3xl font-extrabold bg-gradient-to-r from-brand-600 to-brand-700 dark:from-brand-400 dark:to-brand-500 bg-clip-text text-transparent">
-                  {usageStats.total_users.toLocaleString()}+
-                </div>
-                <div className="mt-1 text-xs font-medium text-slate-700 dark:text-slate-300">Entrepreneurs</div>
-              </div>
-            )}
-            {usageStats.validations_this_month > 0 && (
-              <div className="transition-transform hover:scale-105">
-                <div className="text-3xl font-extrabold bg-gradient-to-r from-brand-600 to-brand-700 dark:from-brand-400 dark:to-brand-500 bg-clip-text text-transparent">
-                  {usageStats.validations_this_month.toLocaleString()}+
-                </div>
-                <div className="mt-1 text-xs font-medium text-slate-700 dark:text-slate-300">Ideas Validated This Month</div>
-              </div>
-            )}
-            {usageStats.total_validations > 0 && (
-              <div className="transition-transform hover:scale-105">
-                <div className="text-3xl font-extrabold bg-gradient-to-r from-brand-600 to-brand-700 dark:from-brand-400 dark:to-brand-500 bg-clip-text text-transparent">
-                  {usageStats.total_validations.toLocaleString()}+
-                </div>
-                <div className="mt-1 text-xs font-medium text-slate-700 dark:text-slate-300">Total Validations</div>
-              </div>
-            )}
-            {usageStats.average_score > 0 && (
-              <div className="transition-transform hover:scale-105">
-                <div className="text-3xl font-extrabold bg-gradient-to-r from-brand-600 to-brand-700 dark:from-brand-400 dark:to-brand-500 bg-clip-text text-transparent">
-                  {usageStats.average_score}/10
-                </div>
-                <div className="mt-1 text-xs font-medium text-slate-700 dark:text-slate-300">Average Score</div>
-              </div>
-            )}
+      <div className="mb-8 rounded-3xl border-2 border-brand-200/80 dark:border-brand-700/80 bg-gradient-to-br from-brand-50 via-white to-brand-50/30 dark:from-brand-900/30 dark:via-slate-800/50 dark:to-brand-900/20 p-6 shadow-xl shadow-brand-500/10 dark:shadow-brand-500/5">
+        <div className="grid grid-cols-2 gap-6 text-center md:grid-cols-4">
+          <div className="transition-transform hover:scale-105">
+            <div className="text-3xl font-extrabold bg-gradient-to-r from-brand-600 to-brand-700 dark:from-brand-400 dark:to-brand-500 bg-clip-text text-transparent">
+              {usageStats?.total_users > 0 ? usageStats.total_users.toLocaleString() + "+" : "—"}
+            </div>
+            <div className="mt-1 text-xs font-medium text-slate-700 dark:text-slate-300">Entrepreneurs</div>
+          </div>
+          <div className="transition-transform hover:scale-105">
+            <div className="text-3xl font-extrabold bg-gradient-to-r from-brand-600 to-brand-700 dark:from-brand-400 dark:to-brand-500 bg-clip-text text-transparent">
+              {usageStats?.validations_this_month > 0 ? usageStats.validations_this_month.toLocaleString() + "+" : "—"}
+            </div>
+            <div className="mt-1 text-xs font-medium text-slate-700 dark:text-slate-300">Ideas Validated This Month</div>
+          </div>
+          <div className="transition-transform hover:scale-105">
+            <div className="text-3xl font-extrabold bg-gradient-to-r from-brand-600 to-brand-700 dark:from-brand-400 dark:to-brand-500 bg-clip-text text-transparent">
+              {usageStats?.total_validations > 0 ? usageStats.total_validations.toLocaleString() + "+" : "—"}
+            </div>
+            <div className="mt-1 text-xs font-medium text-slate-700 dark:text-slate-300">Total Validations</div>
+          </div>
+          <div className="transition-transform hover:scale-105">
+            <div className="text-3xl font-extrabold bg-gradient-to-r from-brand-600 to-brand-700 dark:from-brand-400 dark:to-brand-500 bg-clip-text text-transparent">
+              {usageStats?.average_score > 0 ? `${usageStats.average_score}/10` : "—"}
+            </div>
+            <div className="mt-1 text-xs font-medium text-slate-700 dark:text-slate-300">Average Score</div>
           </div>
         </div>
-      )}
+      </div>
 
       {/* Trust Badges */}
       <div className="mb-8 flex flex-wrap items-center justify-center gap-3 text-xs">
@@ -118,6 +124,41 @@ export default function LandingPage() {
           </div>
         </div>
       </header>
+
+      {/* Founder Connect Feature Highlight */}
+      <div className="mb-8 rounded-3xl border-2 border-brand-300/80 dark:border-brand-700/80 bg-gradient-to-br from-brand-50 via-white to-brand-50/30 dark:from-brand-900/30 dark:via-slate-800/50 dark:to-brand-900/20 p-6 shadow-xl shadow-brand-500/10 dark:shadow-brand-500/5">
+        <div className="flex items-start gap-4">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-brand-100 to-brand-200 dark:from-brand-900/50 dark:to-brand-800/50 text-2xl shadow-sm">
+            🤝
+          </div>
+          <div className="flex-1">
+            <h2 className="mb-2 text-xl font-bold text-slate-900 dark:text-slate-50">Founder Connect - Find Your Co-Founder</h2>
+            <p className="mb-3 text-sm leading-relaxed text-slate-600 dark:text-slate-300">
+              Connect with other founders, find co-founders, and collaborate on startup ideas. Browse anonymized profiles and listings, send connection requests, and reveal identities when both sides accept.
+            </p>
+            <ul className="mb-4 space-y-1.5 text-xs text-slate-600 dark:text-slate-300">
+              <li className="flex items-start gap-2">
+                <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-brand-100 dark:bg-brand-900/50 text-[10px] font-semibold text-brand-700 dark:text-brand-300">✓</span>
+                <span>Create your founder profile and list validated ideas</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-brand-100 dark:bg-brand-900/50 text-[10px] font-semibold text-brand-700 dark:text-brand-300">✓</span>
+                <span>Browse anonymized founder profiles and idea listings</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-brand-100 dark:bg-brand-900/50 text-[10px] font-semibold text-brand-700 dark:text-brand-300">✓</span>
+                <span>Privacy-first: identities only revealed after mutual acceptance</span>
+              </li>
+            </ul>
+            <Link
+              to="/founder-connect"
+              className="inline-flex items-center justify-center whitespace-nowrap rounded-xl bg-gradient-to-r from-brand-500 to-brand-600 px-5 py-2.5 text-xs font-semibold text-white shadow-lg shadow-brand-500/25 transition-all duration-200 hover:from-brand-600 hover:to-brand-700 hover:shadow-xl hover:shadow-brand-500/30 hover:-translate-y-0.5"
+            >
+              Explore Founder Connect 🤝
+            </Link>
+          </div>
+        </div>
+      </div>
 
       {/* Two Options */}
       <div className="grid gap-3 md:grid-cols-2">

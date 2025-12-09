@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useReports } from "../../context/ReportsContext.jsx";
+import { useAuth } from "../../context/AuthContext.jsx";
 import Seo from "../../components/common/Seo.jsx";
 import DiscoveryLoadingIndicator from "../../components/discovery/DiscoveryLoadingIndicator.jsx";
 import { intakeScreen } from "../../config/intakeScreen.js";
@@ -27,6 +28,7 @@ const FIELD_MAP = intakeScreen.fields.reduce((acc, field) => {
 export default function HomePage() {
   const navigate = useNavigate();
   const { inputs, setInputs, loading, error, runCrew, reports } = useReports();
+  const { isAuthenticated } = useAuth();
   const [localInputs, setLocalInputs] = useState(inputs);
   const [step, setStep] = useState(0);
   const [touched, setTouched] = useState(false);
@@ -432,6 +434,14 @@ export default function HomePage() {
         <p className="text-xs text-slate-500">
           We never store your inputs. <Link to="/privacy" className="text-brand-600 underline">Read our privacy promises.</Link>
         </p>
+        {isAuthenticated && (
+          <p className="text-xs text-slate-500 mt-2">
+            Want more personalized recommendations?{" "}
+            <Link to="/founder-psychology" className="text-brand-600 underline hover:text-brand-700">
+              Complete your Founder Psychology profile
+            </Link>
+          </p>
+        )}
       </form>
 
       <section className="grid gap-4 rounded-2xl border border-slate-200/60 dark:border-slate-700/60 bg-white/95 dark:bg-slate-800/95 p-6 shadow-lg">

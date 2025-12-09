@@ -1,30 +1,27 @@
 """Discovery routes blueprint - idea discovery endpoints."""
-from flask import Blueprint, request, jsonify, current_app
-from typing import Any, Dict
+from flask import Blueprint, request, jsonify, current_app, Response, stream_with_context
+from typing import Any, Dict, Iterator, Tuple
 from datetime import datetime, timezone
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import os
 import json
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from openai import OpenAI
-from startup_idea_crew.crew import StartupIdeaCrew
+
 from app.models.database import db, User, UserSession, UserRun, utcnow
 from app.utils import (
     PROFILE_FIELDS,
-    read_output_file as _read_output_file,
     get_current_session,
     require_auth,
     _validate_discovery_inputs,
 )
 from app.utils.validators import validate_text_field, sanitize_text
-from app.utils.output_manager import archive_existing_outputs, cleanup_old_temp_files
 from app.utils.performance_metrics import (
     start_metrics_collection,
-    get_current_metrics,
     finalize_metrics,
-    record_task,
 )
+from app.services.unified_discovery_service import run_unified_discovery
 
 bp = Blueprint("discovery", __name__)
 
@@ -57,7 +54,15 @@ def apply_rate_limit(limit_string):
 @require_auth
 @apply_rate_limit("5 per hour")
 def run_crew() -> Any:
-    """Run the Startup Idea Crew with provided inputs."""
+    """
+    Run unified Discovery pipeline with pre-computed tools and single LLM call.
+    
+    Query params:
+        stream: If 'true', returns Server-Sent Events stream (default: false)
+    
+    Returns:
+        JSON response with outputs (or SSE stream if stream=true)
+    """
     data: Dict[str, Any] = request.get_json(force=True, silent=True) or {}
 
     # Define max lengths for each field based on validation matrix
@@ -153,7 +158,14 @@ def run_crew() -> Any:
             # Anonymous user - empty dict
             payload["founder_psychology"] = {}
         
-        current_app.logger.info("Starting crew run with inputs: %s", payload)
+        current_app.logger.info("Starting unified Discovery with inputs: %s", payload)
+        
+        # Initialize timing logger
+        try:
+            from app.utils.timing_logger import init_timing_logger
+            init_timing_logger()  # Uses default docs/timing_logs.json
+        except ImportError:
+            pass
         
         # Start performance metrics collection
         discovery_start_time = time.time()
@@ -169,179 +181,87 @@ def run_crew() -> Any:
                 "error_type": "invalid_input",
             }), 400
         
-        # Use Python's tempfile module for robust file handling with 1000+ concurrent users
-        import uuid
-        import tempfile
-        from pathlib import Path
+        # Check if streaming is requested
+        stream_requested = request.args.get('stream', 'false').lower() == 'true'
         
-        # Generate unique run ID
-        run_file_id = f"{uuid.uuid4().hex[:12]}_{int(time.time())}"
+        # Check for cache bypass (debugging)
+        cache_bypass = request.args.get('cache_bypass', 'false').lower() == 'true'
         
-        # Use system temp directory (better for high concurrency) with unique prefix
-        temp_output_dir = Path(tempfile.gettempdir()) / "idea_crew_outputs"
-        temp_output_dir.mkdir(parents=True, exist_ok=True, mode=0o700)  # Secure permissions
-        
-        # Create unique temp files using tempfile (OS-managed, auto-cleanup on system restart)
-        temp_files = {}
-        output_file_map = {}
-        
+        # Run unified Discovery pipeline
         try:
-            # Map each output to a unique temp file
-            file_mappings = {
-                'output/profile_analysis.md': 'profile_analysis.md',
-                'output/startup_ideas_research.md': 'startup_ideas_research.md',
-                'output/personalized_recommendations.md': 'personalized_recommendations.md',
-            }
+            # If streaming requested, handle streaming path
+            if stream_requested:
+                return _stream_discovery_response_live(
+                    run_unified_discovery(
+                        profile_data=payload, 
+                        use_cache=True, 
+                        stream=True,
+                        cache_bypass=cache_bypass
+                    ),
+                    payload, user, session, discovery_start_time
+                )
             
-            for original_path, filename in file_mappings.items():
-                # Create unique temp file with prefix
-                temp_file_path = temp_output_dir / f"{run_file_id}_{filename}"
-                output_file_map[original_path] = str(temp_file_path)
-                temp_files[filename] = temp_file_path
+            # Non-streaming path
+            # run_unified_discovery returns a tuple (outputs, metadata) when stream=False
+            outputs, metadata = run_unified_discovery(
+                profile_data=payload,
+                use_cache=True,
+                stream=False,
+                cache_bypass=cache_bypass,
+            )
             
-            # Create crew and override output_file in tasks
-            from startup_idea_crew.crew import StartupIdeaCrew
-            crew_instance = StartupIdeaCrew()
-            crew = crew_instance.crew()
+            # Ensure outputs is a dict with required keys
+            if not isinstance(outputs, dict):
+                current_app.logger.error(f"Outputs is not a dict: {type(outputs)}, value: {outputs}")
+                outputs = {
+                    "profile_analysis": "",
+                    "startup_ideas_research": "",
+                    "personalized_recommendations": "",
+                }
             
-            # Override output_file in tasks to use unique temp files
-            task_timings = {}  # Track when each task's output file is written
-            for task in crew.tasks:
-                if hasattr(task, 'output_file') and task.output_file:
-                    original_output_file = task.output_file  # Store original path before modifying
-                    if original_output_file in output_file_map:
-                        temp_file_path = output_file_map[original_output_file]
-                        task.output_file = temp_file_path  # Set to temp file path
-                        # Store task name for timing - use the temp file path we just set
-                        task_name = getattr(task, 'description', 'unknown_task')
-                        if 'profile' in task_name.lower() or 'profile_analysis' in original_output_file:
-                            task_timings['profile_analysis_task'] = {'file': temp_file_path}
-                        elif 'research' in task_name.lower() or 'research' in original_output_file:
-                            task_timings['idea_research_task'] = {'file': temp_file_path}
-                        elif 'recommendation' in task_name.lower() or 'recommendation' in original_output_file:
-                            task_timings['recommendation_task'] = {'file': temp_file_path}
+            # Ensure all required keys exist
+            required_keys = ["profile_analysis", "startup_ideas_research", "personalized_recommendations"]
+            for key in required_keys:
+                if key not in outputs:
+                    outputs[key] = ""
             
-            # Track crew execution with timeout (100 seconds to allow some buffer before 120s frontend timeout)
-            crew_start_time = time.time()
-            CREW_TIMEOUT_SECONDS = 100
-            
-            current_app.logger.info(f"Starting crew execution with {CREW_TIMEOUT_SECONDS}s timeout for user {user.id if user else 'anonymous'}")
-            
-            # Use ThreadPoolExecutor to add timeout to crew execution
-            executor = ThreadPoolExecutor(max_workers=1)
-            future = executor.submit(crew.kickoff, inputs=payload)
-            
-            try:
-                result = future.result(timeout=CREW_TIMEOUT_SECONDS)
-                elapsed = time.time() - crew_start_time
-                current_app.logger.info(f"Crew execution completed in {elapsed:.2f} seconds")
-            except TimeoutError:
-                executor.shutdown(wait=False, cancel_futures=True)
-                elapsed = time.time() - crew_start_time
-                current_app.logger.error(f"Crew execution timed out after {elapsed:.2f} seconds (limit: {CREW_TIMEOUT_SECONDS}s) for user {user.id if user else 'anonymous'}")
-                raise TimeoutError(f"Recommendation generation timed out after {CREW_TIMEOUT_SECONDS} seconds. The analysis is taking longer than expected. Please try again with simpler inputs or contact support.")
-            except Exception as e:
-                elapsed = time.time() - crew_start_time
-                current_app.logger.error(f"Crew execution failed after {elapsed:.2f} seconds: {e}")
-                raise
-            finally:
-                try:
-                    executor.shutdown(wait=False)
-                except Exception:
-                    pass  # Ignore shutdown errors
-            
-            crew_end_time = time.time()
-            crew_duration = crew_end_time - crew_start_time
-            
-            # Approximate task timing by checking file modification times
-            # This is approximate since tasks may run in parallel
-            profile_start = crew_start_time
-            research_start = crew_start_time  # May run in parallel with profile
-            recommendation_start = None
-            
-            # Check file modification times to infer task completion
-            for task_name, task_info in task_timings.items():
-                file_path = Path(task_info['file'])
-                if file_path.exists():
-                    mtime = file_path.stat().st_mtime
-                    task_info['end_time'] = mtime
-                    task_info['start_time'] = crew_start_time  # Approximate
-                    task_info['duration'] = mtime - crew_start_time
-                    
-                    # Record task metric
-                    record_task(
-                        task_name=task_name,
-                        duration=task_info['duration'],
-                        start_time=task_info['start_time'],
-                        end_time=task_info['end_time']
-                    )
-                    
-                    # Recommendation task starts after both profile and research
-                    if task_name == 'recommendation_task':
-                        recommendation_start = max(
-                            task_timings.get('profile_analysis_task', {}).get('end_time', crew_start_time),
-                            task_timings.get('idea_research_task', {}).get('end_time', crew_start_time)
-                        )
-                        if recommendation_start:
-                            task_info['start_time'] = recommendation_start
-                            task_info['duration'] = mtime - recommendation_start
-                            record_task(
-                                task_name=task_name,
-                                duration=task_info['duration'],
-                                start_time=task_info['start_time'],
-                                end_time=task_info['end_time']
-                            )
-
-            # Read from temp files with retry logic for high concurrency scenarios
-            outputs = {}
-            max_retries = 3
-            for filename, temp_file_path in temp_files.items():
-                content = None
-                for attempt in range(max_retries):
-                    try:
-                        if temp_file_path.exists():
-                            content = temp_file_path.read_text(encoding='utf-8')
-                            break
-                        else:
-                            # File might not be ready yet (task just finished)
-                            time.sleep(0.1 * (attempt + 1))  # Progressive backoff
-                    except (OSError, IOError) as e:
-                        if attempt < max_retries - 1:
-                            time.sleep(0.1 * (attempt + 1))
-                        else:
-                            current_app.logger.warning(f"Failed to read {filename} after {max_retries} attempts: {e}")
-                
-                # Map to expected output keys
-                if filename == 'profile_analysis.md':
-                    outputs["profile_analysis"] = content or ""
-                elif filename == 'startup_ideas_research.md':
-                    outputs["startup_ideas_research"] = content or ""
-                elif filename == 'personalized_recommendations.md':
-                    outputs["personalized_recommendations"] = content or ""
-            
-        finally:
-            # Always cleanup temp files, even on errors (prevents disk space issues)
-            cleanup_files = list(temp_files.values())
-            for temp_file_path in cleanup_files:
-                try:
-                    if temp_file_path.exists():
-                        temp_file_path.unlink()
-                except Exception as e:
-                    # Log but don't fail - background cleanup will handle it
-                    current_app.logger.debug(f"Cleanup deferred for {temp_file_path.name}: {e}")
-            
-            # Periodic cleanup of old orphaned files (runs every 100 requests to avoid overhead)
-            # For 1000 concurrent users, this ensures orphaned files are cleaned regularly
-            import random
-            if random.random() < 0.01:  # 1% chance = ~every 100 requests
-                try:
-                    cleanup_old_temp_files(max_age_hours=1)
-                except Exception:
-                    pass  # Don't fail request if cleanup fails
+        except ValueError as e:
+            # Handle validation errors from _validate_profile_data
+            elapsed = time.time() - discovery_start_time
+            error_msg = str(e)
+            current_app.logger.error(f"Discovery validation error after {elapsed:.2f} seconds: {error_msg}")
+            return jsonify({
+                "success": False,
+                "error": f"Invalid input: {error_msg}",
+                "error_type": "validation_error",
+            }), 422
+        except TimeoutError as e:
+            elapsed = time.time() - discovery_start_time
+            current_app.logger.error(f"Discovery timed out after {elapsed:.2f} seconds for user {user.id if user else 'anonymous'}")
+            raise
+        except Exception as e:
+            elapsed = time.time() - discovery_start_time
+            current_app.logger.error(f"Discovery failed after {elapsed:.2f} seconds: {e}", exc_info=True)
+            # Return error response instead of raising to prevent 500
+            return jsonify({
+                "success": False,
+                "error": f"We encountered an issue generating your recommendations. The analysis is taking longer than expected. Please try again with simpler inputs, or contact support if the issue persists.",
+                "error_type": "internal_error",
+                "error_details": str(e) if current_app.debug else None,
+            }), 500
         
         # Check if we got valid results
         has_results = False
         results_summary = {}
+        
+        # Ensure outputs is a dict
+        if not isinstance(outputs, dict):
+            current_app.logger.error(f"Outputs is not a dict: {type(outputs)}, value: {outputs}")
+            outputs = {
+                "profile_analysis": "",
+                "startup_ideas_research": "",
+                "personalized_recommendations": "",
+            }
         
         if outputs.get("profile_analysis"):
             profile_content = outputs["profile_analysis"].strip()
@@ -363,7 +283,12 @@ def run_crew() -> Any:
         
         # If no valid results, return error
         if not has_results:
-            current_app.logger.warning(f"No valid results generated for user {user.id if user else 'anonymous'}. Outputs: {results_summary}")
+            current_app.logger.warning(
+                f"No valid results generated for user {user.id if user else 'anonymous'}. "
+                f"Outputs summary: {results_summary}. "
+                f"Outputs keys: {list(outputs.keys()) if isinstance(outputs, dict) else 'not a dict'}. "
+                f"Outputs lengths: {[len(str(v)) for v in outputs.values()] if isinstance(outputs, dict) else 'N/A'}"
+            )
             return jsonify({
                 "success": False,
                 "error": "We couldn't generate any valid recommendations based on your inputs. Please try adjusting your preferences, interests, or constraints and try again.",
@@ -379,17 +304,6 @@ def run_crew() -> Any:
         if final_metrics:
             report = final_metrics.generate_report()
             current_app.logger.info("Discovery Performance Report:\n%s", report)
-            
-            # Also save metrics to a file for analysis (optional)
-            try:
-                metrics_dir = Path(tempfile.gettempdir()) / "idea_crew_metrics"
-                metrics_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
-                metrics_file = metrics_dir / f"metrics_{run_id_for_metrics}.json"
-                with open(metrics_file, 'w', encoding='utf-8') as f:
-                    json.dump(final_metrics.to_dict(), f, indent=2)
-                current_app.logger.debug("Saved metrics to %s", metrics_file)
-            except Exception as e:
-                current_app.logger.warning("Failed to save metrics file: %s", e)
         
         # Save to database if user is authenticated
         run_id = None
@@ -414,16 +328,15 @@ def run_crew() -> Any:
             "run_id": run_id,
             "inputs": payload,
             "outputs": outputs,
-            "raw_result": str(result),
         }
         
         # Include performance metrics in response (for debugging/analysis)
-        if final_metrics:
+        if metadata:
             response["performance_metrics"] = {
-                "total_duration_seconds": round(final_metrics.total_duration_seconds, 2),
-                "cache_hit_rate": round(final_metrics.cache_hit_rate, 1),
-                "total_cache_hits": final_metrics.total_cache_hits,
-                "total_cache_misses": final_metrics.total_cache_misses,
+                "total_duration_seconds": round(metadata.get("total_time", total_duration), 2),
+                "tool_precompute_time": round(metadata.get("tool_precompute_time", 0), 2),
+                "llm_time": round(metadata.get("llm_time", 0), 2),
+                "cache_hit": metadata.get("cache_hit", False),
             }
         
         return jsonify(response)
@@ -431,7 +344,7 @@ def run_crew() -> Any:
         import traceback
         import re
         error_traceback = traceback.format_exc()
-        current_app.logger.exception("Crew run failed: %s", exc)
+        current_app.logger.exception("Discovery run failed: %s", exc)
         current_app.logger.error("Full traceback:\n%s", error_traceback)
         
         # Sanitize error message to remove file paths and technical details
@@ -470,6 +383,119 @@ def run_crew() -> Any:
             ),
             500,
         )
+
+
+def _stream_discovery_response_live(
+    chunk_iterator: Iterator[Tuple[str, Dict[str, Any]]],
+    payload: Dict[str, Any],
+    user: User,
+    session: UserSession,
+    start_time: float,
+) -> Response:
+    """
+    Stream Discovery response as Server-Sent Events (SSE) with TRUE real-time streaming.
+    
+    Chunks are streamed immediately as they arrive from OpenAI, not buffered.
+    
+    Args:
+        chunk_iterator: Iterator yielding (chunk, metadata) tuples from run_unified_discovery
+        payload: Input payload
+        user: User object
+        session: User session
+        start_time: Start timestamp
+    
+    Returns:
+        Flask Response with SSE stream
+    """
+    def generate():
+        """Generate SSE stream chunks from live iterator - TRUE streaming."""
+        # Send initial metadata
+        run_id = f"run_{int(time.time())}_{user.id}" if user else None
+        yield f"data: {json.dumps({'event': 'start', 'run_id': run_id})}\n\n"
+        
+        # Track full response for post-processing
+        full_response = ""
+        metadata = {}
+        outputs = None
+        
+        try:
+            # Stream chunks immediately as they arrive (TRUE streaming)
+            for chunk, chunk_metadata in chunk_iterator:
+                # Check if this is the final metadata message
+                if chunk is None and chunk_metadata.get("final"):
+                    # Final message with outputs for post-processing
+                    outputs = chunk_metadata.get("outputs")
+                    metadata = chunk_metadata.get("metadata", {})
+                    break
+                
+                # Handle special events
+                if chunk == "__HEARTBEAT__":
+                    yield f"data: {json.dumps({'event': 'heartbeat', 'metadata': chunk_metadata})}\n\n"
+                    continue
+                
+                if isinstance(chunk, str) and chunk.startswith("__TOOL_COMPLETE__:"):
+                    tool_name = chunk.split(":", 1)[1]
+                    yield f"data: {json.dumps({'event': 'tool_complete', 'tool': tool_name})}\n\n"
+                    continue
+                
+                # Regular chunk - accumulate and stream immediately
+                if chunk:
+                    full_response += chunk
+                    metadata = chunk_metadata
+                    
+                    # Yield chunk immediately as SSE event (TRUE streaming, no buffering > 200ms)
+                    yield f"data: {json.dumps({'event': 'delta', 'text': chunk})}\n\n"
+        
+        except Exception as e:
+            # Log structured error
+            error_info = {
+                "error_type": type(e).__name__,
+                "error_message": str(e),
+                "timestamp": time.time(),
+            }
+            current_app.logger.error(
+                f"Error during streaming: {json.dumps(error_info)}",
+                exc_info=True
+            )
+            # Send SSE error event immediately
+            yield f"data: {json.dumps({'event': 'error', 'error': str(e), 'error_type': type(e).__name__})}\n\n"
+            return
+        
+        # Post-processing: Parse, save, and send completion
+        # If outputs weren't provided in final message, parse from full_response
+        if not outputs:
+            from app.services.unified_discovery_service import parse_unified_response
+            outputs = parse_unified_response(full_response)
+        
+        # Save to database
+        if user and outputs:
+            try:
+                user_run = UserRun(
+                    user_id=user.id,
+                    run_id=run_id,
+                    inputs=json.dumps(payload),
+                    reports=json.dumps(outputs),
+                )
+                db.session.add(user_run)
+                user.increment_discovery_usage()
+                if session:
+                    session.last_activity = utcnow()
+                db.session.commit()
+            except Exception as e:
+                current_app.logger.warning(f"Failed to save run during streaming: {e}")
+        
+        # Send completion event
+        total_time = time.time() - start_time
+        yield f"data: {json.dumps({'event': 'done', 'total_time': round(total_time, 2), 'metadata': metadata})}\n\n"
+    
+    return Response(
+        stream_with_context(generate()),
+        mimetype='text/event-stream',
+        headers={
+            'Cache-Control': 'no-cache',
+            'X-Accel-Buffering': 'no',  # Disable nginx buffering
+        }
+    )
 
 
 @bp.post("/api/enhance-report")

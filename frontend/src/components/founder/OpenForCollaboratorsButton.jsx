@@ -12,7 +12,9 @@ function OpenForCollaboratorsButton({
   ideaIndex 
 }) {
   const [loading, setLoading] = useState(false);
-  const [showModal, setShowModal] = useState(false);
+  const [showProfileModal, setShowProfileModal] = useState(false);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [listingData, setListingData] = useState(null);
   const navigate = useNavigate();
   const { getAuthHeaders, isAuthenticated } = useAuth();
 
@@ -34,7 +36,7 @@ function OpenForCollaboratorsButton({
 
       if (!hasProfile) {
         // Show modal to create profile first
-        setShowModal(true);
+        setShowProfileModal(true);
         setLoading(false);
         return;
       }
@@ -58,27 +60,45 @@ function OpenForCollaboratorsButton({
 
       // Extract data for listing
       const industry = categoryAnswers?.industry || categoryAnswers?.category_answers?.industry || "Not specified";
-      const stage = "idea"; // Default, can be improved
-      const skillsNeeded = []; // Can be extracted from categoryAnswers if available
+      const stage = categoryAnswers?.stage || categoryAnswers?.category_answers?.stage || "idea";
+      const skillsNeeded = categoryAnswers?.skills_needed || categoryAnswers?.category_answers?.skills_needed || [];
 
-      // Create the listing
+      // Prepare listing data and show confirmation modal
+      const preparedData = {
+        title: ideaTitle || "My startup idea",
+        source_type: sourceType,
+        source_id: sourceId,
+        industry: industry,
+        stage: stage,
+        skills_needed: Array.isArray(skillsNeeded) ? skillsNeeded : [],
+        brief_description: ideaTitle || "Looking for collaborators to help bring this idea to life.",
+      };
+
+      setListingData(preparedData);
+      setShowConfirmModal(true);
+    } catch (err) {
+      console.error("Error preparing listing:", err);
+      alert("Failed to prepare listing. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleConfirmCreate = async () => {
+    if (!listingData) return;
+    
+    setLoading(true);
+    try {
       const createRes = await fetch("/api/founder/ideas", {
         method: "POST",
         headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: ideaTitle || "My startup idea",
-          source_type: sourceType,
-          source_id: sourceId,
-          industry: industry,
-          stage: stage,
-          skills_needed: skillsNeeded,
-          brief_description: ideaTitle || "Looking for collaborators to help bring this idea to life.",
-        }),
+        body: JSON.stringify(listingData),
       });
 
       if (createRes.ok) {
         const createData = await createRes.json();
         if (createData.success) {
+          setShowConfirmModal(false);
           // Navigate to Founder Connect with listings tab
           navigate("/founder-connect?tab=listings");
         } else {
@@ -89,8 +109,8 @@ function OpenForCollaboratorsButton({
         alert(errorData.error || "Failed to create listing");
       }
     } catch (err) {
-      console.error("Error opening idea for collaborators:", err);
-      alert("Failed to open idea for collaborators. Please try again.");
+      console.error("Error creating listing:", err);
+      alert("Failed to create listing. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -130,7 +150,7 @@ function OpenForCollaboratorsButton({
         {loading ? "Opening..." : "🤝 Open for Collaborators"}
       </button>
 
-      {showModal && (
+      {showProfileModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
           <div className="bg-white dark:bg-slate-800 rounded-xl p-6 max-w-md w-full mx-4 shadow-xl">
             <h2 className="text-xl font-bold mb-4">Create Founder Profile</h2>
@@ -145,8 +165,49 @@ function OpenForCollaboratorsButton({
                 Create Profile
               </button>
               <button
-                onClick={() => setShowModal(false)}
+                onClick={() => setShowProfileModal(false)}
                 className="flex-1 px-4 py-2 border rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showConfirmModal && listingData && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-white dark:bg-slate-800 rounded-xl p-6 max-w-lg w-full mx-4 shadow-xl">
+            <h2 className="text-xl font-bold mb-4">Create Idea Listing</h2>
+            <p className="text-slate-600 dark:text-slate-400 mb-4">
+              This will create a listing from your {sourceType === "validation" ? "validated idea" : "discovered idea"}:
+            </p>
+            <div className="bg-slate-50 dark:bg-slate-900/50 p-4 rounded-lg mb-4 space-y-2">
+              <p><strong>Title:</strong> {listingData.title}</p>
+              <p><strong>Industry:</strong> {listingData.industry}</p>
+              <p><strong>Stage:</strong> {listingData.stage}</p>
+              {listingData.skills_needed && listingData.skills_needed.length > 0 && (
+                <p><strong>Skills Needed:</strong> {listingData.skills_needed.join(", ")}</p>
+              )}
+            </div>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">
+              You'll be redirected to Founder Connect where you can manage this listing and find collaborators.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={handleConfirmCreate}
+                disabled={loading}
+                className="flex-1 px-4 py-2 bg-brand-600 text-white rounded-lg hover:bg-brand-700 disabled:opacity-50"
+              >
+                {loading ? "Creating..." : "Create Listing"}
+              </button>
+              <button
+                onClick={() => {
+                  setShowConfirmModal(false);
+                  setListingData(null);
+                }}
+                disabled={loading}
+                className="flex-1 px-4 py-2 border rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-50"
               >
                 Cancel
               </button>

@@ -18,6 +18,7 @@ const tiers = [
     features: [
       "2 idea validations (lifetime)",
       "4 idea discoveries (lifetime)",
+      "3 founder connections/month",
       "Full reports",
       "PDF downloads",
     ],
@@ -34,6 +35,7 @@ const tiers = [
     features: [
       "20 validations/month",
       "10 discoveries/month",
+      "15 founder connections/month",
       "Full reports",
       "PDF downloads",
       "Email support",
@@ -51,6 +53,7 @@ const tiers = [
     features: [
       "Unlimited validations",
       "Unlimited discoveries",
+      "Unlimited founder connections",
       "Full reports",
       "PDF downloads",
       "Priority support",
@@ -68,6 +71,7 @@ const tiers = [
     features: [
       "Unlimited validations",
       "Unlimited discoveries",
+      "Unlimited founder connections",
       "Full reports",
       "PDF downloads",
       "Priority support",
@@ -139,6 +143,12 @@ export default function PricingPage() {
         <p className="mx-auto mt-3 max-w-2xl text-base leading-relaxed text-slate-600 dark:text-slate-300">
           Get 2 free validations and 4 free discoveries. No credit card required. Upgrade to unlock more when you're ready.
         </p>
+        <div className="mt-4 flex items-center justify-center gap-2">
+          <span className="text-lg">🤝</span>
+          <span className="text-sm font-medium text-brand-600 dark:text-brand-400">
+            All plans include Founder Connect - find co-founders and collaborators
+          </span>
+        </div>
       </header>
 
       {/* Pricing Tiers */}

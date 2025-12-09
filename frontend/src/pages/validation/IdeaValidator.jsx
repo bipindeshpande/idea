@@ -16,7 +16,7 @@ export default function IdeaValidator() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   
-  const { validateIdea, loading, error, setError, setCategoryAnswers, setIdeaExplanation, categoryAnswers } = useValidation();
+  const { validateIdea, loading, error, setError, setCategoryAnswers, setIdeaExplanation, categoryAnswers, loadValidationById } = useValidation();
   const { inputs, loadRunById } = useReports();
   const { getAuthHeaders, isAuthenticated } = useAuth();
   
@@ -121,76 +121,54 @@ export default function IdeaValidator() {
       setError(null); // Clear any previous errors
       
       try {
-        // Use cached activityData if available, otherwise fetch
-        let validations = [];
-        if (activityData?.validations) {
-          validations = activityData.validations;
-        } else {
-          try {
-            const response = await fetch(`/api/user/activity`, {
-              headers: getAuthHeaders(),
-            });
-
-            if (response.ok) {
-              const data = await response.json();
-              validations = data.activity?.validations || [];
-              // Cache the data for future use
-              setActivityData(data.activity);
-            }
-          } catch (err) {
-            console.error("❌ Failed to fetch validation data:", err);
-          }
-        }
-        
-        // If no validations found at all, check if it's an authentication issue
-        if (validations.length === 0) {
-          console.warn('No validations returned from API');
-        }
-        
-        // Find the validation we want to edit
-        // editValidationId is already stripped of "val_" prefix
+        const searchId = String(editValidationId).trim();
         let validationToEdit = null;
-        if (editValidationId) {
-          const searchId = String(editValidationId).trim();
-          
-          validationToEdit = validations.find(v => {
-            // API returns validation_id as the actual ID (string or number)
+        
+        // Strategy 1: Try from activity data (but without status filter when include_all_statuses=true)
+        // First check cache
+        if (!validationToEdit && activityData?.validations) {
+          validationToEdit = activityData.validations.find(v => {
             const vid = v.validation_id ? String(v.validation_id).trim() : null;
             const dbId = v.id ? String(v.id).trim() : null;
-            
-            // Strategy 1: Direct match on validation_id (most common case)
-            if (vid && vid === searchId) {
-              return true;
-            }
-            
-            // Strategy 2: Match by database ID (strip prefix if present)
-            if (dbId) {
-              const cleanDbId = dbId.replace(/^val_/, '');
-              if (cleanDbId === searchId) {
-                return true;
-              }
-            }
-            
-            // Strategy 3: Match by numeric value (handle string vs number conversion)
-            try {
-              const searchNum = Number(searchId);
-              if (!isNaN(searchNum)) {
-                if (vid && Number(vid) === searchNum) {
-                  return true;
-                }
-                if (dbId) {
-                  const cleanDbId = dbId.replace(/^val_/, '');
-                  if (Number(cleanDbId) === searchNum) {
-                    return true;
-                  }
-                }
-              }
-            } catch (e) {
-              // Ignore number conversion errors
-            }
-            
-            return false;
+            return (vid && vid === searchId) || 
+                   (dbId && dbId.replace(/^val_/, '') === searchId) ||
+                   (vid && Number(vid) === Number(searchId)) ||
+                   (dbId && Number(dbId.replace(/^val_/, '')) === Number(searchId));
           });
+        }
+        
+        // Strategy 3: Fetch from activity endpoint with larger page size and include all statuses
+        // This is important for newly created validations that might not be COMPLETED yet
+        if (!validationToEdit) {
+          const response = await fetch(`/api/user/activity?per_page=100&include_all_statuses=true`, {
+            headers: getAuthHeaders(),
+          });
+
+          if (response.ok) {
+            const data = await response.json();
+            const validations = data.activity?.validations || [];
+            setActivityData(data.activity);
+            
+            validationToEdit = validations.find(v => {
+              const vid = v.validation_id ? String(v.validation_id).trim() : null;
+              const dbId = v.id ? String(v.id).trim() : null;
+              
+              if (vid && vid === searchId) return true;
+              if (dbId && dbId.replace(/^val_/, '') === searchId) return true;
+              
+              try {
+                const searchNum = Number(searchId);
+                if (!isNaN(searchNum)) {
+                  if (vid && Number(vid) === searchNum) return true;
+                  if (dbId && Number(dbId.replace(/^val_/, '')) === searchNum) return true;
+                }
+              } catch (e) {
+                // Ignore conversion errors
+              }
+              
+              return false;
+            });
+          }
         }
         
         if (!validationToEdit) {

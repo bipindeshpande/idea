@@ -259,12 +259,15 @@ def get_user_activity() -> Any:
                 "created_at": serialize_datetime(r.created_at),
             })
         
-        # Get validations with pagination - exclude deleted ones and only show completed
+        # Get validations with pagination - exclude deleted ones
+        # For edit mode, include all statuses; otherwise only show completed
+        include_all_statuses = request.args.get("include_all_statuses", "false").lower() == "true"
         validations_query = UserValidation.query.filter_by(
             user_id=user.id,
-            is_deleted=False,
-            status=ValidationStatus.COMPLETED
+            is_deleted=False
         )
+        if not include_all_statuses:
+            validations_query = validations_query.filter_by(status=ValidationStatus.COMPLETED)
         validations = validations_query.order_by(UserValidation.created_at.desc()).limit(per_page).offset((page - 1) * per_page).all()
         total_validations = validations_query.count()
         

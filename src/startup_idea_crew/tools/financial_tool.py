@@ -4,7 +4,36 @@ Tools for estimating costs, revenue, and financial projections
 """
 
 from crewai.tools import tool
+import time
 from typing import Optional
+
+# Import cache utility (will work if Flask context is available)
+try:
+    from app.utils.tool_cache import ToolCache
+    CACHE_AVAILABLE = True
+except ImportError:
+    CACHE_AVAILABLE = False
+    ToolCache = None
+
+# Import metrics for tracking
+try:
+    from app.utils.performance_metrics import record_tool_call
+    METRICS_AVAILABLE = True
+except ImportError:
+    METRICS_AVAILABLE = False
+    record_tool_call = None
+
+# Import domain research manager for Layer 1 (shared facts)
+try:
+    from app.utils.domain_research import (
+        load_domain_research,
+        update_domain_research_field,
+    )
+    DOMAIN_RESEARCH_AVAILABLE = True
+except ImportError:
+    DOMAIN_RESEARCH_AVAILABLE = False
+    load_domain_research = None
+    update_domain_research_field = None
 
 
 @tool("Startup Cost Estimator")
@@ -19,6 +48,27 @@ def estimate_startup_costs(business_type: str, scope: str = "MVP") -> str:
     Returns:
         Cost breakdown with estimates
     """
+    tool_start_time = time.time()
+    tool_name = "estimate_startup_costs"
+    cache_hit = False
+    cache_miss = False
+    
+    # Check cache first
+    if CACHE_AVAILABLE and ToolCache:
+        cached_result = ToolCache.get(
+            tool_name,
+            business_type=business_type,
+            scope=scope
+        )
+        if cached_result:
+            cache_hit = True
+            duration = time.time() - tool_start_time
+            if METRICS_AVAILABLE and record_tool_call:
+                record_tool_call(tool_name, duration, cache_hit=True, params={"business_type": business_type, "scope": scope})
+            return cached_result
+        else:
+            cache_miss = True
+    
     # Ensure parameters are strings
     if isinstance(business_type, dict):
         business_type = str(business_type)
@@ -124,7 +174,23 @@ def estimate_startup_costs(business_type: str, scope: str = "MVP") -> str:
     minimal costs and scale as they validate product-market fit.
     """
     
-    return cost_report.strip()
+    cost_report_result = cost_report.strip()
+    
+    # Store in cache (14 day TTL for startup cost estimates)
+    if CACHE_AVAILABLE and ToolCache:
+        ToolCache.set(
+            tool_name,
+            cost_report_result,
+            ttl_days=14,
+            business_type=business_type,
+            scope=scope
+        )
+    
+    duration = time.time() - tool_start_time
+    if METRICS_AVAILABLE and record_tool_call:
+        record_tool_call(tool_name, duration, cache_hit=cache_hit, cache_miss=cache_miss, params={"business_type": business_type, "scope": scope})
+    
+    return cost_report_result
 
 
 @tool("Revenue Projection Tool")
@@ -140,7 +206,12 @@ def project_revenue(business_model: str, target_customers: str, pricing_model: s
     Returns:
         Revenue projections with different scenarios
     """
-    # Ensure parameters are strings
+    tool_start_time = time.time()
+    tool_name = "project_revenue"
+    cache_hit = False
+    cache_miss = False
+    
+    # Normalize parameters for cache key
     if isinstance(business_model, dict):
         business_model = str(business_model)
     business_model = str(business_model).strip()
@@ -149,15 +220,43 @@ def project_revenue(business_model: str, target_customers: str, pricing_model: s
         target_customers = str(target_customers)
     target_customers_str = str(target_customers).strip()
     
+    if isinstance(pricing_model, dict):
+        pricing_model = str(pricing_model)
+    pricing_model = str(pricing_model).strip() if pricing_model else ""
+    
+    # Check cache FIRST before any work
+    if CACHE_AVAILABLE and ToolCache:
+        cached_result = ToolCache.get(
+            tool_name,
+            business_model=business_model,
+            target_customers=target_customers_str,
+            pricing_model=pricing_model
+        )
+        if cached_result:
+            cache_hit = True
+            duration = time.time() - tool_start_time
+            if METRICS_AVAILABLE and record_tool_call:
+                record_tool_call(
+                    tool_name, 
+                    duration, 
+                    cache_hit=True, 
+                    params={
+                        "business_model": business_model, 
+                        "target_customers": target_customers_str,
+                        "pricing_model": pricing_model
+                    }
+                )
+            return cached_result
+        else:
+            cache_miss = True
+    
+    
     # Convert target_customers string to int
     try:
         target_customers_int = int(target_customers_str.replace(",", ""))
     except (ValueError, AttributeError):
         target_customers_int = 1000  # Default if conversion fails
     
-    if isinstance(pricing_model, dict):
-        pricing_model = str(pricing_model)
-    pricing_model = str(pricing_model).strip() if pricing_model else ""
     
     # Example pricing assumptions (should be customized based on actual data)
     pricing_examples = {
@@ -294,7 +393,34 @@ def project_revenue(business_model: str, target_customers: str, pricing_model: s
     should be validated through actual customer acquisition and retention data.
     """
     
-    return revenue_projection.strip()
+    revenue_projection_result = revenue_projection.strip()
+    
+    # Store in cache (30 day TTL for revenue projections)
+    if CACHE_AVAILABLE and ToolCache:
+        ToolCache.set(
+            tool_name,
+            revenue_projection_result,
+            ttl_days=30,
+            business_model=business_model,
+            target_customers=target_customers_str,
+            pricing_model=pricing_model
+        )
+    
+    duration = time.time() - tool_start_time
+    if METRICS_AVAILABLE and record_tool_call:
+        record_tool_call(
+            tool_name, 
+            duration, 
+            cache_hit=cache_hit, 
+            cache_miss=cache_miss, 
+            params={
+                "business_model": business_model, 
+                "target_customers": target_customers_str,
+                "pricing_model": pricing_model
+            }
+        )
+    
+    return revenue_projection_result
 
 
 @tool("Financial Viability Checker")
@@ -311,12 +437,59 @@ def check_financial_viability(idea: str, estimated_costs: str = "", estimated_re
     Returns:
         Financial viability assessment
     """
-    # Ensure idea is a string
+    tool_start_time = time.time()
+    tool_name = "check_financial_viability"
+    cache_hit = False
+    cache_miss = False
+    
+    # Normalize parameters for cache key
     if isinstance(idea, dict):
         idea = str(idea)
     idea = str(idea).strip()
     
-    # Handle optional parameters
+    if not estimated_costs or (isinstance(estimated_costs, str) and estimated_costs.strip() == ""):
+        estimated_costs = "Not specified"
+    else:
+        estimated_costs = str(estimated_costs).strip()
+    
+    if not estimated_revenue or (isinstance(estimated_revenue, str) and estimated_revenue.strip() == ""):
+        estimated_revenue = "Not specified"
+    else:
+        estimated_revenue = str(estimated_revenue).strip()
+    
+    if isinstance(time_horizon, dict):
+        time_horizon = str(time_horizon)
+    time_horizon = str(time_horizon).strip() if time_horizon else "Year 1"
+    
+    # Check cache FIRST before any work
+    if CACHE_AVAILABLE and ToolCache:
+        cached_result = ToolCache.get(
+            tool_name,
+            idea=idea,
+            estimated_costs=estimated_costs,
+            estimated_revenue=estimated_revenue,
+            time_horizon=time_horizon
+        )
+        if cached_result:
+            cache_hit = True
+            duration = time.time() - tool_start_time
+            if METRICS_AVAILABLE and record_tool_call:
+                record_tool_call(
+                    tool_name, 
+                    duration, 
+                    cache_hit=True, 
+                    params={
+                        "idea": idea,
+                        "estimated_costs": estimated_costs,
+                        "estimated_revenue": estimated_revenue,
+                        "time_horizon": time_horizon
+                    }
+                )
+            return cached_result
+        else:
+            cache_miss = True
+    
+    # Handle optional parameters (already normalized above, but needed for processing)
     if not estimated_costs or (isinstance(estimated_costs, str) and estimated_costs.strip() == ""):
         estimated_costs = "Not specified"
     else:
@@ -529,7 +702,34 @@ def check_financial_viability(idea: str, estimated_costs: str = "", estimated_re
     RECOMMENDATION: The idea shows {viability_score.lower()} financial viability. {'Focus on validating unit economics and customer acquisition before scaling.' if viability_score in ['MEDIUM', 'MEDIUM-HIGH'] else 'Continue validating market demand and refine financial projections based on actual sales data.' if viability_score == 'HIGH' else 'Consider revising business model, reducing costs, or increasing revenue potential before proceeding.'}
     """
     
-    return viability_report.strip()
+    viability_report_result = viability_report.strip()
     
-    return viability_report.strip()
+    # Store in cache (30 day TTL for financial viability)
+    if CACHE_AVAILABLE and ToolCache:
+        ToolCache.set(
+            tool_name,
+            viability_report_result,
+            ttl_days=30,
+            idea=idea,
+            estimated_costs=estimated_costs,
+            estimated_revenue=estimated_revenue,
+            time_horizon=time_horizon
+        )
+    
+    duration = time.time() - tool_start_time
+    if METRICS_AVAILABLE and record_tool_call:
+        record_tool_call(
+            tool_name, 
+            duration, 
+            cache_hit=cache_hit, 
+            cache_miss=cache_miss, 
+            params={
+                "idea": idea,
+                "estimated_costs": estimated_costs,
+                "estimated_revenue": estimated_revenue,
+                "time_horizon": time_horizon
+            }
+        )
+    
+    return viability_report_result
 

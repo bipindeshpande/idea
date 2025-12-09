@@ -138,55 +138,90 @@ def get_public_usage_stats() -> Any:
                 },
             })
         
-        # Count total users (active users only)
+        # Count total users (active users who have actually used the service)
+        # Only count users who have completed at least one validation or discovery
         try:
-            total_users = User.query.filter_by(is_active=True).count()
+            from sqlalchemy import or_
+            # Get distinct user IDs who have completed validations or runs
+            users_with_validations = db.session.query(UserValidation.user_id).filter(
+                UserValidation.is_deleted == False,
+                UserValidation.status == "completed"
+            ).distinct()
+            
+            users_with_runs = db.session.query(UserRun.user_id).filter(
+                UserRun.is_deleted == False,
+                UserRun.status == "completed"
+            ).distinct()
+            
+            # Count active users who appear in either list
+            total_users = User.query.filter(
+                User.is_active == True,
+                or_(
+                    User.id.in_(users_with_validations),
+                    User.id.in_(users_with_runs)
+                )
+            ).count()
         except Exception as e:
             current_app.logger.warning(f"Failed to count users: {e}")
-            total_users = 0
+            # Fallback to simple count if the query fails
+            try:
+                total_users = User.query.filter_by(is_active=True).count()
+            except:
+                total_users = 0
         
         # Count total validations (this month) - use index on created_at
+        # Only count completed validations that are not deleted
         this_month_start = utcnow().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
         
         try:
             validations_this_month = UserValidation.query.filter(
                 UserValidation.created_at >= this_month_start,
-                UserValidation.is_deleted == False
+                UserValidation.is_deleted == False,
+                UserValidation.status == "completed"
             ).count()
         except Exception as e:
             current_app.logger.warning(f"Failed to count validations this month: {e}")
             validations_this_month = 0
         
         # Count total discoveries (this month) - use index on created_at
+        # Only count completed discoveries that are not deleted
         try:
             discoveries_this_month = UserRun.query.filter(
                 UserRun.created_at >= this_month_start,
-                UserRun.is_deleted == False
+                UserRun.is_deleted == False,
+                UserRun.status == "completed"
             ).count()
         except Exception as e:
             current_app.logger.warning(f"Failed to count discoveries this month: {e}")
             discoveries_this_month = 0
         
-        # Count total validations (all time) - exclude deleted
+        # Count total validations (all time) - exclude deleted and only count completed
         try:
-            total_validations = UserValidation.query.filter_by(is_deleted=False).count()
+            total_validations = UserValidation.query.filter(
+                UserValidation.is_deleted == False,
+                UserValidation.status == "completed"
+            ).count()
         except Exception as e:
             current_app.logger.warning(f"Failed to count total validations: {e}")
             total_validations = 0
         
-        # Count total discoveries (all time) - exclude deleted
+        # Count total discoveries (all time) - exclude deleted and only count completed
         try:
-            total_discoveries = UserRun.query.filter_by(is_deleted=False).count()
+            total_discoveries = UserRun.query.filter(
+                UserRun.is_deleted == False,
+                UserRun.status == "completed"
+            ).count()
         except Exception as e:
             current_app.logger.warning(f"Failed to count total discoveries: {e}")
             total_discoveries = 0
         
-        # Calculate average validation score (from last 100 validations) - exclude deleted
+        # Calculate average validation score (from last 100 validations) - exclude deleted and only count completed
         total_score = 0
         score_count = 0
         try:
-            recent_validations = UserValidation.query.filter_by(
-                is_deleted=False
+            recent_validations = UserValidation.query.filter(
+                UserValidation.is_deleted == False,
+                UserValidation.status == "completed"
             ).order_by(
                 UserValidation.created_at.desc()
             ).limit(100).all()

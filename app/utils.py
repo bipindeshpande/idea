@@ -134,11 +134,21 @@ def _validate_discovery_inputs(payload: dict) -> Optional[str]:
     # Check for completely empty or nonsensical combinations
     has_minimal_info = False
     
+    # Helper to safely get string value
+    def get_string_value(key: str, default: str = "") -> str:
+        value = payload.get(key, default)
+        if value is None:
+            return default
+        if isinstance(value, str):
+            return value.strip()
+        # For non-string values (like dicts), return empty string to skip
+        return default
+    
     # Check if user provided at least some meaningful information
     meaningful_fields = [
-        payload.get("goal_type", "").strip(),
-        payload.get("interest_area", "").strip(),
-        payload.get("experience_summary", "").strip(),
+        get_string_value("goal_type", ""),
+        get_string_value("interest_area", ""),
+        get_string_value("experience_summary", ""),
     ]
     
     # Check if we have at least 2 fields with meaningful content (not defaults)
@@ -152,8 +162,18 @@ def _validate_discovery_inputs(payload: dict) -> Optional[str]:
         "skill_strength": "Analytical / Strategic",
     }
     
+    # Fields to skip during validation (non-string fields)
+    skip_fields = {"founder_psychology"}  # This is a dict, not a string
+    
     non_default_count = 0
     for key, value in payload.items():
+        # Skip non-string fields
+        if key in skip_fields:
+            continue
+        # Skip non-string values
+        if not isinstance(value, str):
+            continue
+            
         if key in default_values:
             if value and value.strip() and value.strip() != default_values[key]:
                 non_default_count += 1
@@ -165,9 +185,9 @@ def _validate_discovery_inputs(payload: dict) -> Optional[str]:
         return "Please provide more specific information about your goals, interests, or experience. The combination of inputs provided doesn't contain enough detail to generate meaningful recommendations."
     
     # Check for contradictory combinations
-    goal_type = payload.get("goal_type", "").strip().lower()
-    time_commitment = payload.get("time_commitment", "").strip().lower()
-    budget_range = payload.get("budget_range", "").strip().lower()
+    goal_type = get_string_value("goal_type", "").lower()
+    time_commitment = get_string_value("time_commitment", "").lower()
+    budget_range = get_string_value("budget_range", "").lower()
     
     # Check for impossible time/budget combinations
     if "full-time" in goal_type or "primary business" in goal_type:

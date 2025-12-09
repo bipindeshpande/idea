@@ -13,6 +13,7 @@ from app.utils.response_helpers import (
     unauthorized_response, internal_error_response
 )
 from app.utils.serialization import serialize_datetime
+from app.utils.validators import validate_email, validate_password, validate_text_field
 from app.constants import (
     DEFAULT_SUBSCRIPTION_TYPE, DEFAULT_PAYMENT_STATUS,
     MIN_PASSWORD_LENGTH, SUBSCRIPTION_DURATIONS,
@@ -29,7 +30,6 @@ from app.services.email_templates import (
 
 bp = Blueprint("auth", __name__, url_prefix="/api/auth")
 
-# Note: Rate limits are applied in api.py after blueprint registration
 # Import limiter lazily to avoid circular imports
 _limiter = None
 
@@ -45,41 +45,74 @@ def get_limiter():
     return _limiter
 
 
+def apply_rate_limit(limit_string):
+    """Helper to apply rate limit decorator if limiter is available."""
+    def decorator(func):
+        limiter = get_limiter()
+        if limiter:
+            return limiter.limit(limit_string)(func)
+        return func
+    return decorator
+
+
 @bp.post("/register")
+@apply_rate_limit("3 per hour")
 def register() -> Any:
     """Register a new user."""
-    data: Dict[str, Any] = request.get_json(force=True, silent=True) or {}
-    email = data.get("email", "").strip().lower()
-    password = data.get("password", "").strip()
-    
-    if not email or not password:
-        return error_response("Email and password are required", 400)
-    
-    if len(password) < MIN_PASSWORD_LENGTH:
-        return error_response(ErrorMessages.PASSWORD_TOO_SHORT, 400)
-    
-    # Check if user exists
-    existing_user = User.query.filter_by(email=email).first()
-    if existing_user:
-        return error_response("Email already registered", 400)
-    
-    # Create new user with 3-day free trial
-    trial_duration = SUBSCRIPTION_DURATIONS.get(SubscriptionTier.FREE_TRIAL, 3)
-    user = User(
-        email=email,
-        subscription_type=SubscriptionTier.FREE_TRIAL,
-        subscription_started_at=utcnow(),
-        subscription_expires_at=utcnow() + timedelta(days=trial_duration),
-        payment_status=DEFAULT_PAYMENT_STATUS,
-    )
-    user.set_password(password)
-    
     try:
+        data: Dict[str, Any] = request.get_json(force=True, silent=True) or {}
+        email = data.get("email", "").strip().lower()
+        password = data.get("password", "").strip()
+        
+        # Validate email
+        try:
+            is_valid, error_msg = validate_email(email)
+            if not is_valid:
+                return error_response(error_msg, 400)
+        except Exception as e:
+            current_app.logger.warning(f"Email validation error: {e}")
+            return error_response("Invalid email format", 400)
+        
+        # Validate password
+        try:
+            is_valid, error_msg = validate_password(password)
+            if not is_valid:
+                return error_response(error_msg, 400)
+        except Exception as e:
+            current_app.logger.warning(f"Password validation error: {e}")
+            return error_response(f"Password must be at least {MIN_PASSWORD_LENGTH} characters", 400)
+        
+        # Check if user exists
+        try:
+            existing_user = User.query.filter_by(email=email).first()
+            if existing_user:
+                return error_response("Email already registered", 400)
+        except Exception as e:
+            current_app.logger.exception("Database error checking existing user: %s", e)
+            db.session.rollback()
+            return internal_error_response(ErrorMessages.DATABASE_ERROR)
+        
+        # Create new user with 3-day free trial
+        trial_duration = SUBSCRIPTION_DURATIONS.get(SubscriptionTier.FREE_TRIAL, 3)
+        user = User(
+            email=email,
+            subscription_type=SubscriptionTier.FREE_TRIAL,
+            subscription_started_at=utcnow(),
+            subscription_expires_at=utcnow() + timedelta(days=trial_duration),
+            payment_status=DEFAULT_PAYMENT_STATUS,
+        )
+        user.set_password(password)
+        
         db.session.add(user)
         db.session.commit()
         
         # Create session
-        session = create_user_session(user.id, request.remote_addr, request.headers.get("User-Agent"))
+        try:
+            session = create_user_session(user.id, request.remote_addr, request.headers.get("User-Agent"))
+        except Exception as session_error:
+            current_app.logger.exception("Failed to create user session: %s", session_error)
+            db.session.rollback()
+            return internal_error_response("Failed to create session. Please try again.")
         
         # Log successful login
         try:
@@ -130,6 +163,7 @@ def register() -> Any:
 
 
 @bp.post("/login")
+@apply_rate_limit("5 per minute")
 def login() -> Any:
     """Login user."""
     try:
@@ -143,8 +177,18 @@ def login() -> Any:
         email = data.get("email", "").strip().lower()
         password = data.get("password", "").strip()
         
-        if not email or not password:
-            return error_response("Email and password are required", 400)
+        # Validate email
+        try:
+            is_valid, error_msg = validate_email(email)
+            if not is_valid:
+                return error_response(error_msg, 400)
+        except Exception as e:
+            current_app.logger.warning(f"Email validation error during login: {e}")
+            return unauthorized_response("Invalid email or password")
+        
+        # Validate password length (basic validation - don't reveal format requirements)
+        if not password or len(password) > 128:
+            return unauthorized_response("Invalid email or password")
         
         try:
             user = User.query.filter_by(email=email).first()
@@ -181,27 +225,9 @@ def login() -> Any:
             return error_response("Account is deactivated", 403)
         
         # Create user dict BEFORE creating session to avoid any transaction issues
-        # Use read-only approach - no database modifications
+        # Use to_dict() method which handles all edge cases safely
         try:
-            subscription_type = user.subscription_type or DEFAULT_SUBSCRIPTION_TYPE
-            is_active = subscription_type == SubscriptionTier.FREE
-            if user.subscription_expires_at:
-                is_active = normalize_datetime(utcnow()) < normalize_datetime(user.subscription_expires_at)
-            
-            days_remaining = 0
-            if user.subscription_expires_at:
-                remaining = (normalize_datetime(user.subscription_expires_at) - normalize_datetime(utcnow())).days
-                days_remaining = max(0, remaining)
-            
-            user_dict = {
-                "id": user.id,
-                "email": user.email,
-                "subscription_type": subscription_type,
-                "subscription_expires_at": user.subscription_expires_at.isoformat() if user.subscription_expires_at else None,
-                "payment_status": user.payment_status or DEFAULT_PAYMENT_STATUS,
-                "is_active": is_active,
-                "days_remaining": days_remaining,
-            }
+            user_dict = user.to_dict()
         except Exception as dict_error:
             current_app.logger.exception("Failed to create user dict: %s", dict_error)
             current_app.logger.error(f"User dict error traceback: {traceback.format_exc()}")
@@ -328,13 +354,16 @@ def get_current_user() -> Any:
 
 
 @bp.post("/forgot-password")
+@apply_rate_limit("3 per hour")
 def forgot_password() -> Any:
     """Request password reset."""
     data: Dict[str, Any] = request.get_json(force=True, silent=True) or {}
     email = data.get("email", "").strip().lower()
     
-    if not email:
-        return error_response(ErrorMessages.EMAIL_REQUIRED, 400)
+    # Validate email format
+    is_valid, error_msg = validate_email(email)
+    if not is_valid:
+        return error_response(error_msg, 400)
     
     user = User.query.filter_by(email=email).first()
     if not user:
@@ -372,17 +401,28 @@ def forgot_password() -> Any:
 
 
 @bp.post("/reset-password")
+@apply_rate_limit("3 per hour")
 def reset_password() -> Any:
     """Reset password with token."""
     data: Dict[str, Any] = request.get_json(force=True, silent=True) or {}
     token = data.get("token", "").strip()
     new_password = data.get("password", "").strip()
     
-    if not token or not new_password:
-        return error_response("Token and password are required", 400)
+    # Validate token format
+    if not token:
+        return error_response("Token is required", 400)
     
-    if len(new_password) < MIN_PASSWORD_LENGTH:
-        return error_response(ErrorMessages.PASSWORD_TOO_SHORT, 400)
+    is_valid, error_msg = validate_text_field(token, "Token", required=True, max_length=255)
+    if not is_valid:
+        return error_response(error_msg, 400)
+    
+    # Validate password
+    if not new_password:
+        return error_response("Password is required", 400)
+    
+    is_valid, error_msg = validate_password(new_password)
+    if not is_valid:
+        return error_response(error_msg, 400)
     
     user = User.query.filter(User.reset_token.isnot(None)).first()
     if not user or not user.verify_reset_token(token):
@@ -409,6 +449,7 @@ def reset_password() -> Any:
 
 @bp.post("/change-password")
 @require_auth
+@apply_rate_limit("5 per hour")
 def change_password() -> Any:
     """Change password (requires current password)."""
     session = get_current_session()
@@ -422,8 +463,10 @@ def change_password() -> Any:
     if not current_password or not new_password:
         return error_response("Current and new passwords are required", 400)
     
-    if len(new_password) < MIN_PASSWORD_LENGTH:
-        return error_response(ErrorMessages.PASSWORD_TOO_SHORT, 400)
+    # Validate new password
+    is_valid, error_msg = validate_password(new_password)
+    if not is_valid:
+        return error_response(error_msg, 400)
     
     user = session.user
     if not user.check_password(current_password):

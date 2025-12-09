@@ -5,6 +5,9 @@ from datetime import datetime, timedelta, timezone
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
 from sqlalchemy import Index, Enum as SQLEnum
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.types import TypeDecorator, TEXT
+import json
 import secrets
 
 db = SQLAlchemy()
@@ -54,6 +57,17 @@ class User(db.Model):
     # Password reset
     reset_token = db.Column(db.String(255), nullable=True)
     reset_token_expires_at = db.Column(db.DateTime, nullable=True)
+    
+    # Founder psychology assessment (JSONB for PostgreSQL, TEXT for SQLite)
+    # Stores: motivation, motivation_other, biggest_fear, biggest_fear_other,
+    # decision_style, energy_pattern, constraints, constraints_other,
+    # success_definition, success_definition_other, archetype
+    founder_psychology = db.Column(
+        JSONB().with_variant(db.Text, 'sqlite'),  # JSONB for PostgreSQL, TEXT for SQLite
+        default=lambda: {},
+        nullable=False,
+        server_default='{}'
+    )
     
     # Relationships - use selectinload for better performance than lazy loading
     sessions = db.relationship("UserSession", backref="user", lazy="selectin", cascade="all, delete-orphan")
@@ -608,8 +622,7 @@ class UserAction(db.Model):
     completed_at = db.Column(db.DateTime, nullable=True)
     created_at = db.Column(db.DateTime, default=utcnow, index=True)
     updated_at = db.Column(db.DateTime, default=utcnow, onupdate=utcnow)
-    is_deleted = db.Column(db.Boolean, default=False, index=True)
-    archived_at = db.Column(db.DateTime, nullable=True)
+    # Note: is_deleted and archived_at columns removed - not present in database table
     
     # Relationships
     user = db.relationship("User", backref="actions")
@@ -626,8 +639,7 @@ class UserNote(db.Model):
     tags = db.Column(db.Text)  # JSON string array of tags
     created_at = db.Column(db.DateTime, default=utcnow, index=True)
     updated_at = db.Column(db.DateTime, default=utcnow, onupdate=utcnow, index=True)
-    # Note: is_deleted column removed - not present in database table
-    archived_at = db.Column(db.DateTime, nullable=True)
+    # Note: is_deleted and archived_at columns removed - not present in database table
     
     # Composite index for common queries
     __table_args__ = (
@@ -637,6 +649,25 @@ class UserNote(db.Model):
     
     # Relationships
     user = db.relationship("User", backref="notes")
+
+
+class ToolCacheEntry(db.Model):
+    """Cache for tool results to speed up Discovery endpoint."""
+    __tablename__ = "tool_cache"
+    
+    id = db.Column(db.Integer, primary_key=True)
+    cache_key = db.Column(db.String(255), unique=True, nullable=False, index=True)
+    tool_name = db.Column(db.String(100), nullable=False, index=True)
+    tool_params = db.Column(db.Text)  # JSON string of parameters
+    result = db.Column(db.Text, nullable=False)  # Cached tool result
+    hit_count = db.Column(db.Integer, default=0, index=True)
+    created_at = db.Column(db.DateTime, default=utcnow, index=True)
+    expires_at = db.Column(db.DateTime, nullable=False, index=True)
+    
+    __table_args__ = (
+        Index('idx_tool_cache_key', 'cache_key'),
+        Index('idx_tool_cache_expires', 'expires_at'),
+    )
 
 
 class Admin(db.Model):

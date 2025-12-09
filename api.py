@@ -30,6 +30,7 @@ from flask import Flask, jsonify, request, send_from_directory, g
 from flask_cors import CORS
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
+from flask_limiter.errors import RateLimitExceeded
 from werkzeug.security import generate_password_hash, check_password_hash
 from sqlalchemy import func
 import uuid
@@ -215,7 +216,38 @@ def after_request(response):
     
     return response
 
-# Global error handler for unhandled exceptions
+# Handle rate limit exceeded errors
+@app.errorhandler(RateLimitExceeded)
+def handle_rate_limit_exceeded(e):
+    """Handle rate limit exceeded errors."""
+    request_id = getattr(g, 'request_id', 'unknown')
+    app.logger.warning(f"[{request_id}] Rate limit exceeded: {str(e)}")
+    response = jsonify({
+        "success": False,
+        "error": "Rate limit exceeded. Please try again later.",
+        "error_code": "RATE_LIMIT_EXCEEDED",
+        "request_id": request_id
+    })
+    response.status_code = 429
+    return response
+
+# Handle 404 Not Found errors - must be before general Exception handler
+from werkzeug.exceptions import NotFound
+@app.errorhandler(NotFound)
+def handle_not_found(e):
+    """Handle 404 Not Found errors."""
+    request_id = getattr(g, 'request_id', 'unknown')
+    app.logger.debug(f"[{request_id}] 404 Not Found: {request.path}")
+    response = jsonify({
+        "success": False,
+        "error": "Endpoint not found",
+        "error_code": "NOT_FOUND",
+        "request_id": request_id
+    })
+    response.status_code = 404
+    return response
+
+# Global error handler for unhandled exceptions (but not 404s)
 @app.errorhandler(Exception)
 def handle_exception(e):
     """Handle all unhandled exceptions."""
@@ -366,7 +398,9 @@ if "postgresql" in app.config["SQLALCHEMY_DATABASE_URI"].lower() or "postgres" i
         "pool_recycle": int(os.environ.get("DB_POOL_RECYCLE", "3600")),  # Recycle connections after 1 hour
         "connect_args": {
             "connect_timeout": 10,  # 10 second connection timeout
-        }
+        },
+        # Disable automatic table reflection to prevent repeated catalog queries
+        "echo": False,  # Set to True only for debugging SQL queries
     }
 
 db.init_app(app)
@@ -415,15 +449,32 @@ werkzeug_logger = logging.getLogger('werkzeug')
 werkzeug_logger.setLevel(logging.DEBUG)
 werkzeug_logger.addHandler(logging.StreamHandler(sys.stdout))
 
-# Enable SQLAlchemy logging to see database queries and errors
+# Enable SQLAlchemy logging - but suppress schema inspection queries
+# Only show WARNING and above to reduce noise, but keep errors visible
 sqlalchemy_logger = logging.getLogger('sqlalchemy.engine')
-sqlalchemy_logger.setLevel(logging.INFO)  # INFO shows SQL queries
-sqlalchemy_logger.addHandler(logging.StreamHandler(sys.stdout))
+sqlalchemy_logger.setLevel(logging.WARNING)  # Changed from INFO to WARNING to reduce schema inspection noise
 
 # Enable SQLAlchemy error logging
 sqlalchemy_error_logger = logging.getLogger('sqlalchemy')
 sqlalchemy_error_logger.setLevel(logging.ERROR)
 sqlalchemy_error_logger.addHandler(logging.StreamHandler(sys.stdout))
+
+# Suppress DEBUG logs from third-party libraries to keep logs clean for performance monitoring
+third_party_loggers = [
+    'LiteLLM',
+    'litellm',
+    'httpcore',
+    'httpx',
+    'urllib3',
+    'openai',
+]
+for logger_name in third_party_loggers:
+    logger = logging.getLogger(logger_name)
+    logger.setLevel(logging.WARNING)  # Only show warnings and errors
+
+# Suppress werkzeug DEBUG logs (but keep INFO for useful request logs)
+werkzeug_logger = logging.getLogger('werkzeug')
+werkzeug_logger.setLevel(logging.INFO)  # Keep INFO for request logs, suppress DEBUG
 
 # Enable other common loggers
 for logger_name in ['app', 'app.routes', 'app.models', 'app.utils']:
@@ -453,6 +504,32 @@ with app.app_context():
         # Test database connection first
         db.session.execute(db.text("SELECT 1"))
         print("✅ Database connection test successful", flush=True)
+        
+        # Ensure all models are bound to metadata to prevent repeated table existence checks
+        # This prevents SQLAlchemy from querying pg_catalog repeatedly
+        # Import all models to ensure they're registered with SQLAlchemy
+        from app.models.database import (
+            User, UserSession, UserRun, UserValidation, UserAction, 
+            UserNote, Payment, SubscriptionCancellation, Admin, 
+            AdminResetToken, SystemSettings, ToolCacheEntry, 
+            FounderProfile, IdeaListing, ConnectionRequest, 
+            ConnectionCreditLedger, StripeEvent, AuditLog
+        )
+        # Force metadata binding by accessing table definitions
+        # This ensures SQLAlchemy knows about all tables without querying the catalog
+        # Accessing __table__ on each model ensures the table metadata is fully bound
+        models = [User, UserSession, UserRun, UserValidation, UserAction, 
+                  UserNote, Payment, SubscriptionCancellation, Admin, 
+                  AdminResetToken, SystemSettings, ToolCacheEntry, 
+                  FounderProfile, IdeaListing, ConnectionRequest, 
+                  ConnectionCreditLedger, StripeEvent, AuditLog]
+        for model in models:
+            try:
+                _ = model.__table__
+            except Exception:
+                # Model might not have __table__ yet, that's okay
+                pass
+        
         db.create_all()
         print("✅ Database tables created/verified", flush=True)
         

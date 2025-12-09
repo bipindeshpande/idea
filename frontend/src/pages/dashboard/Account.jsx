@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import Seo from "../../components/common/Seo.jsx";
 import LoadingIndicator from "../../components/common/LoadingIndicator.jsx";
@@ -50,6 +50,8 @@ export default function AccountPage() {
   });
   const [passwordError, setPasswordError] = useState("");
   const [passwordSuccess, setPasswordSuccess] = useState("");
+  const [psychologyData, setPsychologyData] = useState(null);
+  const [loadingPsychology, setLoadingPsychology] = useState(true);
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -60,7 +62,31 @@ export default function AccountPage() {
     setError("");
     setSuccess("");
     loadSubscription();
-  }, [isAuthenticated, navigate]);
+    loadPsychology();
+  }, [isAuthenticated, navigate, loadPsychology]);
+
+  const loadPsychology = useCallback(async () => {
+    try {
+      setLoadingPsychology(true);
+      const response = await fetch("/api/founder/psychology", {
+        headers: {
+          ...getAuthHeaders(),
+          "Content-Type": "application/json"
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          setPsychologyData(data.data || {});
+        }
+      }
+    } catch (error) {
+      console.error("Error loading psychology:", error);
+    } finally {
+      setLoadingPsychology(false);
+    }
+  }, [getAuthHeaders]);
 
   const loadSubscription = async () => {
     try {
@@ -152,7 +178,13 @@ export default function AccountPage() {
   };
 
   const handleChangePlan = async (newPlan) => {
-    if (!window.confirm(`Switch to ${newPlan === "weekly" ? "Weekly ($5/week)" : "Monthly ($15/month)"} plan?`)) {
+    const planNames = {
+      starter: "Starter ($7/month)",
+      pro: "Pro ($15/month)",
+      weekly: "Weekly ($5/week)",
+    };
+    const planDisplay = planNames[newPlan] || `${newPlan} plan`;
+    if (!window.confirm(`Switch to ${planDisplay}?`)) {
       return;
     }
 
@@ -332,6 +364,69 @@ export default function AccountPage() {
             </div>
           )}
         </div>
+      </div>
+
+      {/* Founder Psychology Profile */}
+      <div className="mb-8 rounded-3xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-8 shadow-soft">
+        <div className="mb-6 flex items-center justify-between">
+          <div>
+            <h2 className="text-2xl font-semibold text-slate-900 dark:text-slate-50">Founder Psychology Profile</h2>
+            <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">Manage your psychological assessment for personalized recommendations</p>
+          </div>
+          <Link
+            to="/founder-psychology"
+            className="rounded-xl border border-brand-300 dark:border-brand-700 bg-white dark:bg-slate-800 px-5 py-2.5 text-sm font-semibold text-brand-700 dark:text-brand-300 shadow-sm transition-all duration-200 hover:bg-brand-50 dark:hover:bg-brand-900/20"
+          >
+            {psychologyData?.archetype ? "Edit Profile" : "Complete Profile"}
+          </Link>
+        </div>
+        {loadingPsychology ? (
+          <p className="text-sm text-slate-500 dark:text-slate-400">Loading profile status...</p>
+        ) : (
+          <>
+            <div className="grid gap-6 md:grid-cols-2">
+              <div>
+                <p className="text-sm font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Status</p>
+                <p className="mt-2 text-lg font-semibold text-slate-900 dark:text-slate-50">
+                  {psychologyData?.archetype ? (
+                    <span className="text-emerald-600 dark:text-emerald-400">✓ Completed</span>
+                  ) : (
+                    <span className="text-slate-500 dark:text-slate-400">Not Started</span>
+                  )}
+                </p>
+              </div>
+              {psychologyData?.archetype && (
+                <div>
+                  <p className="text-sm font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Archetype</p>
+                  <p className="mt-2 text-lg font-semibold text-slate-900 dark:text-slate-50">
+                    {psychologyData.archetype}
+                  </p>
+                </div>
+              )}
+            </div>
+            {psychologyData?.archetype && (
+              <div className="mt-6 pt-6 border-t border-slate-200 dark:border-slate-700">
+                <p className="text-sm text-slate-600 dark:text-slate-400 mb-3">
+                  Your profile includes: {[
+                    psychologyData.motivation && "Motivation",
+                    psychologyData.fear && "Fear Assessment",
+                    psychologyData.decision_style && "Decision Style",
+                    psychologyData.energy_pattern && "Energy Pattern",
+                    psychologyData.consistency_pattern && "Consistency Pattern",
+                    psychologyData.risk_approach && "Risk Approach",
+                    psychologyData.success_definition && "Success Definition"
+                  ].filter(Boolean).join(", ")}
+                </p>
+                <Link
+                  to="/founder-psychology"
+                  className="inline-block rounded-xl bg-brand-500 px-5 py-2.5 text-sm font-semibold text-white hover:bg-brand-600 transition"
+                >
+                  Edit Psychology Profile
+                </Link>
+              </div>
+            )}
+          </>
+        )}
       </div>
 
       {/* Change Password */}
@@ -565,7 +660,13 @@ export default function AccountPage() {
                     <td className="px-4 py-3 text-sm text-slate-600 dark:text-slate-300">
                       {payment.created_at ? new Date(payment.created_at).toLocaleDateString() : "—"}
                     </td>
-                    <td className="px-4 py-3 text-sm font-semibold text-slate-900 dark:text-slate-50">${payment.amount.toFixed(2)}</td>
+                    <td className="px-4 py-3 text-sm font-semibold text-slate-900 dark:text-slate-50">
+                      {payment.amount != null && typeof payment.amount === 'number' 
+                        ? `$${payment.amount.toFixed(2)}` 
+                        : payment.amount != null 
+                          ? `$${Number(payment.amount).toFixed(2)}` 
+                          : "—"}
+                    </td>
                     <td className="px-4 py-3 text-sm text-slate-600 dark:text-slate-300 capitalize">{payment.subscription_type}</td>
                     <td className="px-4 py-3">
                       <span className="rounded-full bg-emerald-100 dark:bg-emerald-900/50 px-3 py-1 text-xs font-semibold text-emerald-700 dark:text-emerald-300">

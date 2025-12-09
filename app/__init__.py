@@ -35,7 +35,17 @@ def create_app():
     
     # Initialize database tables
     with app.app_context():
-        db.create_all()
+        try:
+            db.create_all()
+            # Verify tool_cache table exists
+            from sqlalchemy import inspect
+            inspector = inspect(db.engine)
+            if 'tool_cache' not in inspector.get_table_names():
+                current_app.logger.warning(
+                    "tool_cache table not found. Run migration: migrations/add_tool_cache_table.sql"
+                )
+        except Exception as e:
+            current_app.logger.warning(f"Error creating database tables: {e}")
         
         # Cleanup old temp files on startup (important for high-concurrency scenarios)
         try:

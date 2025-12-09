@@ -17,12 +17,35 @@ except ImportError:
 
 from app.models.database import db, User, UserSession, UserRun, UserValidation, utcnow
 from app.utils import get_current_session, require_auth
+from app.utils.validators import validate_idea_explanation, validate_text_field, validate_string_array
 from app.services.email_service import email_service
 from app.services.email_templates import validation_ready_email
 
 bp = Blueprint("validation", __name__)
 
-# Note: Rate limits will be applied after blueprint registration in api.py
+# Import limiter lazily to avoid circular imports
+_limiter = None
+
+def get_limiter():
+    """Get limiter instance lazily to avoid circular imports."""
+    global _limiter
+    if _limiter is None:
+        try:
+            from api import limiter
+            _limiter = limiter
+        except (ImportError, AttributeError, RuntimeError):
+            _limiter = None
+    return _limiter
+
+
+def apply_rate_limit(limit_string):
+    """Helper to apply rate limit decorator if limiter is available."""
+    def decorator(func):
+        limiter = get_limiter()
+        if limiter:
+            return limiter.limit(limit_string)(func)
+        return func
+    return decorator
 
 # Validation model configuration - can be "openai", "claude", or "auto" (tries Claude first, falls back to OpenAI)
 VALIDATION_MODEL_PROVIDER = os.environ.get("VALIDATION_MODEL_PROVIDER", "claude").lower()
@@ -836,19 +859,35 @@ def _parse_markdown_validation(markdown_content: str) -> dict:
             next_steps = step_lines[:5]  # Max 5 steps
         
         # Build complete validation data structure (compatible with frontend)
+        # Map 5 pillars to 10 parameters with intelligent distribution
+        # If a pillar score exists, use it; otherwise calculate from related pillars or use overall
+        market_score = pillar_scores.get("market_opportunity", None)
+        problem_score = pillar_scores.get("problem_solution_fit", None)
+        competitive_score = pillar_scores.get("competitive_landscape", None)
+        financial_score = pillar_scores.get("financial_sustainability", None)
+        risk_score = pillar_scores.get("risk_assessment", None)
+        
+        # Calculate derived scores intelligently
+        # If we have market_score, use it for market_opportunity and target_audience_clarity
+        # If we have problem_score, use it for problem_solution_fit
+        # If we have competitive_score, use it for competitive_landscape and go_to_market_strategy
+        # If we have financial_score, use it for financial_sustainability and business_model_viability
+        # If we have risk_score, use it for risk_assessment and technical_feasibility
+        # For scalability, use market_score if available, otherwise overall
+        
         validation_data = {
             "overall_score": overall_score,
             "scores": {
-                "market_opportunity": pillar_scores.get("market_opportunity", round(overall_score)),
-                "problem_solution_fit": pillar_scores.get("problem_solution_fit", round(overall_score)),
-                "competitive_landscape": pillar_scores.get("competitive_landscape", round(overall_score)),
-                "target_audience_clarity": pillar_scores.get("problem_solution_fit", round(overall_score)),  # Derived
-                "business_model_viability": pillar_scores.get("financial_sustainability", round(overall_score)),  # Derived
-                "technical_feasibility": pillar_scores.get("risk_assessment", round(overall_score)),  # Derived
-                "financial_sustainability": pillar_scores.get("financial_sustainability", round(overall_score)),
-                "scalability_potential": pillar_scores.get("market_opportunity", round(overall_score)),  # Derived
-                "risk_assessment": pillar_scores.get("risk_assessment", round(overall_score)),
-                "go_to_market_strategy": pillar_scores.get("competitive_landscape", round(overall_score)),  # Derived
+                "market_opportunity": market_score if market_score is not None else round(overall_score),
+                "problem_solution_fit": problem_score if problem_score is not None else round(overall_score),
+                "competitive_landscape": competitive_score if competitive_score is not None else round(overall_score),
+                "target_audience_clarity": market_score if market_score is not None else (problem_score if problem_score is not None else round(overall_score)),
+                "business_model_viability": financial_score if financial_score is not None else (market_score if market_score is not None else round(overall_score)),
+                "technical_feasibility": risk_score if risk_score is not None else (problem_score if problem_score is not None else round(overall_score)),
+                "financial_sustainability": financial_score if financial_score is not None else round(overall_score),
+                "scalability_potential": market_score if market_score is not None else (financial_score if financial_score is not None else round(overall_score)),
+                "risk_assessment": risk_score if risk_score is not None else round(overall_score),
+                "go_to_market_strategy": competitive_score if competitive_score is not None else (market_score if market_score is not None else round(overall_score)),
             },
             "details": details,
             "recommendations": recommendations,
@@ -874,6 +913,10 @@ def _parse_markdown_validation(markdown_content: str) -> dict:
         logger.error(f"First 1000 chars: {markdown_content[:1000] if markdown_content else 'None'}")
         logger.error(traceback.format_exc())
         return None
+
+
+# Alias for backward compatibility with tests
+_extract_validation_data_from_markdown = _parse_markdown_validation
 
 
 def _cap_scores_for_vague_idea(validation_data: dict, idea_explanation: str) -> dict:
@@ -909,6 +952,7 @@ def _cap_scores_for_vague_idea(validation_data: dict, idea_explanation: str) -> 
 
 @bp.post("/api/validate-idea")
 @require_auth
+@apply_rate_limit("10 per hour")
 def validate_idea() -> Any:
   """Validate a startup idea across 10 key parameters using OpenAI."""
   # Check usage limits and refresh session activity at start
@@ -934,14 +978,63 @@ def validate_idea() -> Any:
   category_answers = data.get("category_answers", {})
   idea_explanation = data.get("idea_explanation", "").strip()
   
-  # PRE-CHECK: Skip vague idea check for now - let AI judge with structured data
-  # The new 3-screen form provides enough structure to let AI properly evaluate
-  # Only check for completely empty submissions
-  if not idea_explanation or len(idea_explanation.strip()) < 3:
+  # Validate idea explanation using centralized validator
+  is_valid, error_msg = validate_idea_explanation(idea_explanation)
+  if not is_valid:
     return jsonify({
       "success": False,
-      "error": "Please provide a description of your idea. Use the structured format to describe your problem, solution, and target users.",
+      "error": error_msg or "Please provide a valid description of your idea.",
     }), 400
+  
+  # Validate category_answers fields if provided
+  if category_answers:
+    # Validate individual category answer fields for length and content
+    max_field_lengths = {
+      "industry": 200,
+      "geography": 200,
+      "stage": 100,
+      "commitment": 100,
+      "problem_category": 200,
+      "solution_type": 200,
+      "user_type": 200,
+      "revenue_model": 200,
+      "unique_moat": 1000,
+      "initial_budget": 100,
+      "competitors": 2000,
+      "business_archetype": 200,
+      "delivery_channel": 200,
+    }
+    
+    for field_name, max_length in max_field_lengths.items():
+      if field_name in category_answers and category_answers[field_name]:
+        field_value = str(category_answers[field_name]).strip()
+        is_valid, error_msg = validate_text_field(
+          field_value,
+          field_name.replace("_", " ").title(),
+          required=False,
+          max_length=max_length,
+          allow_html=False
+        )
+        if not is_valid:
+          return jsonify({
+            "success": False,
+            "error": error_msg,
+          }), 400
+    
+    # Validate constraints array if provided
+    if "constraints" in category_answers and category_answers["constraints"]:
+      is_valid, error_msg, _ = validate_string_array(
+        category_answers["constraints"],
+        "Constraints",
+        max_items=50,
+        max_item_length=200,
+        required=False
+      )
+      if not is_valid:
+        return jsonify({
+          "success": False,
+          "error": error_msg,
+        }), 400
   
   # PRE-CHECK: If idea is vague/nonsensical, return harsh default score immediately (no AI call)
   # DISABLED - Let AI judge instead since we have structured data from form

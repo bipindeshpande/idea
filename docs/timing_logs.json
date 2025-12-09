@@ -1,0 +1,3225 @@
+[
+  {
+    "session_id": "1765233319_MainThread",
+    "timestamp": "2025-12-08T16:35:19.085285",
+    "events": [
+      {
+        "component": "test",
+        "event": "start",
+        "timestamp": 1765233319.0852854,
+        "datetime": "2025-12-08T16:35:19.085285"
+      },
+      {
+        "component": "test",
+        "event": "end",
+        "timestamp": 1765233319.0852854,
+        "datetime": "2025-12-08T16:35:19.085285",
+        "duration": 1.5
+      }
+    ],
+    "summary": {
+      "total_events": 2,
+      "components": {
+        "test": {
+          "event_count": 2,
+          "events": [
+            "start",
+            "end"
+          ]
+        }
+      },
+      "durations": [
+        {
+          "component": "test",
+          "event": "end",
+          "duration": 1.5
+        }
+      ],
+      "openai_calls": [],
+      "total_duration": 1.5,
+      "total_openai_duration": 0,
+      "tool_overhead": 1.5
+    }
+  },
+  {
+    "session_id": "1765235257_MainThread",
+    "timestamp": "2025-12-08T17:07:37.046928",
+    "events": [
+      {
+        "component": "run_unified_discovery_non_streaming",
+        "event": "pipeline_start",
+        "timestamp": 1765235175.8751495,
+        "datetime": "2025-12-08T17:06:15.875149"
+      },
+      {
+        "component": "run_unified_discovery_non_streaming",
+        "event": "stage1_start",
+        "timestamp": 1765235175.87613,
+        "datetime": "2025-12-08T17:06:15.876130"
+      },
+      {
+        "component": "precompute_all_tools",
+        "event": "start",
+        "timestamp": 1765235175.8771343,
+        "datetime": "2025-12-08T17:06:15.877134"
+      },
+      {
+        "component": "tool_market_trends",
+        "event": "start",
+        "timestamp": 1765235175.8771343,
+        "datetime": "2025-12-08T17:06:15.877134"
+      },
+      {
+        "component": "tool_competitors",
+        "event": "start",
+        "timestamp": 1765235175.8771343,
+        "datetime": "2025-12-08T17:06:15.877134"
+      },
+      {
+        "component": "tool_market_size",
+        "event": "start",
+        "timestamp": 1765235175.8786337,
+        "datetime": "2025-12-08T17:06:15.878634"
+      },
+      {
+        "component": "tool_validation",
+        "event": "start",
+        "timestamp": 1765235175.8786337,
+        "datetime": "2025-12-08T17:06:15.878634"
+      },
+      {
+        "component": "tool_risks",
+        "event": "start",
+        "timestamp": 1765235175.8786337,
+        "datetime": "2025-12-08T17:06:15.878634"
+      },
+      {
+        "component": "tool_costs",
+        "event": "start",
+        "timestamp": 1765235175.8786337,
+        "datetime": "2025-12-08T17:06:15.878634"
+      },
+      {
+        "component": "tool_revenue",
+        "event": "start",
+        "timestamp": 1765235175.879943,
+        "datetime": "2025-12-08T17:06:15.879943"
+      },
+      {
+        "component": "tool_viability",
+        "event": "start",
+        "timestamp": 1765235175.879943,
+        "datetime": "2025-12-08T17:06:15.879943"
+      },
+      {
+        "component": "tool_persona",
+        "event": "start",
+        "timestamp": 1765235175.879943,
+        "datetime": "2025-12-08T17:06:15.879943"
+      },
+      {
+        "component": "tool_validation_questions",
+        "event": "start",
+        "timestamp": 1765235175.879943,
+        "datetime": "2025-12-08T17:06:15.879943"
+      },
+      {
+        "component": "precompute_all_tools",
+        "event": "first_tool_complete",
+        "timestamp": 1765235175.8928611,
+        "datetime": "2025-12-08T17:06:15.892861",
+        "duration": 0.012918233871459961,
+        "details": {
+          "tool": "viability"
+        }
+      },
+      {
+        "component": "tool_viability",
+        "event": "end",
+        "timestamp": 1765235175.8928611,
+        "datetime": "2025-12-08T17:06:15.892861",
+        "duration": 0.012918233871459961,
+        "details": {
+          "cache_used": false,
+          "result_length": 1792
+        }
+      },
+      {
+        "component": "tool_market_trends",
+        "event": "end",
+        "timestamp": 1765235175.8948815,
+        "datetime": "2025-12-08T17:06:15.894881",
+        "duration": 0.017747163772583008,
+        "details": {
+          "cache_used": true,
+          "result_length": 5013
+        }
+      },
+      {
+        "component": "tool_validation_questions",
+        "event": "end",
+        "timestamp": 1765235175.895863,
+        "datetime": "2025-12-08T17:06:15.895863",
+        "duration": 0.015920162200927734,
+        "details": {
+          "cache_used": false,
+          "result_length": 2924
+        }
+      },
+      {
+        "component": "tool_costs",
+        "event": "end",
+        "timestamp": 1765235175.895863,
+        "datetime": "2025-12-08T17:06:15.895863",
+        "duration": 0.017229318618774414,
+        "details": {
+          "cache_used": false,
+          "result_length": 1430
+        }
+      },
+      {
+        "component": "tool_persona",
+        "event": "end",
+        "timestamp": 1765235175.895863,
+        "datetime": "2025-12-08T17:06:15.895863",
+        "duration": 0.015920162200927734,
+        "details": {
+          "cache_used": false,
+          "result_length": 3690
+        }
+      },
+      {
+        "component": "tool_market_size",
+        "event": "end",
+        "timestamp": 1765235175.8968575,
+        "datetime": "2025-12-08T17:06:15.896858",
+        "duration": 0.01822376251220703,
+        "details": {
+          "cache_used": false,
+          "result_length": 4315
+        }
+      },
+      {
+        "component": "tool_competitors",
+        "event": "end",
+        "timestamp": 1765235175.8968575,
+        "datetime": "2025-12-08T17:06:15.896858",
+        "duration": 0.019723176956176758,
+        "details": {
+          "cache_used": true,
+          "result_length": 5099
+        }
+      },
+      {
+        "component": "tool_revenue",
+        "event": "end",
+        "timestamp": 1765235175.8978598,
+        "datetime": "2025-12-08T17:06:15.897860",
+        "duration": 0.01791691780090332,
+        "details": {
+          "cache_used": false,
+          "result_length": 1905
+        }
+      },
+      {
+        "component": "tool_risks",
+        "event": "end",
+        "timestamp": 1765235190.260707,
+        "datetime": "2025-12-08T17:06:30.260707",
+        "duration": 14.382073163986206,
+        "details": {
+          "cache_used": false,
+          "result_length": 4032
+        }
+      },
+      {
+        "component": "tool_validation",
+        "event": "end",
+        "timestamp": 1765235196.7306893,
+        "datetime": "2025-12-08T17:06:36.730689",
+        "duration": 20.852055549621582,
+        "details": {
+          "cache_used": false,
+          "result_length": 4960
+        }
+      },
+      {
+        "component": "precompute_all_tools",
+        "event": "end",
+        "timestamp": 1765235196.7326238,
+        "datetime": "2025-12-08T17:06:36.732624",
+        "duration": 20.855489492416382,
+        "details": {
+          "tools_completed": 10,
+          "total_tools": 10,
+          "first_tool": "viability"
+        }
+      },
+      {
+        "component": "run_unified_discovery_non_streaming",
+        "event": "stage1_end",
+        "timestamp": 1765235196.7326238,
+        "datetime": "2025-12-08T17:06:36.732624",
+        "duration": 20.856493711471558
+      },
+      {
+        "component": "wait_for_critical_tools",
+        "event": "start",
+        "timestamp": 1765235196.7326238,
+        "datetime": "2025-12-08T17:06:36.732624",
+        "details": {
+          "min_tools": 1,
+          "timeout": 10.0,
+          "critical_tools": [
+            "risks",
+            "competitors",
+            "market_trends",
+            "validation"
+          ]
+        }
+      },
+      {
+        "component": "wait_for_critical_tools",
+        "event": "first_critical_complete",
+        "timestamp": 1765235196.7341738,
+        "datetime": "2025-12-08T17:06:36.734174",
+        "duration": 0.0015499591827392578,
+        "details": {
+          "tool": "risks"
+        }
+      },
+      {
+        "component": "wait_for_critical_tools",
+        "event": "end",
+        "timestamp": 1765235196.7351923,
+        "datetime": "2025-12-08T17:06:36.735192",
+        "duration": 0.002568483352661133,
+        "details": {
+          "tools_completed": 4,
+          "total_critical": 4,
+          "first_tool": "risks"
+        }
+      },
+      {
+        "component": "run_unified_discovery_non_streaming",
+        "event": "stage2_start",
+        "timestamp": 1765235196.740194,
+        "datetime": "2025-12-08T17:06:36.740194"
+      },
+      {
+        "component": "generate_unified_response",
+        "event": "llm_call_start",
+        "timestamp": 1765235197.430197,
+        "datetime": "2025-12-08T17:06:37.430197"
+      },
+      {
+        "component": "generate_unified_response",
+        "event": "llm_call_end",
+        "timestamp": 1765235257.037754,
+        "datetime": "2025-12-08T17:07:37.037754",
+        "duration": 59.60755705833435,
+        "details": {
+          "openai_duration": 59.60755705833435
+        }
+      },
+      {
+        "component": "run_unified_discovery_non_streaming",
+        "event": "stage2_end",
+        "timestamp": 1765235257.0387366,
+        "datetime": "2025-12-08T17:07:37.038737",
+        "duration": 60.298542499542236
+      },
+      {
+        "component": "run_unified_discovery_non_streaming",
+        "event": "pipeline_end",
+        "timestamp": 1765235257.0397398,
+        "datetime": "2025-12-08T17:07:37.039740",
+        "duration": 81.16459035873413,
+        "details": {
+          "stage1_duration": 20.856493711471558,
+          "stage2_duration": 60.298542499542236,
+          "tool_precompute": 20.855489492416382,
+          "critical_wait": 0.004561185836791992,
+          "llm_generation": 60.299545764923096,
+          "overhead": 0.004993915557861328
+        }
+      }
+    ],
+    "summary": {
+      "total_events": 34,
+      "components": {
+        "run_unified_discovery_non_streaming": {
+          "event_count": 6,
+          "events": [
+            "pipeline_start",
+            "stage1_start",
+            "stage1_end",
+            "stage2_start",
+            "stage2_end",
+            "pipeline_end"
+          ]
+        },
+        "precompute_all_tools": {
+          "event_count": 3,
+          "events": [
+            "start",
+            "first_tool_complete",
+            "end"
+          ]
+        },
+        "tool_market_trends": {
+          "event_count": 2,
+          "events": [
+            "start",
+            "end"
+          ]
+        },
+        "tool_competitors": {
+          "event_count": 2,
+          "events": [
+            "start",
+            "end"
+          ]
+        },
+        "tool_market_size": {
+          "event_count": 2,
+          "events": [
+            "start",
+            "end"
+          ]
+        },
+        "tool_validation": {
+          "event_count": 2,
+          "events": [
+            "start",
+            "end"
+          ]
+        },
+        "tool_risks": {
+          "event_count": 2,
+          "events": [
+            "start",
+            "end"
+          ]
+        },
+        "tool_costs": {
+          "event_count": 2,
+          "events": [
+            "start",
+            "end"
+          ]
+        },
+        "tool_revenue": {
+          "event_count": 2,
+          "events": [
+            "start",
+            "end"
+          ]
+        },
+        "tool_viability": {
+          "event_count": 2,
+          "events": [
+            "start",
+            "end"
+          ]
+        },
+        "tool_persona": {
+          "event_count": 2,
+          "events": [
+            "start",
+            "end"
+          ]
+        },
+        "tool_validation_questions": {
+          "event_count": 2,
+          "events": [
+            "start",
+            "end"
+          ]
+        },
+        "wait_for_critical_tools": {
+          "event_count": 3,
+          "events": [
+            "start",
+            "first_critical_complete",
+            "end"
+          ]
+        },
+        "generate_unified_response": {
+          "event_count": 2,
+          "events": [
+            "llm_call_start",
+            "llm_call_end"
+          ]
+        }
+      },
+      "durations": [
+        {
+          "component": "precompute_all_tools",
+          "event": "first_tool_complete",
+          "duration": 0.012918233871459961
+        },
+        {
+          "component": "tool_viability",
+          "event": "end",
+          "duration": 0.012918233871459961
+        },
+        {
+          "component": "tool_market_trends",
+          "event": "end",
+          "duration": 0.017747163772583008
+        },
+        {
+          "component": "tool_validation_questions",
+          "event": "end",
+          "duration": 0.015920162200927734
+        },
+        {
+          "component": "tool_costs",
+          "event": "end",
+          "duration": 0.017229318618774414
+        },
+        {
+          "component": "tool_persona",
+          "event": "end",
+          "duration": 0.015920162200927734
+        },
+        {
+          "component": "tool_market_size",
+          "event": "end",
+          "duration": 0.01822376251220703
+        },
+        {
+          "component": "tool_competitors",
+          "event": "end",
+          "duration": 0.019723176956176758
+        },
+        {
+          "component": "tool_revenue",
+          "event": "end",
+          "duration": 0.01791691780090332
+        },
+        {
+          "component": "tool_risks",
+          "event": "end",
+          "duration": 14.382073163986206
+        },
+        {
+          "component": "tool_validation",
+          "event": "end",
+          "duration": 20.852055549621582
+        },
+        {
+          "component": "precompute_all_tools",
+          "event": "end",
+          "duration": 20.855489492416382
+        },
+        {
+          "component": "run_unified_discovery_non_streaming",
+          "event": "stage1_end",
+          "duration": 20.856493711471558
+        },
+        {
+          "component": "wait_for_critical_tools",
+          "event": "first_critical_complete",
+          "duration": 0.0015499591827392578
+        },
+        {
+          "component": "wait_for_critical_tools",
+          "event": "end",
+          "duration": 0.002568483352661133
+        },
+        {
+          "component": "generate_unified_response",
+          "event": "llm_call_end",
+          "duration": 59.60755705833435
+        },
+        {
+          "component": "run_unified_discovery_non_streaming",
+          "event": "stage2_end",
+          "duration": 60.298542499542236
+        },
+        {
+          "component": "run_unified_discovery_non_streaming",
+          "event": "pipeline_end",
+          "duration": 81.16459035873413
+        }
+      ],
+      "openai_calls": [],
+      "total_duration": 278.16943740844727,
+      "total_openai_duration": 0,
+      "tool_overhead": 278.16943740844727
+    }
+  },
+  {
+    "session_id": "1765235358_MainThread",
+    "timestamp": "2025-12-08T17:09:18.796096",
+    "events": [
+      {
+        "component": "run_unified_discovery_non_streaming",
+        "event": "pipeline_start",
+        "timestamp": 1765235298.5100358,
+        "datetime": "2025-12-08T17:08:18.510036"
+      },
+      {
+        "component": "run_unified_discovery_non_streaming",
+        "event": "stage1_start",
+        "timestamp": 1765235298.5100358,
+        "datetime": "2025-12-08T17:08:18.510036"
+      },
+      {
+        "component": "precompute_all_tools",
+        "event": "start",
+        "timestamp": 1765235298.5100358,
+        "datetime": "2025-12-08T17:08:18.510036"
+      },
+      {
+        "component": "tool_market_trends",
+        "event": "start",
+        "timestamp": 1765235298.5100358,
+        "datetime": "2025-12-08T17:08:18.510036"
+      },
+      {
+        "component": "tool_competitors",
+        "event": "start",
+        "timestamp": 1765235298.5100358,
+        "datetime": "2025-12-08T17:08:18.510036"
+      },
+      {
+        "component": "tool_market_size",
+        "event": "start",
+        "timestamp": 1765235298.5100358,
+        "datetime": "2025-12-08T17:08:18.510036"
+      },
+      {
+        "component": "tool_validation",
+        "event": "start",
+        "timestamp": 1765235298.5100358,
+        "datetime": "2025-12-08T17:08:18.510036"
+      },
+      {
+        "component": "tool_risks",
+        "event": "start",
+        "timestamp": 1765235298.5100358,
+        "datetime": "2025-12-08T17:08:18.510036"
+      },
+      {
+        "component": "tool_costs",
+        "event": "start",
+        "timestamp": 1765235298.5100358,
+        "datetime": "2025-12-08T17:08:18.510036"
+      },
+      {
+        "component": "tool_revenue",
+        "event": "start",
+        "timestamp": 1765235298.5100358,
+        "datetime": "2025-12-08T17:08:18.510036"
+      },
+      {
+        "component": "tool_viability",
+        "event": "start",
+        "timestamp": 1765235298.5100358,
+        "datetime": "2025-12-08T17:08:18.510036"
+      },
+      {
+        "component": "tool_persona",
+        "event": "start",
+        "timestamp": 1765235298.5100358,
+        "datetime": "2025-12-08T17:08:18.510036"
+      },
+      {
+        "component": "tool_validation_questions",
+        "event": "start",
+        "timestamp": 1765235298.5100358,
+        "datetime": "2025-12-08T17:08:18.510036"
+      },
+      {
+        "component": "precompute_all_tools",
+        "event": "first_tool_complete",
+        "timestamp": 1765235298.5195916,
+        "datetime": "2025-12-08T17:08:18.519592",
+        "duration": 0.009555816650390625,
+        "details": {
+          "tool": "persona"
+        }
+      },
+      {
+        "component": "tool_persona",
+        "event": "end",
+        "timestamp": 1765235298.5195916,
+        "datetime": "2025-12-08T17:08:18.519592",
+        "duration": 0.009555816650390625,
+        "details": {
+          "cache_used": false,
+          "result_length": 3690
+        }
+      },
+      {
+        "component": "tool_competitors",
+        "event": "end",
+        "timestamp": 1765235298.520593,
+        "datetime": "2025-12-08T17:08:18.520593",
+        "duration": 0.010557174682617188,
+        "details": {
+          "cache_used": true,
+          "result_length": 5099
+        }
+      },
+      {
+        "component": "tool_revenue",
+        "event": "end",
+        "timestamp": 1765235298.520593,
+        "datetime": "2025-12-08T17:08:18.520593",
+        "duration": 0.010557174682617188,
+        "details": {
+          "cache_used": false,
+          "result_length": 1905
+        }
+      },
+      {
+        "component": "tool_market_trends",
+        "event": "end",
+        "timestamp": 1765235298.520593,
+        "datetime": "2025-12-08T17:08:18.520593",
+        "duration": 0.010557174682617188,
+        "details": {
+          "cache_used": true,
+          "result_length": 5013
+        }
+      },
+      {
+        "component": "tool_costs",
+        "event": "end",
+        "timestamp": 1765235298.520593,
+        "datetime": "2025-12-08T17:08:18.520593",
+        "duration": 0.010557174682617188,
+        "details": {
+          "cache_used": false,
+          "result_length": 1430
+        }
+      },
+      {
+        "component": "tool_viability",
+        "event": "end",
+        "timestamp": 1765235298.520593,
+        "datetime": "2025-12-08T17:08:18.520593",
+        "duration": 0.010557174682617188,
+        "details": {
+          "cache_used": false,
+          "result_length": 1792
+        }
+      },
+      {
+        "component": "tool_validation_questions",
+        "event": "end",
+        "timestamp": 1765235298.521292,
+        "datetime": "2025-12-08T17:08:18.521292",
+        "duration": 0.011256217956542969,
+        "details": {
+          "cache_used": false,
+          "result_length": 2924
+        }
+      },
+      {
+        "component": "tool_market_size",
+        "event": "end",
+        "timestamp": 1765235298.521292,
+        "datetime": "2025-12-08T17:08:18.521292",
+        "duration": 0.011256217956542969,
+        "details": {
+          "cache_used": false,
+          "result_length": 4315
+        }
+      },
+      {
+        "component": "tool_risks",
+        "event": "end",
+        "timestamp": 1765235313.2266512,
+        "datetime": "2025-12-08T17:08:33.226651",
+        "duration": 14.716615438461304,
+        "details": {
+          "cache_used": false,
+          "result_length": 3593
+        }
+      },
+      {
+        "component": "tool_validation",
+        "event": "end",
+        "timestamp": 1765235318.5529854,
+        "datetime": "2025-12-08T17:08:38.552985",
+        "duration": 20.042949676513672,
+        "details": {
+          "cache_used": false,
+          "result_length": 5011
+        }
+      },
+      {
+        "component": "precompute_all_tools",
+        "event": "end",
+        "timestamp": 1765235318.5539937,
+        "datetime": "2025-12-08T17:08:38.553994",
+        "duration": 20.043957948684692,
+        "details": {
+          "tools_completed": 10,
+          "total_tools": 10,
+          "first_tool": "persona"
+        }
+      },
+      {
+        "component": "run_unified_discovery_non_streaming",
+        "event": "stage1_end",
+        "timestamp": 1765235318.5539937,
+        "datetime": "2025-12-08T17:08:38.553994",
+        "duration": 20.043957948684692
+      },
+      {
+        "component": "wait_for_critical_tools",
+        "event": "start",
+        "timestamp": 1765235318.5539937,
+        "datetime": "2025-12-08T17:08:38.553994",
+        "details": {
+          "min_tools": 1,
+          "timeout": 10.0,
+          "critical_tools": [
+            "competitors",
+            "market_trends",
+            "risks",
+            "validation"
+          ]
+        }
+      },
+      {
+        "component": "wait_for_critical_tools",
+        "event": "first_critical_complete",
+        "timestamp": 1765235318.5539937,
+        "datetime": "2025-12-08T17:08:38.553994",
+        "duration": 0.0,
+        "details": {
+          "tool": "competitors"
+        }
+      },
+      {
+        "component": "wait_for_critical_tools",
+        "event": "end",
+        "timestamp": 1765235318.5539937,
+        "datetime": "2025-12-08T17:08:38.553994",
+        "duration": 0.0,
+        "details": {
+          "tools_completed": 4,
+          "total_critical": 4,
+          "first_tool": "competitors"
+        }
+      },
+      {
+        "component": "run_unified_discovery_non_streaming",
+        "event": "stage2_start",
+        "timestamp": 1765235318.5560887,
+        "datetime": "2025-12-08T17:08:38.556089"
+      },
+      {
+        "component": "generate_unified_response",
+        "event": "llm_call_start",
+        "timestamp": 1765235318.9572659,
+        "datetime": "2025-12-08T17:08:38.957266"
+      },
+      {
+        "component": "generate_unified_response",
+        "event": "llm_call_end",
+        "timestamp": 1765235358.793902,
+        "datetime": "2025-12-08T17:09:18.793902",
+        "duration": 39.83663606643677,
+        "openai_duration": 39.83663606643677
+      },
+      {
+        "component": "run_unified_discovery_non_streaming",
+        "event": "stage2_end",
+        "timestamp": 1765235358.793902,
+        "datetime": "2025-12-08T17:09:18.793902",
+        "duration": 40.237813234329224
+      },
+      {
+        "component": "run_unified_discovery_non_streaming",
+        "event": "pipeline_end",
+        "timestamp": 1765235358.7949405,
+        "datetime": "2025-12-08T17:09:18.794940",
+        "duration": 60.28490471839905,
+        "details": {
+          "stage1_duration": 20.043957948684692,
+          "stage2_duration": 40.237813234329224,
+          "tool_precompute": 20.043957948684692,
+          "critical_wait": 0.0009937286376953125,
+          "llm_generation": 40.237813234329224,
+          "overhead": 0.0021398067474365234
+        }
+      }
+    ],
+    "summary": {
+      "total_events": 34,
+      "components": {
+        "run_unified_discovery_non_streaming": {
+          "event_count": 6,
+          "events": [
+            "pipeline_start",
+            "stage1_start",
+            "stage1_end",
+            "stage2_start",
+            "stage2_end",
+            "pipeline_end"
+          ]
+        },
+        "precompute_all_tools": {
+          "event_count": 3,
+          "events": [
+            "start",
+            "first_tool_complete",
+            "end"
+          ]
+        },
+        "tool_market_trends": {
+          "event_count": 2,
+          "events": [
+            "start",
+            "end"
+          ]
+        },
+        "tool_competitors": {
+          "event_count": 2,
+          "events": [
+            "start",
+            "end"
+          ]
+        },
+        "tool_market_size": {
+          "event_count": 2,
+          "events": [
+            "start",
+            "end"
+          ]
+        },
+        "tool_validation": {
+          "event_count": 2,
+          "events": [
+            "start",
+            "end"
+          ]
+        },
+        "tool_risks": {
+          "event_count": 2,
+          "events": [
+            "start",
+            "end"
+          ]
+        },
+        "tool_costs": {
+          "event_count": 2,
+          "events": [
+            "start",
+            "end"
+          ]
+        },
+        "tool_revenue": {
+          "event_count": 2,
+          "events": [
+            "start",
+            "end"
+          ]
+        },
+        "tool_viability": {
+          "event_count": 2,
+          "events": [
+            "start",
+            "end"
+          ]
+        },
+        "tool_persona": {
+          "event_count": 2,
+          "events": [
+            "start",
+            "end"
+          ]
+        },
+        "tool_validation_questions": {
+          "event_count": 2,
+          "events": [
+            "start",
+            "end"
+          ]
+        },
+        "wait_for_critical_tools": {
+          "event_count": 3,
+          "events": [
+            "start",
+            "first_critical_complete",
+            "end"
+          ]
+        },
+        "generate_unified_response": {
+          "event_count": 2,
+          "events": [
+            "llm_call_start",
+            "llm_call_end"
+          ]
+        }
+      },
+      "durations": [
+        {
+          "component": "precompute_all_tools",
+          "event": "first_tool_complete",
+          "duration": 0.009555816650390625
+        },
+        {
+          "component": "tool_persona",
+          "event": "end",
+          "duration": 0.009555816650390625
+        },
+        {
+          "component": "tool_competitors",
+          "event": "end",
+          "duration": 0.010557174682617188
+        },
+        {
+          "component": "tool_revenue",
+          "event": "end",
+          "duration": 0.010557174682617188
+        },
+        {
+          "component": "tool_market_trends",
+          "event": "end",
+          "duration": 0.010557174682617188
+        },
+        {
+          "component": "tool_costs",
+          "event": "end",
+          "duration": 0.010557174682617188
+        },
+        {
+          "component": "tool_viability",
+          "event": "end",
+          "duration": 0.010557174682617188
+        },
+        {
+          "component": "tool_validation_questions",
+          "event": "end",
+          "duration": 0.011256217956542969
+        },
+        {
+          "component": "tool_market_size",
+          "event": "end",
+          "duration": 0.011256217956542969
+        },
+        {
+          "component": "tool_risks",
+          "event": "end",
+          "duration": 14.716615438461304
+        },
+        {
+          "component": "tool_validation",
+          "event": "end",
+          "duration": 20.042949676513672
+        },
+        {
+          "component": "precompute_all_tools",
+          "event": "end",
+          "duration": 20.043957948684692
+        },
+        {
+          "component": "run_unified_discovery_non_streaming",
+          "event": "stage1_end",
+          "duration": 20.043957948684692
+        },
+        {
+          "component": "wait_for_critical_tools",
+          "event": "first_critical_complete",
+          "duration": 0.0
+        },
+        {
+          "component": "wait_for_critical_tools",
+          "event": "end",
+          "duration": 0.0
+        },
+        {
+          "component": "generate_unified_response",
+          "event": "llm_call_end",
+          "duration": 39.83663606643677
+        },
+        {
+          "component": "run_unified_discovery_non_streaming",
+          "event": "stage2_end",
+          "duration": 40.237813234329224
+        },
+        {
+          "component": "run_unified_discovery_non_streaming",
+          "event": "pipeline_end",
+          "duration": 60.28490471839905
+        }
+      ],
+      "openai_calls": [
+        {
+          "component": "generate_unified_response",
+          "duration": 39.83663606643677,
+          "tokens": null
+        }
+      ],
+      "total_duration": 215.30124497413635,
+      "total_openai_duration": 39.83663606643677,
+      "tool_overhead": 175.46460890769958
+    }
+  },
+  {
+    "session_id": "1765237120_MainThread",
+    "timestamp": "2025-12-08T17:38:40.008967",
+    "events": [
+      {
+        "component": "run_unified_discovery_non_streaming",
+        "event": "pipeline_start",
+        "timestamp": 1765237091.9220805,
+        "datetime": "2025-12-08T17:38:11.922081"
+      },
+      {
+        "component": "run_unified_discovery_non_streaming",
+        "event": "stage1_start",
+        "timestamp": 1765237091.9230852,
+        "datetime": "2025-12-08T17:38:11.923085"
+      },
+      {
+        "component": "run_profile_analysis",
+        "event": "start",
+        "timestamp": 1765237091.9240978,
+        "datetime": "2025-12-08T17:38:11.924098"
+      },
+      {
+        "component": "run_profile_analysis",
+        "event": "llm_call_start",
+        "timestamp": 1765237093.5258346,
+        "datetime": "2025-12-08T17:38:13.525835"
+      },
+      {
+        "component": "run_profile_analysis",
+        "event": "llm_call_end",
+        "timestamp": 1765237119.8956702,
+        "datetime": "2025-12-08T17:38:39.895670",
+        "duration": 26.36983561515808,
+        "openai_duration": 26.36983561515808
+      },
+      {
+        "component": "run_profile_analysis",
+        "event": "end",
+        "timestamp": 1765237119.8956702,
+        "datetime": "2025-12-08T17:38:39.895670",
+        "duration": 27.971572399139404
+      },
+      {
+        "component": "run_unified_discovery_non_streaming",
+        "event": "stage1_end",
+        "timestamp": 1765237119.8966725,
+        "datetime": "2025-12-08T17:38:39.896672",
+        "duration": 27.97358727455139
+      },
+      {
+        "component": "run_unified_discovery_non_streaming",
+        "event": "stage2_start",
+        "timestamp": 1765237119.8966725,
+        "datetime": "2025-12-08T17:38:39.896672"
+      }
+    ],
+    "summary": {
+      "total_events": 8,
+      "components": {
+        "run_unified_discovery_non_streaming": {
+          "event_count": 4,
+          "events": [
+            "pipeline_start",
+            "stage1_start",
+            "stage1_end",
+            "stage2_start"
+          ]
+        },
+        "run_profile_analysis": {
+          "event_count": 4,
+          "events": [
+            "start",
+            "llm_call_start",
+            "llm_call_end",
+            "end"
+          ]
+        }
+      },
+      "durations": [
+        {
+          "component": "run_profile_analysis",
+          "event": "llm_call_end",
+          "duration": 26.36983561515808
+        },
+        {
+          "component": "run_profile_analysis",
+          "event": "end",
+          "duration": 27.971572399139404
+        },
+        {
+          "component": "run_unified_discovery_non_streaming",
+          "event": "stage1_end",
+          "duration": 27.97358727455139
+        }
+      ],
+      "openai_calls": [
+        {
+          "component": "run_profile_analysis",
+          "duration": 26.36983561515808,
+          "tokens": null
+        }
+      ],
+      "total_duration": 82.31499528884888,
+      "total_openai_duration": 26.36983561515808,
+      "tool_overhead": 55.945159673690796
+    }
+  },
+  {
+    "session_id": "1765237232_MainThread",
+    "timestamp": "2025-12-08T17:40:32.294256",
+    "events": [
+      {
+        "component": "run_unified_discovery_non_streaming",
+        "event": "pipeline_start",
+        "timestamp": 1765237165.6345954,
+        "datetime": "2025-12-08T17:39:25.634595"
+      },
+      {
+        "component": "run_unified_discovery_non_streaming",
+        "event": "stage1_start",
+        "timestamp": 1765237165.6363087,
+        "datetime": "2025-12-08T17:39:25.636309"
+      },
+      {
+        "component": "run_profile_analysis",
+        "event": "start",
+        "timestamp": 1765237165.6363087,
+        "datetime": "2025-12-08T17:39:25.636309"
+      },
+      {
+        "component": "run_profile_analysis",
+        "event": "llm_call_start",
+        "timestamp": 1765237166.64895,
+        "datetime": "2025-12-08T17:39:26.648950"
+      },
+      {
+        "component": "run_profile_analysis",
+        "event": "llm_call_end",
+        "timestamp": 1765237188.405498,
+        "datetime": "2025-12-08T17:39:48.405498",
+        "duration": 21.756547927856445,
+        "openai_duration": 21.756547927856445
+      },
+      {
+        "component": "run_profile_analysis",
+        "event": "end",
+        "timestamp": 1765237188.405498,
+        "datetime": "2025-12-08T17:39:48.405498",
+        "duration": 22.76918935775757
+      },
+      {
+        "component": "run_unified_discovery_non_streaming",
+        "event": "stage1_end",
+        "timestamp": 1765237188.4061716,
+        "datetime": "2025-12-08T17:39:48.406172",
+        "duration": 22.76986289024353
+      },
+      {
+        "component": "run_unified_discovery_non_streaming",
+        "event": "stage2_start",
+        "timestamp": 1765237188.406881,
+        "datetime": "2025-12-08T17:39:48.406881"
+      },
+      {
+        "component": "precompute_all_tools",
+        "event": "start",
+        "timestamp": 1765237188.4657943,
+        "datetime": "2025-12-08T17:39:48.465794"
+      },
+      {
+        "component": "tool_validation",
+        "event": "start",
+        "timestamp": 1765237188.4713469,
+        "datetime": "2025-12-08T17:39:48.471347"
+      },
+      {
+        "component": "tool_costs",
+        "event": "start",
+        "timestamp": 1765237188.4723275,
+        "datetime": "2025-12-08T17:39:48.472327"
+      },
+      {
+        "component": "tool_revenue",
+        "event": "start",
+        "timestamp": 1765237188.4723275,
+        "datetime": "2025-12-08T17:39:48.472327"
+      },
+      {
+        "component": "tool_viability",
+        "event": "start",
+        "timestamp": 1765237188.4723275,
+        "datetime": "2025-12-08T17:39:48.472327"
+      },
+      {
+        "component": "tool_persona",
+        "event": "start",
+        "timestamp": 1765237188.4731197,
+        "datetime": "2025-12-08T17:39:48.473120"
+      },
+      {
+        "component": "precompute_all_tools",
+        "event": "first_tool_complete",
+        "timestamp": 1765237188.4769764,
+        "datetime": "2025-12-08T17:39:48.476976",
+        "duration": 0.004648923873901367,
+        "details": {
+          "tool": "viability"
+        }
+      },
+      {
+        "component": "tool_viability",
+        "event": "end",
+        "timestamp": 1765237188.4769764,
+        "datetime": "2025-12-08T17:39:48.476976",
+        "duration": 0.004648923873901367,
+        "details": {
+          "cache_used": false,
+          "result_length": 1792
+        }
+      },
+      {
+        "component": "tool_persona",
+        "event": "end",
+        "timestamp": 1765237188.4774966,
+        "datetime": "2025-12-08T17:39:48.477497",
+        "duration": 0.004376888275146484,
+        "details": {
+          "cache_used": false,
+          "result_length": 3690
+        }
+      },
+      {
+        "component": "tool_costs",
+        "event": "end",
+        "timestamp": 1765237188.4780443,
+        "datetime": "2025-12-08T17:39:48.478044",
+        "duration": 0.005716800689697266,
+        "details": {
+          "cache_used": false,
+          "result_length": 1430
+        }
+      },
+      {
+        "component": "tool_revenue",
+        "event": "end",
+        "timestamp": 1765237188.4780443,
+        "datetime": "2025-12-08T17:39:48.478044",
+        "duration": 0.005716800689697266,
+        "details": {
+          "cache_used": false,
+          "result_length": 1905
+        }
+      },
+      {
+        "component": "tool_validation",
+        "event": "end",
+        "timestamp": 1765237205.1441886,
+        "datetime": "2025-12-08T17:40:05.144189",
+        "duration": 16.672841787338257,
+        "details": {
+          "cache_used": false,
+          "result_length": 4847
+        }
+      },
+      {
+        "component": "precompute_all_tools",
+        "event": "end",
+        "timestamp": 1765237205.1452146,
+        "datetime": "2025-12-08T17:40:05.145215",
+        "duration": 16.679420232772827,
+        "details": {
+          "tools_completed": 10,
+          "total_tools": 5,
+          "first_tool": "viability"
+        }
+      },
+      {
+        "component": "run_idea_research",
+        "event": "start",
+        "timestamp": 1765237205.1452146,
+        "datetime": "2025-12-08T17:40:05.145215"
+      },
+      {
+        "component": "run_idea_research",
+        "event": "llm_call_start",
+        "timestamp": 1765237205.6412768,
+        "datetime": "2025-12-08T17:40:05.641277"
+      },
+      {
+        "component": "run_idea_research",
+        "event": "llm_call_end",
+        "timestamp": 1765237232.289051,
+        "datetime": "2025-12-08T17:40:32.289051",
+        "duration": 26.64777421951294,
+        "openai_duration": 26.64777421951294
+      },
+      {
+        "component": "run_idea_research",
+        "event": "end",
+        "timestamp": 1765237232.289051,
+        "datetime": "2025-12-08T17:40:32.289051",
+        "duration": 27.143836498260498
+      },
+      {
+        "component": "run_unified_discovery_non_streaming",
+        "event": "stage2_end",
+        "timestamp": 1765237232.289051,
+        "datetime": "2025-12-08T17:40:32.289051",
+        "duration": 43.88216996192932
+      },
+      {
+        "component": "run_unified_discovery_non_streaming",
+        "event": "pipeline_end",
+        "timestamp": 1765237232.2900531,
+        "datetime": "2025-12-08T17:40:32.290053",
+        "duration": 66.65545773506165,
+        "details": {
+          "stage1_duration": 22.76986289024353,
+          "stage2_duration": 43.88216996192932,
+          "tool_precompute": 16.679420232772827,
+          "llm_generation": 43.88216996192932,
+          "overhead": 0.0034248828887939453
+        }
+      }
+    ],
+    "summary": {
+      "total_events": 27,
+      "components": {
+        "run_unified_discovery_non_streaming": {
+          "event_count": 6,
+          "events": [
+            "pipeline_start",
+            "stage1_start",
+            "stage1_end",
+            "stage2_start",
+            "stage2_end",
+            "pipeline_end"
+          ]
+        },
+        "run_profile_analysis": {
+          "event_count": 4,
+          "events": [
+            "start",
+            "llm_call_start",
+            "llm_call_end",
+            "end"
+          ]
+        },
+        "precompute_all_tools": {
+          "event_count": 3,
+          "events": [
+            "start",
+            "first_tool_complete",
+            "end"
+          ]
+        },
+        "tool_validation": {
+          "event_count": 2,
+          "events": [
+            "start",
+            "end"
+          ]
+        },
+        "tool_costs": {
+          "event_count": 2,
+          "events": [
+            "start",
+            "end"
+          ]
+        },
+        "tool_revenue": {
+          "event_count": 2,
+          "events": [
+            "start",
+            "end"
+          ]
+        },
+        "tool_viability": {
+          "event_count": 2,
+          "events": [
+            "start",
+            "end"
+          ]
+        },
+        "tool_persona": {
+          "event_count": 2,
+          "events": [
+            "start",
+            "end"
+          ]
+        },
+        "run_idea_research": {
+          "event_count": 4,
+          "events": [
+            "start",
+            "llm_call_start",
+            "llm_call_end",
+            "end"
+          ]
+        }
+      },
+      "durations": [
+        {
+          "component": "run_profile_analysis",
+          "event": "llm_call_end",
+          "duration": 21.756547927856445
+        },
+        {
+          "component": "run_profile_analysis",
+          "event": "end",
+          "duration": 22.76918935775757
+        },
+        {
+          "component": "run_unified_discovery_non_streaming",
+          "event": "stage1_end",
+          "duration": 22.76986289024353
+        },
+        {
+          "component": "precompute_all_tools",
+          "event": "first_tool_complete",
+          "duration": 0.004648923873901367
+        },
+        {
+          "component": "tool_viability",
+          "event": "end",
+          "duration": 0.004648923873901367
+        },
+        {
+          "component": "tool_persona",
+          "event": "end",
+          "duration": 0.004376888275146484
+        },
+        {
+          "component": "tool_costs",
+          "event": "end",
+          "duration": 0.005716800689697266
+        },
+        {
+          "component": "tool_revenue",
+          "event": "end",
+          "duration": 0.005716800689697266
+        },
+        {
+          "component": "tool_validation",
+          "event": "end",
+          "duration": 16.672841787338257
+        },
+        {
+          "component": "precompute_all_tools",
+          "event": "end",
+          "duration": 16.679420232772827
+        },
+        {
+          "component": "run_idea_research",
+          "event": "llm_call_end",
+          "duration": 26.64777421951294
+        },
+        {
+          "component": "run_idea_research",
+          "event": "end",
+          "duration": 27.143836498260498
+        },
+        {
+          "component": "run_unified_discovery_non_streaming",
+          "event": "stage2_end",
+          "duration": 43.88216996192932
+        },
+        {
+          "component": "run_unified_discovery_non_streaming",
+          "event": "pipeline_end",
+          "duration": 66.65545773506165
+        }
+      ],
+      "openai_calls": [
+        {
+          "component": "run_profile_analysis",
+          "duration": 21.756547927856445,
+          "tokens": null
+        },
+        {
+          "component": "run_idea_research",
+          "duration": 26.64777421951294,
+          "tokens": null
+        }
+      ],
+      "total_duration": 265.0022089481354,
+      "total_openai_duration": 48.404322147369385,
+      "tool_overhead": 216.597886800766
+    }
+  },
+  {
+    "session_id": "1765237976_MainThread",
+    "timestamp": "2025-12-08T17:52:56.185982",
+    "events": [
+      {
+        "component": "run_unified_discovery_non_streaming",
+        "event": "pipeline_start",
+        "timestamp": 1765237895.9659402,
+        "datetime": "2025-12-08T17:51:35.965940"
+      },
+      {
+        "component": "run_unified_discovery_non_streaming",
+        "event": "stage1_start",
+        "timestamp": 1765237895.9669642,
+        "datetime": "2025-12-08T17:51:35.966964"
+      },
+      {
+        "component": "run_profile_analysis",
+        "event": "start",
+        "timestamp": 1765237895.9669642,
+        "datetime": "2025-12-08T17:51:35.966964"
+      },
+      {
+        "component": "run_profile_analysis",
+        "event": "llm_call_start",
+        "timestamp": 1765237896.517851,
+        "datetime": "2025-12-08T17:51:36.517851"
+      },
+      {
+        "component": "run_profile_analysis",
+        "event": "llm_call_end",
+        "timestamp": 1765237922.179599,
+        "datetime": "2025-12-08T17:52:02.179599",
+        "duration": 25.661747932434082,
+        "openai_duration": 25.661747932434082
+      },
+      {
+        "component": "run_profile_analysis",
+        "event": "end",
+        "timestamp": 1765237922.179599,
+        "datetime": "2025-12-08T17:52:02.179599",
+        "duration": 26.212634801864624
+      },
+      {
+        "component": "run_unified_discovery_non_streaming",
+        "event": "stage1_end",
+        "timestamp": 1765237922.1804605,
+        "datetime": "2025-12-08T17:52:02.180460",
+        "duration": 26.213496208190918
+      },
+      {
+        "component": "run_unified_discovery_non_streaming",
+        "event": "stage2_start",
+        "timestamp": 1765237922.1804605,
+        "datetime": "2025-12-08T17:52:02.180460"
+      },
+      {
+        "component": "precompute_all_tools",
+        "event": "start",
+        "timestamp": 1765237922.2338774,
+        "datetime": "2025-12-08T17:52:02.233877"
+      },
+      {
+        "component": "tool_validation",
+        "event": "start",
+        "timestamp": 1765237922.2380524,
+        "datetime": "2025-12-08T17:52:02.238052"
+      },
+      {
+        "component": "tool_costs",
+        "event": "start",
+        "timestamp": 1765237922.2380524,
+        "datetime": "2025-12-08T17:52:02.238052"
+      },
+      {
+        "component": "tool_revenue",
+        "event": "start",
+        "timestamp": 1765237922.2390444,
+        "datetime": "2025-12-08T17:52:02.239044"
+      },
+      {
+        "component": "tool_viability",
+        "event": "start",
+        "timestamp": 1765237922.2390444,
+        "datetime": "2025-12-08T17:52:02.239044"
+      },
+      {
+        "component": "tool_persona",
+        "event": "start",
+        "timestamp": 1765237922.240048,
+        "datetime": "2025-12-08T17:52:02.240048"
+      },
+      {
+        "component": "precompute_all_tools",
+        "event": "first_tool_complete",
+        "timestamp": 1765237922.243703,
+        "datetime": "2025-12-08T17:52:02.243703",
+        "duration": 0.00465846061706543,
+        "details": {
+          "tool": "revenue"
+        }
+      },
+      {
+        "component": "tool_revenue",
+        "event": "end",
+        "timestamp": 1765237922.243703,
+        "datetime": "2025-12-08T17:52:02.243703",
+        "duration": 0.00465846061706543,
+        "details": {
+          "cache_used": false,
+          "result_length": 1905
+        }
+      },
+      {
+        "component": "tool_persona",
+        "event": "end",
+        "timestamp": 1765237922.24421,
+        "datetime": "2025-12-08T17:52:02.244210",
+        "duration": 0.0041620731353759766,
+        "details": {
+          "cache_used": false,
+          "result_length": 3690
+        }
+      },
+      {
+        "component": "tool_viability",
+        "event": "end",
+        "timestamp": 1765237922.2455242,
+        "datetime": "2025-12-08T17:52:02.245524",
+        "duration": 0.006479740142822266,
+        "details": {
+          "cache_used": false,
+          "result_length": 1792
+        }
+      },
+      {
+        "component": "tool_costs",
+        "event": "end",
+        "timestamp": 1765237922.24655,
+        "datetime": "2025-12-08T17:52:02.246550",
+        "duration": 0.00849771499633789,
+        "details": {
+          "cache_used": false,
+          "result_length": 1430
+        }
+      },
+      {
+        "component": "tool_validation",
+        "event": "end",
+        "timestamp": 1765237942.3530679,
+        "datetime": "2025-12-08T17:52:22.353068",
+        "duration": 20.115015506744385,
+        "details": {
+          "cache_used": false,
+          "result_length": 4641
+        }
+      },
+      {
+        "component": "precompute_all_tools",
+        "event": "end",
+        "timestamp": 1765237942.3555481,
+        "datetime": "2025-12-08T17:52:22.355548",
+        "duration": 20.120184898376465,
+        "details": {
+          "tools_completed": 10,
+          "total_tools": 5,
+          "first_tool": "revenue"
+        }
+      },
+      {
+        "component": "run_idea_research",
+        "event": "start",
+        "timestamp": 1765237942.3555481,
+        "datetime": "2025-12-08T17:52:22.355548"
+      },
+      {
+        "component": "run_idea_research",
+        "event": "llm_call_start",
+        "timestamp": 1765237943.053736,
+        "datetime": "2025-12-08T17:52:23.053736"
+      },
+      {
+        "component": "run_idea_research",
+        "event": "llm_call_end",
+        "timestamp": 1765237976.1809146,
+        "datetime": "2025-12-08T17:52:56.180915",
+        "duration": 33.12717866897583,
+        "openai_duration": 33.12717866897583
+      },
+      {
+        "component": "run_idea_research",
+        "event": "end",
+        "timestamp": 1765237976.1809146,
+        "datetime": "2025-12-08T17:52:56.180915",
+        "duration": 33.825366497039795
+      },
+      {
+        "component": "run_unified_discovery_non_streaming",
+        "event": "stage2_end",
+        "timestamp": 1765237976.1809146,
+        "datetime": "2025-12-08T17:52:56.180915",
+        "duration": 54.00045418739319
+      },
+      {
+        "component": "run_unified_discovery_non_streaming",
+        "event": "pipeline_end",
+        "timestamp": 1765237976.181916,
+        "datetime": "2025-12-08T17:52:56.181916",
+        "duration": 80.21597576141357,
+        "details": {
+          "stage1_duration": 26.213496208190918,
+          "stage2_duration": 54.00045418739319,
+          "tool_precompute": 20.120184898376465,
+          "llm_generation": 54.00045418739319,
+          "overhead": 0.0020253658294677734
+        }
+      }
+    ],
+    "summary": {
+      "total_events": 27,
+      "components": {
+        "run_unified_discovery_non_streaming": {
+          "event_count": 6,
+          "events": [
+            "pipeline_start",
+            "stage1_start",
+            "stage1_end",
+            "stage2_start",
+            "stage2_end",
+            "pipeline_end"
+          ]
+        },
+        "run_profile_analysis": {
+          "event_count": 4,
+          "events": [
+            "start",
+            "llm_call_start",
+            "llm_call_end",
+            "end"
+          ]
+        },
+        "precompute_all_tools": {
+          "event_count": 3,
+          "events": [
+            "start",
+            "first_tool_complete",
+            "end"
+          ]
+        },
+        "tool_validation": {
+          "event_count": 2,
+          "events": [
+            "start",
+            "end"
+          ]
+        },
+        "tool_costs": {
+          "event_count": 2,
+          "events": [
+            "start",
+            "end"
+          ]
+        },
+        "tool_revenue": {
+          "event_count": 2,
+          "events": [
+            "start",
+            "end"
+          ]
+        },
+        "tool_viability": {
+          "event_count": 2,
+          "events": [
+            "start",
+            "end"
+          ]
+        },
+        "tool_persona": {
+          "event_count": 2,
+          "events": [
+            "start",
+            "end"
+          ]
+        },
+        "run_idea_research": {
+          "event_count": 4,
+          "events": [
+            "start",
+            "llm_call_start",
+            "llm_call_end",
+            "end"
+          ]
+        }
+      },
+      "durations": [
+        {
+          "component": "run_profile_analysis",
+          "event": "llm_call_end",
+          "duration": 25.661747932434082
+        },
+        {
+          "component": "run_profile_analysis",
+          "event": "end",
+          "duration": 26.212634801864624
+        },
+        {
+          "component": "run_unified_discovery_non_streaming",
+          "event": "stage1_end",
+          "duration": 26.213496208190918
+        },
+        {
+          "component": "precompute_all_tools",
+          "event": "first_tool_complete",
+          "duration": 0.00465846061706543
+        },
+        {
+          "component": "tool_revenue",
+          "event": "end",
+          "duration": 0.00465846061706543
+        },
+        {
+          "component": "tool_persona",
+          "event": "end",
+          "duration": 0.0041620731353759766
+        },
+        {
+          "component": "tool_viability",
+          "event": "end",
+          "duration": 0.006479740142822266
+        },
+        {
+          "component": "tool_costs",
+          "event": "end",
+          "duration": 0.00849771499633789
+        },
+        {
+          "component": "tool_validation",
+          "event": "end",
+          "duration": 20.115015506744385
+        },
+        {
+          "component": "precompute_all_tools",
+          "event": "end",
+          "duration": 20.120184898376465
+        },
+        {
+          "component": "run_idea_research",
+          "event": "llm_call_end",
+          "duration": 33.12717866897583
+        },
+        {
+          "component": "run_idea_research",
+          "event": "end",
+          "duration": 33.825366497039795
+        },
+        {
+          "component": "run_unified_discovery_non_streaming",
+          "event": "stage2_end",
+          "duration": 54.00045418739319
+        },
+        {
+          "component": "run_unified_discovery_non_streaming",
+          "event": "pipeline_end",
+          "duration": 80.21597576141357
+        }
+      ],
+      "openai_calls": [
+        {
+          "component": "run_profile_analysis",
+          "duration": 25.661747932434082,
+          "tokens": null
+        },
+        {
+          "component": "run_idea_research",
+          "duration": 33.12717866897583,
+          "tokens": null
+        }
+      ],
+      "total_duration": 319.5205109119415,
+      "total_openai_duration": 58.78892660140991,
+      "tool_overhead": 260.7315843105316
+    }
+  },
+  {
+    "session_id": "1765238869_MainThread",
+    "timestamp": "2025-12-08T18:07:49.647381",
+    "events": [
+      {
+        "component": "run_unified_discovery_non_streaming",
+        "event": "pipeline_start",
+        "timestamp": 1765238783.2532268,
+        "datetime": "2025-12-08T18:06:23.253227"
+      },
+      {
+        "component": "run_unified_discovery_non_streaming",
+        "event": "stage1_start",
+        "timestamp": 1765238783.2542255,
+        "datetime": "2025-12-08T18:06:23.254225"
+      },
+      {
+        "component": "run_profile_analysis",
+        "event": "start",
+        "timestamp": 1765238783.2542255,
+        "datetime": "2025-12-08T18:06:23.254225"
+      },
+      {
+        "component": "run_profile_analysis",
+        "event": "llm_call_start",
+        "timestamp": 1765238783.7065878,
+        "datetime": "2025-12-08T18:06:23.706588"
+      },
+      {
+        "component": "run_profile_analysis",
+        "event": "llm_call_end",
+        "timestamp": 1765238806.3038392,
+        "datetime": "2025-12-08T18:06:46.303839",
+        "duration": 22.597251415252686,
+        "openai_duration": 22.597251415252686
+      },
+      {
+        "component": "run_profile_analysis",
+        "event": "end",
+        "timestamp": 1765238806.3038392,
+        "datetime": "2025-12-08T18:06:46.303839",
+        "duration": 23.04961371421814
+      },
+      {
+        "component": "run_unified_discovery_non_streaming",
+        "event": "stage1_end",
+        "timestamp": 1765238806.3048267,
+        "datetime": "2025-12-08T18:06:46.304827",
+        "duration": 23.05060124397278
+      },
+      {
+        "component": "run_unified_discovery_non_streaming",
+        "event": "stage2_start",
+        "timestamp": 1765238806.3058257,
+        "datetime": "2025-12-08T18:06:46.305826"
+      },
+      {
+        "component": "precompute_all_tools",
+        "event": "start",
+        "timestamp": 1765238806.357585,
+        "datetime": "2025-12-08T18:06:46.357585"
+      },
+      {
+        "component": "tool_validation",
+        "event": "start",
+        "timestamp": 1765238806.3635688,
+        "datetime": "2025-12-08T18:06:46.363569"
+      },
+      {
+        "component": "tool_costs",
+        "event": "start",
+        "timestamp": 1765238806.3645694,
+        "datetime": "2025-12-08T18:06:46.364569"
+      },
+      {
+        "component": "tool_revenue",
+        "event": "start",
+        "timestamp": 1765238806.3645694,
+        "datetime": "2025-12-08T18:06:46.364569"
+      },
+      {
+        "component": "tool_viability",
+        "event": "start",
+        "timestamp": 1765238806.365566,
+        "datetime": "2025-12-08T18:06:46.365566"
+      },
+      {
+        "component": "tool_persona",
+        "event": "start",
+        "timestamp": 1765238806.365566,
+        "datetime": "2025-12-08T18:06:46.365566"
+      },
+      {
+        "component": "precompute_all_tools",
+        "event": "first_tool_complete",
+        "timestamp": 1765238806.3705723,
+        "datetime": "2025-12-08T18:06:46.370572",
+        "duration": 0.005006313323974609,
+        "details": {
+          "tool": "persona"
+        }
+      },
+      {
+        "component": "tool_persona",
+        "event": "end",
+        "timestamp": 1765238806.3705723,
+        "datetime": "2025-12-08T18:06:46.370572",
+        "duration": 0.005006313323974609,
+        "details": {
+          "cache_used": false,
+          "result_length": 3690
+        }
+      },
+      {
+        "component": "tool_revenue",
+        "event": "end",
+        "timestamp": 1765238806.372073,
+        "datetime": "2025-12-08T18:06:46.372073",
+        "duration": 0.007503509521484375,
+        "details": {
+          "cache_used": false,
+          "result_length": 1905
+        }
+      },
+      {
+        "component": "tool_viability",
+        "event": "end",
+        "timestamp": 1765238806.372073,
+        "datetime": "2025-12-08T18:06:46.372073",
+        "duration": 0.006506919860839844,
+        "details": {
+          "cache_used": false,
+          "result_length": 1792
+        }
+      },
+      {
+        "component": "tool_costs",
+        "event": "end",
+        "timestamp": 1765238806.3730772,
+        "datetime": "2025-12-08T18:06:46.373077",
+        "duration": 0.008507728576660156,
+        "details": {
+          "cache_used": false,
+          "result_length": 1430
+        }
+      },
+      {
+        "component": "tool_validation",
+        "event": "end",
+        "timestamp": 1765238830.4010398,
+        "datetime": "2025-12-08T18:07:10.401040",
+        "duration": 24.037471055984497,
+        "details": {
+          "cache_used": false,
+          "result_length": 5391
+        }
+      },
+      {
+        "component": "precompute_all_tools",
+        "event": "end",
+        "timestamp": 1765238830.4022245,
+        "datetime": "2025-12-08T18:07:10.402225",
+        "duration": 24.044639587402344,
+        "details": {
+          "tools_completed": 10,
+          "total_tools": 5,
+          "first_tool": "persona"
+        }
+      },
+      {
+        "component": "run_idea_research",
+        "event": "start",
+        "timestamp": 1765238830.4022245,
+        "datetime": "2025-12-08T18:07:10.402225"
+      },
+      {
+        "component": "run_idea_research",
+        "event": "llm_call_start",
+        "timestamp": 1765238831.0019722,
+        "datetime": "2025-12-08T18:07:11.001972"
+      },
+      {
+        "component": "run_idea_research",
+        "event": "llm_call_end",
+        "timestamp": 1765238869.638815,
+        "datetime": "2025-12-08T18:07:49.638815",
+        "duration": 38.63684272766113,
+        "openai_duration": 38.63684272766113
+      },
+      {
+        "component": "run_idea_research",
+        "event": "end",
+        "timestamp": 1765238869.638815,
+        "datetime": "2025-12-08T18:07:49.638815",
+        "duration": 39.23659038543701
+      },
+      {
+        "component": "run_unified_discovery_non_streaming",
+        "event": "stage2_end",
+        "timestamp": 1765238869.6403203,
+        "datetime": "2025-12-08T18:07:49.640320",
+        "duration": 63.33449459075928
+      },
+      {
+        "component": "run_unified_discovery_non_streaming",
+        "event": "pipeline_end",
+        "timestamp": 1765238869.6403203,
+        "datetime": "2025-12-08T18:07:49.640320",
+        "duration": 86.38709354400635,
+        "details": {
+          "stage1_duration": 23.05060124397278,
+          "stage2_duration": 63.33449459075928,
+          "tool_precompute": 24.044639587402344,
+          "llm_generation": 63.33449459075928,
+          "overhead": 0.001997709274291992
+        }
+      }
+    ],
+    "summary": {
+      "total_events": 27,
+      "components": {
+        "run_unified_discovery_non_streaming": {
+          "event_count": 6,
+          "events": [
+            "pipeline_start",
+            "stage1_start",
+            "stage1_end",
+            "stage2_start",
+            "stage2_end",
+            "pipeline_end"
+          ]
+        },
+        "run_profile_analysis": {
+          "event_count": 4,
+          "events": [
+            "start",
+            "llm_call_start",
+            "llm_call_end",
+            "end"
+          ]
+        },
+        "precompute_all_tools": {
+          "event_count": 3,
+          "events": [
+            "start",
+            "first_tool_complete",
+            "end"
+          ]
+        },
+        "tool_validation": {
+          "event_count": 2,
+          "events": [
+            "start",
+            "end"
+          ]
+        },
+        "tool_costs": {
+          "event_count": 2,
+          "events": [
+            "start",
+            "end"
+          ]
+        },
+        "tool_revenue": {
+          "event_count": 2,
+          "events": [
+            "start",
+            "end"
+          ]
+        },
+        "tool_viability": {
+          "event_count": 2,
+          "events": [
+            "start",
+            "end"
+          ]
+        },
+        "tool_persona": {
+          "event_count": 2,
+          "events": [
+            "start",
+            "end"
+          ]
+        },
+        "run_idea_research": {
+          "event_count": 4,
+          "events": [
+            "start",
+            "llm_call_start",
+            "llm_call_end",
+            "end"
+          ]
+        }
+      },
+      "durations": [
+        {
+          "component": "run_profile_analysis",
+          "event": "llm_call_end",
+          "duration": 22.597251415252686
+        },
+        {
+          "component": "run_profile_analysis",
+          "event": "end",
+          "duration": 23.04961371421814
+        },
+        {
+          "component": "run_unified_discovery_non_streaming",
+          "event": "stage1_end",
+          "duration": 23.05060124397278
+        },
+        {
+          "component": "precompute_all_tools",
+          "event": "first_tool_complete",
+          "duration": 0.005006313323974609
+        },
+        {
+          "component": "tool_persona",
+          "event": "end",
+          "duration": 0.005006313323974609
+        },
+        {
+          "component": "tool_revenue",
+          "event": "end",
+          "duration": 0.007503509521484375
+        },
+        {
+          "component": "tool_viability",
+          "event": "end",
+          "duration": 0.006506919860839844
+        },
+        {
+          "component": "tool_costs",
+          "event": "end",
+          "duration": 0.008507728576660156
+        },
+        {
+          "component": "tool_validation",
+          "event": "end",
+          "duration": 24.037471055984497
+        },
+        {
+          "component": "precompute_all_tools",
+          "event": "end",
+          "duration": 24.044639587402344
+        },
+        {
+          "component": "run_idea_research",
+          "event": "llm_call_end",
+          "duration": 38.63684272766113
+        },
+        {
+          "component": "run_idea_research",
+          "event": "end",
+          "duration": 39.23659038543701
+        },
+        {
+          "component": "run_unified_discovery_non_streaming",
+          "event": "stage2_end",
+          "duration": 63.33449459075928
+        },
+        {
+          "component": "run_unified_discovery_non_streaming",
+          "event": "pipeline_end",
+          "duration": 86.38709354400635
+        }
+      ],
+      "openai_calls": [
+        {
+          "component": "run_profile_analysis",
+          "duration": 22.597251415252686,
+          "tokens": null
+        },
+        {
+          "component": "run_idea_research",
+          "duration": 38.63684272766113,
+          "tokens": null
+        }
+      ],
+      "total_duration": 344.40712904930115,
+      "total_openai_duration": 61.23409414291382,
+      "tool_overhead": 283.17303490638733
+    }
+  },
+  {
+    "session_id": "1765239060_MainThread",
+    "timestamp": "2025-12-08T18:11:00.319872",
+    "events": [
+      {
+        "component": "run_unified_discovery_non_streaming",
+        "event": "pipeline_start",
+        "timestamp": 1765239012.4484231,
+        "datetime": "2025-12-08T18:10:12.448423"
+      },
+      {
+        "component": "run_unified_discovery_non_streaming",
+        "event": "stage1_start",
+        "timestamp": 1765239012.4484231,
+        "datetime": "2025-12-08T18:10:12.448423"
+      },
+      {
+        "component": "run_profile_analysis",
+        "event": "start",
+        "timestamp": 1765239012.4484231,
+        "datetime": "2025-12-08T18:10:12.448423"
+      },
+      {
+        "component": "run_profile_analysis",
+        "event": "llm_call_start",
+        "timestamp": 1765239013.8195353,
+        "datetime": "2025-12-08T18:10:13.819535"
+      },
+      {
+        "component": "run_profile_analysis",
+        "event": "llm_call_end",
+        "timestamp": 1765239033.2953954,
+        "datetime": "2025-12-08T18:10:33.295395",
+        "duration": 19.475860118865967,
+        "openai_duration": 19.475860118865967
+      },
+      {
+        "component": "run_profile_analysis",
+        "event": "end",
+        "timestamp": 1765239033.2953954,
+        "datetime": "2025-12-08T18:10:33.295395",
+        "duration": 20.846972227096558
+      },
+      {
+        "component": "run_unified_discovery_non_streaming",
+        "event": "stage1_end",
+        "timestamp": 1765239033.296393,
+        "datetime": "2025-12-08T18:10:33.296393",
+        "duration": 20.84796977043152
+      },
+      {
+        "component": "run_unified_discovery_non_streaming",
+        "event": "stage2_start",
+        "timestamp": 1765239033.296393,
+        "datetime": "2025-12-08T18:10:33.296393"
+      },
+      {
+        "component": "precompute_all_tools",
+        "event": "start",
+        "timestamp": 1765239033.3434284,
+        "datetime": "2025-12-08T18:10:33.343428"
+      },
+      {
+        "component": "tool_costs",
+        "event": "start",
+        "timestamp": 1765239033.3465276,
+        "datetime": "2025-12-08T18:10:33.346528"
+      },
+      {
+        "component": "tool_revenue",
+        "event": "start",
+        "timestamp": 1765239033.3465276,
+        "datetime": "2025-12-08T18:10:33.346528"
+      },
+      {
+        "component": "tool_viability",
+        "event": "start",
+        "timestamp": 1765239033.3465276,
+        "datetime": "2025-12-08T18:10:33.346528"
+      },
+      {
+        "component": "tool_persona",
+        "event": "start",
+        "timestamp": 1765239033.3465276,
+        "datetime": "2025-12-08T18:10:33.346528"
+      },
+      {
+        "component": "precompute_all_tools",
+        "event": "first_tool_complete",
+        "timestamp": 1765239033.34754,
+        "datetime": "2025-12-08T18:10:33.347540",
+        "duration": 0.0010123252868652344,
+        "details": {
+          "tool": "costs"
+        }
+      },
+      {
+        "component": "tool_costs",
+        "event": "end",
+        "timestamp": 1765239033.34754,
+        "datetime": "2025-12-08T18:10:33.347540",
+        "duration": 0.0010123252868652344,
+        "details": {
+          "cache_used": false,
+          "result_length": 1430
+        }
+      },
+      {
+        "component": "tool_revenue",
+        "event": "end",
+        "timestamp": 1765239033.34754,
+        "datetime": "2025-12-08T18:10:33.347540",
+        "duration": 0.0010123252868652344,
+        "details": {
+          "cache_used": false,
+          "result_length": 1905
+        }
+      },
+      {
+        "component": "tool_viability",
+        "event": "end",
+        "timestamp": 1765239033.3485367,
+        "datetime": "2025-12-08T18:10:33.348537",
+        "duration": 0.002009153366088867,
+        "details": {
+          "cache_used": false,
+          "result_length": 1792
+        }
+      },
+      {
+        "component": "tool_persona",
+        "event": "end",
+        "timestamp": 1765239033.3485367,
+        "datetime": "2025-12-08T18:10:33.348537",
+        "duration": 0.002009153366088867,
+        "details": {
+          "cache_used": false,
+          "result_length": 3690
+        }
+      },
+      {
+        "component": "precompute_all_tools",
+        "event": "end",
+        "timestamp": 1765239033.3485367,
+        "datetime": "2025-12-08T18:10:33.348537",
+        "duration": 0.005108356475830078,
+        "details": {
+          "tools_completed": 9,
+          "total_tools": 4,
+          "first_tool": "costs"
+        }
+      },
+      {
+        "component": "run_idea_research",
+        "event": "start",
+        "timestamp": 1765239033.3485367,
+        "datetime": "2025-12-08T18:10:33.348537"
+      },
+      {
+        "component": "run_idea_research",
+        "event": "llm_call_start",
+        "timestamp": 1765239033.9325204,
+        "datetime": "2025-12-08T18:10:33.932520"
+      },
+      {
+        "component": "run_idea_research",
+        "event": "llm_call_end",
+        "timestamp": 1765239060.318889,
+        "datetime": "2025-12-08T18:11:00.318889",
+        "duration": 26.3863685131073,
+        "openai_duration": 26.3863685131073
+      },
+      {
+        "component": "run_idea_research",
+        "event": "end",
+        "timestamp": 1765239060.318889,
+        "datetime": "2025-12-08T18:11:00.318889",
+        "duration": 26.970352172851562
+      },
+      {
+        "component": "run_unified_discovery_non_streaming",
+        "event": "stage2_end",
+        "timestamp": 1765239060.318889,
+        "datetime": "2025-12-08T18:11:00.318889",
+        "duration": 27.022495985031128
+      },
+      {
+        "component": "run_unified_discovery_non_streaming",
+        "event": "pipeline_end",
+        "timestamp": 1765239060.318889,
+        "datetime": "2025-12-08T18:11:00.318889",
+        "duration": 47.87046575546265,
+        "details": {
+          "stage1_duration": 20.84796977043152,
+          "stage2_duration": 27.022495985031128,
+          "tool_precompute": 0.005108356475830078,
+          "llm_generation": 27.022495985031128,
+          "overhead": 0.0
+        }
+      }
+    ],
+    "summary": {
+      "total_events": 25,
+      "components": {
+        "run_unified_discovery_non_streaming": {
+          "event_count": 6,
+          "events": [
+            "pipeline_start",
+            "stage1_start",
+            "stage1_end",
+            "stage2_start",
+            "stage2_end",
+            "pipeline_end"
+          ]
+        },
+        "run_profile_analysis": {
+          "event_count": 4,
+          "events": [
+            "start",
+            "llm_call_start",
+            "llm_call_end",
+            "end"
+          ]
+        },
+        "precompute_all_tools": {
+          "event_count": 3,
+          "events": [
+            "start",
+            "first_tool_complete",
+            "end"
+          ]
+        },
+        "tool_costs": {
+          "event_count": 2,
+          "events": [
+            "start",
+            "end"
+          ]
+        },
+        "tool_revenue": {
+          "event_count": 2,
+          "events": [
+            "start",
+            "end"
+          ]
+        },
+        "tool_viability": {
+          "event_count": 2,
+          "events": [
+            "start",
+            "end"
+          ]
+        },
+        "tool_persona": {
+          "event_count": 2,
+          "events": [
+            "start",
+            "end"
+          ]
+        },
+        "run_idea_research": {
+          "event_count": 4,
+          "events": [
+            "start",
+            "llm_call_start",
+            "llm_call_end",
+            "end"
+          ]
+        }
+      },
+      "durations": [
+        {
+          "component": "run_profile_analysis",
+          "event": "llm_call_end",
+          "duration": 19.475860118865967
+        },
+        {
+          "component": "run_profile_analysis",
+          "event": "end",
+          "duration": 20.846972227096558
+        },
+        {
+          "component": "run_unified_discovery_non_streaming",
+          "event": "stage1_end",
+          "duration": 20.84796977043152
+        },
+        {
+          "component": "precompute_all_tools",
+          "event": "first_tool_complete",
+          "duration": 0.0010123252868652344
+        },
+        {
+          "component": "tool_costs",
+          "event": "end",
+          "duration": 0.0010123252868652344
+        },
+        {
+          "component": "tool_revenue",
+          "event": "end",
+          "duration": 0.0010123252868652344
+        },
+        {
+          "component": "tool_viability",
+          "event": "end",
+          "duration": 0.002009153366088867
+        },
+        {
+          "component": "tool_persona",
+          "event": "end",
+          "duration": 0.002009153366088867
+        },
+        {
+          "component": "precompute_all_tools",
+          "event": "end",
+          "duration": 0.005108356475830078
+        },
+        {
+          "component": "run_idea_research",
+          "event": "llm_call_end",
+          "duration": 26.3863685131073
+        },
+        {
+          "component": "run_idea_research",
+          "event": "end",
+          "duration": 26.970352172851562
+        },
+        {
+          "component": "run_unified_discovery_non_streaming",
+          "event": "stage2_end",
+          "duration": 27.022495985031128
+        },
+        {
+          "component": "run_unified_discovery_non_streaming",
+          "event": "pipeline_end",
+          "duration": 47.87046575546265
+        }
+      ],
+      "openai_calls": [
+        {
+          "component": "run_profile_analysis",
+          "duration": 19.475860118865967,
+          "tokens": null
+        },
+        {
+          "component": "run_idea_research",
+          "duration": 26.3863685131073,
+          "tokens": null
+        }
+      ],
+      "total_duration": 189.43264818191528,
+      "total_openai_duration": 45.86222863197327,
+      "tool_overhead": 143.57041954994202
+    }
+  },
+  {
+    "session_id": "1765239115_MainThread",
+    "timestamp": "2025-12-08T18:11:55.976765",
+    "events": [
+      {
+        "component": "run_unified_discovery_non_streaming",
+        "event": "pipeline_start",
+        "timestamp": 1765239078.0030441,
+        "datetime": "2025-12-08T18:11:18.003044"
+      },
+      {
+        "component": "run_unified_discovery_non_streaming",
+        "event": "stage1_start",
+        "timestamp": 1765239078.0030441,
+        "datetime": "2025-12-08T18:11:18.003044"
+      },
+      {
+        "component": "run_profile_analysis",
+        "event": "start",
+        "timestamp": 1765239078.0030441,
+        "datetime": "2025-12-08T18:11:18.003044"
+      },
+      {
+        "component": "run_profile_analysis",
+        "event": "llm_call_start",
+        "timestamp": 1765239078.6308205,
+        "datetime": "2025-12-08T18:11:18.630821"
+      },
+      {
+        "component": "run_profile_analysis",
+        "event": "llm_call_end",
+        "timestamp": 1765239094.4765296,
+        "datetime": "2025-12-08T18:11:34.476530",
+        "duration": 15.845709085464478,
+        "openai_duration": 15.845709085464478
+      },
+      {
+        "component": "run_profile_analysis",
+        "event": "end",
+        "timestamp": 1765239094.4765296,
+        "datetime": "2025-12-08T18:11:34.476530",
+        "duration": 16.473485469818115
+      },
+      {
+        "component": "run_unified_discovery_non_streaming",
+        "event": "stage1_end",
+        "timestamp": 1765239094.4765296,
+        "datetime": "2025-12-08T18:11:34.476530",
+        "duration": 16.473485469818115
+      },
+      {
+        "component": "run_unified_discovery_non_streaming",
+        "event": "stage2_start",
+        "timestamp": 1765239094.4765296,
+        "datetime": "2025-12-08T18:11:34.476530"
+      },
+      {
+        "component": "precompute_all_tools",
+        "event": "start",
+        "timestamp": 1765239094.5498662,
+        "datetime": "2025-12-08T18:11:34.549866"
+      },
+      {
+        "component": "tool_costs",
+        "event": "start",
+        "timestamp": 1765239094.5528557,
+        "datetime": "2025-12-08T18:11:34.552856"
+      },
+      {
+        "component": "tool_revenue",
+        "event": "start",
+        "timestamp": 1765239094.5528557,
+        "datetime": "2025-12-08T18:11:34.552856"
+      },
+      {
+        "component": "tool_viability",
+        "event": "start",
+        "timestamp": 1765239094.5538847,
+        "datetime": "2025-12-08T18:11:34.553885"
+      },
+      {
+        "component": "tool_persona",
+        "event": "start",
+        "timestamp": 1765239094.5538847,
+        "datetime": "2025-12-08T18:11:34.553885"
+      },
+      {
+        "component": "precompute_all_tools",
+        "event": "first_tool_complete",
+        "timestamp": 1765239094.555699,
+        "datetime": "2025-12-08T18:11:34.555699",
+        "duration": 0.0018143653869628906,
+        "details": {
+          "tool": "viability"
+        }
+      },
+      {
+        "component": "tool_viability",
+        "event": "end",
+        "timestamp": 1765239094.555699,
+        "datetime": "2025-12-08T18:11:34.555699",
+        "duration": 0.0018143653869628906,
+        "details": {
+          "cache_used": false,
+          "result_length": 1792
+        }
+      },
+      {
+        "component": "tool_revenue",
+        "event": "end",
+        "timestamp": 1765239094.5562108,
+        "datetime": "2025-12-08T18:11:34.556211",
+        "duration": 0.0033550262451171875,
+        "details": {
+          "cache_used": false,
+          "result_length": 1905
+        }
+      },
+      {
+        "component": "tool_costs",
+        "event": "end",
+        "timestamp": 1765239094.5565934,
+        "datetime": "2025-12-08T18:11:34.556593",
+        "duration": 0.0037376880645751953,
+        "details": {
+          "cache_used": false,
+          "result_length": 1430
+        }
+      },
+      {
+        "component": "tool_persona",
+        "event": "end",
+        "timestamp": 1765239094.5565934,
+        "datetime": "2025-12-08T18:11:34.556593",
+        "duration": 0.0027086734771728516,
+        "details": {
+          "cache_used": false,
+          "result_length": 3690
+        }
+      },
+      {
+        "component": "precompute_all_tools",
+        "event": "end",
+        "timestamp": 1765239094.5565934,
+        "datetime": "2025-12-08T18:11:34.556593",
+        "duration": 0.0067272186279296875,
+        "details": {
+          "tools_completed": 9,
+          "total_tools": 4,
+          "first_tool": "viability"
+        }
+      },
+      {
+        "component": "run_idea_research",
+        "event": "start",
+        "timestamp": 1765239094.5577586,
+        "datetime": "2025-12-08T18:11:34.557759"
+      },
+      {
+        "component": "run_idea_research",
+        "event": "llm_call_start",
+        "timestamp": 1765239095.3585396,
+        "datetime": "2025-12-08T18:11:35.358540"
+      },
+      {
+        "component": "run_idea_research",
+        "event": "llm_call_end",
+        "timestamp": 1765239115.9751456,
+        "datetime": "2025-12-08T18:11:55.975146",
+        "duration": 20.61660599708557,
+        "openai_duration": 20.61660599708557
+      },
+      {
+        "component": "run_idea_research",
+        "event": "end",
+        "timestamp": 1765239115.9751456,
+        "datetime": "2025-12-08T18:11:55.975146",
+        "duration": 21.417387008666992
+      },
+      {
+        "component": "run_unified_discovery_non_streaming",
+        "event": "stage2_end",
+        "timestamp": 1765239115.9751456,
+        "datetime": "2025-12-08T18:11:55.975146",
+        "duration": 21.498615980148315
+      },
+      {
+        "component": "run_unified_discovery_non_streaming",
+        "event": "pipeline_end",
+        "timestamp": 1765239115.9751456,
+        "datetime": "2025-12-08T18:11:55.975146",
+        "duration": 37.97210144996643,
+        "details": {
+          "stage1_duration": 16.473485469818115,
+          "stage2_duration": 21.498615980148315,
+          "tool_precompute": 0.0067272186279296875,
+          "llm_generation": 21.498615980148315,
+          "overhead": 0.0
+        }
+      }
+    ],
+    "summary": {
+      "total_events": 25,
+      "components": {
+        "run_unified_discovery_non_streaming": {
+          "event_count": 6,
+          "events": [
+            "pipeline_start",
+            "stage1_start",
+            "stage1_end",
+            "stage2_start",
+            "stage2_end",
+            "pipeline_end"
+          ]
+        },
+        "run_profile_analysis": {
+          "event_count": 4,
+          "events": [
+            "start",
+            "llm_call_start",
+            "llm_call_end",
+            "end"
+          ]
+        },
+        "precompute_all_tools": {
+          "event_count": 3,
+          "events": [
+            "start",
+            "first_tool_complete",
+            "end"
+          ]
+        },
+        "tool_costs": {
+          "event_count": 2,
+          "events": [
+            "start",
+            "end"
+          ]
+        },
+        "tool_revenue": {
+          "event_count": 2,
+          "events": [
+            "start",
+            "end"
+          ]
+        },
+        "tool_viability": {
+          "event_count": 2,
+          "events": [
+            "start",
+            "end"
+          ]
+        },
+        "tool_persona": {
+          "event_count": 2,
+          "events": [
+            "start",
+            "end"
+          ]
+        },
+        "run_idea_research": {
+          "event_count": 4,
+          "events": [
+            "start",
+            "llm_call_start",
+            "llm_call_end",
+            "end"
+          ]
+        }
+      },
+      "durations": [
+        {
+          "component": "run_profile_analysis",
+          "event": "llm_call_end",
+          "duration": 15.845709085464478
+        },
+        {
+          "component": "run_profile_analysis",
+          "event": "end",
+          "duration": 16.473485469818115
+        },
+        {
+          "component": "run_unified_discovery_non_streaming",
+          "event": "stage1_end",
+          "duration": 16.473485469818115
+        },
+        {
+          "component": "precompute_all_tools",
+          "event": "first_tool_complete",
+          "duration": 0.0018143653869628906
+        },
+        {
+          "component": "tool_viability",
+          "event": "end",
+          "duration": 0.0018143653869628906
+        },
+        {
+          "component": "tool_revenue",
+          "event": "end",
+          "duration": 0.0033550262451171875
+        },
+        {
+          "component": "tool_costs",
+          "event": "end",
+          "duration": 0.0037376880645751953
+        },
+        {
+          "component": "tool_persona",
+          "event": "end",
+          "duration": 0.0027086734771728516
+        },
+        {
+          "component": "precompute_all_tools",
+          "event": "end",
+          "duration": 0.0067272186279296875
+        },
+        {
+          "component": "run_idea_research",
+          "event": "llm_call_end",
+          "duration": 20.61660599708557
+        },
+        {
+          "component": "run_idea_research",
+          "event": "end",
+          "duration": 21.417387008666992
+        },
+        {
+          "component": "run_unified_discovery_non_streaming",
+          "event": "stage2_end",
+          "duration": 21.498615980148315
+        },
+        {
+          "component": "run_unified_discovery_non_streaming",
+          "event": "pipeline_end",
+          "duration": 37.97210144996643
+        }
+      ],
+      "openai_calls": [
+        {
+          "component": "run_profile_analysis",
+          "duration": 15.845709085464478,
+          "tokens": null
+        },
+        {
+          "component": "run_idea_research",
+          "duration": 20.61660599708557,
+          "tokens": null
+        }
+      ],
+      "total_duration": 150.31754779815674,
+      "total_openai_duration": 36.46231508255005,
+      "tool_overhead": 113.85523271560669
+    }
+  },
+  {
+    "session_id": "1765239966_MainThread",
+    "timestamp": "2025-12-08T18:26:06.885522",
+    "events": [
+      {
+        "component": "run_unified_discovery_non_streaming",
+        "event": "pipeline_start",
+        "timestamp": 1765239945.2884672,
+        "datetime": "2025-12-08T18:25:45.288467"
+      },
+      {
+        "component": "run_unified_discovery_non_streaming",
+        "event": "stage1_start",
+        "timestamp": 1765239945.2884672,
+        "datetime": "2025-12-08T18:25:45.288467"
+      },
+      {
+        "component": "run_profile_analysis",
+        "event": "start",
+        "timestamp": 1765239945.2884672,
+        "datetime": "2025-12-08T18:25:45.288467"
+      },
+      {
+        "component": "run_profile_analysis",
+        "event": "llm_call_start",
+        "timestamp": 1765239945.78445,
+        "datetime": "2025-12-08T18:25:45.784450"
+      },
+      {
+        "component": "run_profile_analysis",
+        "event": "llm_call_end",
+        "timestamp": 1765239951.3579154,
+        "datetime": "2025-12-08T18:25:51.357915",
+        "duration": 5.573465347290039,
+        "openai_duration": 5.573465347290039
+      },
+      {
+        "component": "run_profile_analysis",
+        "event": "end",
+        "timestamp": 1765239951.3579154,
+        "datetime": "2025-12-08T18:25:51.357915",
+        "duration": 6.069448232650757
+      },
+      {
+        "component": "run_unified_discovery_non_streaming",
+        "event": "stage1_end",
+        "timestamp": 1765239951.3579154,
+        "datetime": "2025-12-08T18:25:51.357915",
+        "duration": 6.069448232650757
+      },
+      {
+        "component": "run_unified_discovery_non_streaming",
+        "event": "stage2_start",
+        "timestamp": 1765239951.3579154,
+        "datetime": "2025-12-08T18:25:51.357915"
+      },
+      {
+        "component": "run_idea_research",
+        "event": "start",
+        "timestamp": 1765239951.3588865,
+        "datetime": "2025-12-08T18:25:51.358886"
+      },
+      {
+        "component": "run_idea_research",
+        "event": "llm_call_start",
+        "timestamp": 1765239951.9077773,
+        "datetime": "2025-12-08T18:25:51.907777"
+      },
+      {
+        "component": "run_idea_research",
+        "event": "llm_call_end",
+        "timestamp": 1765239966.8818681,
+        "datetime": "2025-12-08T18:26:06.881868",
+        "duration": 14.974090814590454,
+        "openai_duration": 14.974090814590454
+      },
+      {
+        "component": "run_idea_research",
+        "event": "end",
+        "timestamp": 1765239966.8818681,
+        "datetime": "2025-12-08T18:26:06.881868",
+        "duration": 15.522981643676758
+      },
+      {
+        "component": "run_unified_discovery_non_streaming",
+        "event": "stage2_end",
+        "timestamp": 1765239966.8818681,
+        "datetime": "2025-12-08T18:26:06.881868",
+        "duration": 15.523952722549438
+      },
+      {
+        "component": "run_unified_discovery_non_streaming",
+        "event": "pipeline_end",
+        "timestamp": 1765239966.8818681,
+        "datetime": "2025-12-08T18:26:06.881868",
+        "duration": 21.593400955200195,
+        "details": {
+          "stage1_duration": 6.069448232650757,
+          "stage2_duration": 15.523952722549438,
+          "tool_precompute": 0.0,
+          "llm_generation": 15.523952722549438,
+          "overhead": 0.0
+        }
+      }
+    ],
+    "summary": {
+      "total_events": 14,
+      "components": {
+        "run_unified_discovery_non_streaming": {
+          "event_count": 6,
+          "events": [
+            "pipeline_start",
+            "stage1_start",
+            "stage1_end",
+            "stage2_start",
+            "stage2_end",
+            "pipeline_end"
+          ]
+        },
+        "run_profile_analysis": {
+          "event_count": 4,
+          "events": [
+            "start",
+            "llm_call_start",
+            "llm_call_end",
+            "end"
+          ]
+        },
+        "run_idea_research": {
+          "event_count": 4,
+          "events": [
+            "start",
+            "llm_call_start",
+            "llm_call_end",
+            "end"
+          ]
+        }
+      },
+      "durations": [
+        {
+          "component": "run_profile_analysis",
+          "event": "llm_call_end",
+          "duration": 5.573465347290039
+        },
+        {
+          "component": "run_profile_analysis",
+          "event": "end",
+          "duration": 6.069448232650757
+        },
+        {
+          "component": "run_unified_discovery_non_streaming",
+          "event": "stage1_end",
+          "duration": 6.069448232650757
+        },
+        {
+          "component": "run_idea_research",
+          "event": "llm_call_end",
+          "duration": 14.974090814590454
+        },
+        {
+          "component": "run_idea_research",
+          "event": "end",
+          "duration": 15.522981643676758
+        },
+        {
+          "component": "run_unified_discovery_non_streaming",
+          "event": "stage2_end",
+          "duration": 15.523952722549438
+        },
+        {
+          "component": "run_unified_discovery_non_streaming",
+          "event": "pipeline_end",
+          "duration": 21.593400955200195
+        }
+      ],
+      "openai_calls": [
+        {
+          "component": "run_profile_analysis",
+          "duration": 5.573465347290039,
+          "tokens": null
+        },
+        {
+          "component": "run_idea_research",
+          "duration": 14.974090814590454,
+          "tokens": null
+        }
+      ],
+      "total_duration": 85.3267879486084,
+      "total_openai_duration": 20.547556161880493,
+      "tool_overhead": 64.7792317867279
+    }
+  }
+]

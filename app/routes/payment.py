@@ -11,6 +11,7 @@ from app.models.database import (
 )
 from app.utils import get_current_session, require_auth
 from app.utils.json_helpers import safe_json_loads, safe_json_dumps
+from app.utils.validators import validate_text_field
 from app.utils.response_helpers import (
     success_response, error_response, not_found_response,
     unauthorized_response, internal_error_response
@@ -31,7 +32,29 @@ from app.services.email_templates import (
 
 bp = Blueprint("payment", __name__)
 
-# Note: Rate limits will be applied after blueprint registration in api.py
+# Import limiter lazily to avoid circular imports
+_limiter = None
+
+def get_limiter():
+    """Get limiter instance lazily to avoid circular imports."""
+    global _limiter
+    if _limiter is None:
+        try:
+            from api import limiter
+            _limiter = limiter
+        except (ImportError, AttributeError, RuntimeError):
+            _limiter = None
+    return _limiter
+
+
+def apply_rate_limit(limit_string):
+    """Helper to apply rate limit decorator if limiter is available."""
+    def decorator(func):
+        limiter = get_limiter()
+        if limiter:
+            return limiter.limit(limit_string)(func)
+        return func
+    return decorator
 
 def is_development_mode() -> bool:
     """Check if we're in development mode."""
@@ -46,6 +69,7 @@ def is_development_mode() -> bool:
 
 @bp.get("/api/subscription/status")
 @require_auth
+@apply_rate_limit("30 per hour")
 def get_subscription_status() -> Any:
     """Get current subscription status."""
     try:
@@ -110,6 +134,7 @@ def get_subscription_status() -> Any:
 
 @bp.post("/api/subscription/cancel")
 @require_auth
+@apply_rate_limit("5 per hour")
 def cancel_subscription() -> Any:
     """Cancel user subscription (keeps access until expiration)."""
     session = get_current_session()
@@ -140,8 +165,40 @@ def cancel_subscription() -> Any:
     cancellation_category = data.get("cancellation_category", "").strip()
     additional_comments = data.get("additional_comments", "").strip()
     
-    if not cancellation_reason:
-        return error_response("Cancellation reason is required", 400)
+    # Validate cancellation_reason (required, max 500 chars)
+    is_valid, error_msg = validate_text_field(
+        cancellation_reason,
+        "Cancellation reason",
+        required=True,
+        max_length=500,
+        allow_html=False
+    )
+    if not is_valid:
+        return error_response(error_msg, 400)
+    
+    # Validate cancellation_category (optional, max 100 chars)
+    if cancellation_category:
+        is_valid, error_msg = validate_text_field(
+            cancellation_category,
+            "Cancellation category",
+            required=False,
+            max_length=100,
+            allow_html=False
+        )
+        if not is_valid:
+            return error_response(error_msg, 400)
+    
+    # Validate additional_comments (optional, max 1000 chars)
+    if additional_comments:
+        is_valid, error_msg = validate_text_field(
+            additional_comments,
+            "Additional comments",
+            required=False,
+            max_length=1000,
+            allow_html=False
+        )
+        if not is_valid:
+            return error_response(error_msg, 400)
     
     try:
         # Mark as cancelled but keep access until expiration
@@ -235,6 +292,7 @@ Resubscribe: https://ideabunch.com/pricing
 
 @bp.post("/api/subscription/change-plan")
 @require_auth
+@apply_rate_limit("5 per hour")
 def change_subscription_plan() -> Any:
     """Change subscription plan (upgrade or downgrade)."""
     session = get_current_session()
@@ -243,6 +301,17 @@ def change_subscription_plan() -> Any:
     
     data: Dict[str, Any] = request.get_json(force=True, silent=True) or {}
     new_subscription_type = data.get("subscription_type", "").strip()
+    
+    # Validate subscription_type format first
+    is_valid, error_msg = validate_text_field(
+        new_subscription_type,
+        "Subscription type",
+        required=True,
+        max_length=50,
+        allow_html=False
+    )
+    if not is_valid:
+        return error_response(error_msg, 400)
     
     # Valid subscription types: starter, pro, annual
     valid_types = [SubscriptionTier.STARTER, SubscriptionTier.PRO, SubscriptionTier.ANNUAL]
@@ -428,6 +497,7 @@ def activate_subscription_dev() -> Any:
 
 @bp.post("/api/payment/create-intent")
 @require_auth
+@apply_rate_limit("5 per hour")
 def create_payment_intent() -> Any:
     """Create Stripe payment intent."""
     session = get_current_session()
@@ -436,6 +506,17 @@ def create_payment_intent() -> Any:
     
     data: Dict[str, Any] = request.get_json(force=True, silent=True) or {}
     subscription_type = data.get("subscription_type", "").strip()
+    
+    # Validate subscription_type format and length
+    is_valid, error_msg = validate_text_field(
+        subscription_type,
+        "Subscription type",
+        required=True,
+        max_length=50,
+        allow_html=False
+    )
+    if not is_valid:
+        return error_response(error_msg, 400)
     
     # Valid subscription types: starter, pro, annual
     valid_types = [SubscriptionTier.STARTER, SubscriptionTier.PRO, SubscriptionTier.ANNUAL]
@@ -497,6 +578,7 @@ def create_payment_intent() -> Any:
 
 @bp.post("/api/payment/confirm")
 @require_auth
+@apply_rate_limit("5 per hour")
 def confirm_payment() -> Any:
     """Confirm payment and activate subscription."""
     session = get_current_session()
@@ -507,8 +589,27 @@ def confirm_payment() -> Any:
     payment_intent_id = data.get("payment_intent_id", "").strip()
     subscription_type = data.get("subscription_type", "").strip()
     
-    if not payment_intent_id or not subscription_type:
-        return jsonify({"success": False, "error": "Payment intent ID and subscription type required"}), 400
+    # Validate payment_intent_id
+    is_valid, error_msg = validate_text_field(
+        payment_intent_id,
+        "Payment intent ID",
+        required=True,
+        max_length=255,
+        allow_html=False
+    )
+    if not is_valid:
+        return error_response(error_msg, 400)
+    
+    # Validate subscription_type
+    is_valid, error_msg = validate_text_field(
+        subscription_type,
+        "Subscription type",
+        required=True,
+        max_length=50,
+        allow_html=False
+    )
+    if not is_valid:
+        return error_response(error_msg, 400)
     
     user = session.user
     

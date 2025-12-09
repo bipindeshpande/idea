@@ -123,6 +123,66 @@ def authenticated_client(client, test_user_session):
 
 
 @pytest.fixture
+def test_user_2(app):
+    """Create a second test user for connection tests."""
+    with app.app_context():
+        import uuid
+        unique_email = f"test2_{uuid.uuid4().hex[:8]}@example.com"
+        user = User(
+            email=unique_email,
+            subscription_type="free",
+            payment_status="active",
+        )
+        user.set_password("test-password")
+        db.session.add(user)
+        db.session.commit()
+        db.session.refresh(user)
+        yield user
+        try:
+            user_to_delete = User.query.filter_by(id=user.id).first()
+            if user_to_delete:
+                db.session.delete(user_to_delete)
+                db.session.commit()
+        except Exception:
+            db.session.rollback()
+
+
+@pytest.fixture
+def test_user_session_2(app, test_user_2):
+    """Create a session for the second test user."""
+    with app.app_context():
+        import uuid
+        session_token = f"test2_{uuid.uuid4().hex}_{secrets.token_urlsafe(16)}"
+        expires_at = datetime.utcnow() + timedelta(days=7)
+        session = UserSession(
+            user_id=test_user_2.id,
+            session_token=session_token,
+            ip_address="127.0.0.1",
+            expires_at=expires_at,
+        )
+        db.session.add(session)
+        db.session.commit()
+        db.session.refresh(session)
+        yield session
+        try:
+            session_to_delete = UserSession.query.filter_by(id=session.id).first()
+            if session_to_delete:
+                db.session.delete(session_to_delete)
+                db.session.commit()
+        except Exception:
+            db.session.rollback()
+
+
+@pytest.fixture
+def authenticated_client_2(app, test_user_session_2):
+    """Create an authenticated test client for user 2."""
+    # Create a new client instance to avoid overwriting authenticated_client's auth header
+    client = app.test_client()
+    client.environ_base['HTTP_AUTHORIZATION'] = f'Bearer {test_user_session_2.session_token}'
+    return client
+
+
+@pytest.fixture
 def admin_user(app):
     """Create a test admin user."""
     with app.app_context():
